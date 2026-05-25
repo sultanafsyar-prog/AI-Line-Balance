@@ -7,8 +7,8 @@ const BUILDINGS: Record<string, number> = { C:1, D:6, E:6, F:5, H:5, I:4, G:7 }
 // GET /api/setup?key=setup-ie-lb-2024
 // Jalankan SEKALI untuk isi data awal, lalu HAPUS file ini
 export async function GET(req: NextRequest) {
-  const key = new URL(req.url).searchParams.get('key')
-  if (key !== 'setup-ie-lb-2024')
+  const token = new URL(req.url).searchParams.get('token')
+  if (token !== 'init2024')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
