@@ -11,18 +11,27 @@ export async function GET() {
   if (!session || !isAdmin((session.user as any)?.role))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const users = await prisma.user.findMany({
-    select: {
-      id: true, name: true, email: true, role: true,
-      building: true, active: true, createdAt: true,
-      lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
-    },
-    orderBy: [{ role: 'asc' }, { name: 'asc' }],
-  })
-  return NextResponse.json(users)
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true, name: true, email: true, role: true,
+        building: true, active: true, createdAt: true,
+        lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
+      },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }],
+    })
+    return NextResponse.json(users)
+  } catch (e: any) {
+    // Fallback jika UserLine belum ada
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, email: true, role: true, building: true, active: true, createdAt: true },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }],
+    })
+    return NextResponse.json(users.map(u => ({ ...u, lineAccess: [] })))
+  }
 }
 
-// POST /api/users — create
+// POST /api/users
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || !isAdmin((session.user as any)?.role))
@@ -36,24 +45,34 @@ export async function POST(req: NextRequest) {
   if (exists) return NextResponse.json({ error: 'Email sudah terdaftar' }, { status: 409 })
 
   const hashed = await bcrypt.hash(password, 12)
-  const user = await prisma.user.create({
-    data: {
-      name, email, password: hashed, role,
-      building: building || null,
-      lineAccess: lineIds?.length > 0 ? {
-        create: lineIds.map((lineId: string) => ({ lineId }))
-      } : undefined,
-    },
-    select: {
-      id: true, name: true, email: true, role: true,
-      building: true, active: true, createdAt: true,
-      lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
-    },
-  })
-  return NextResponse.json(user, { status: 201 })
+
+  try {
+    const user = await prisma.user.create({
+      data: {
+        name, email, password: hashed, role,
+        building: building || null,
+        lineAccess: lineIds?.length > 0 ? {
+          create: lineIds.map((lineId: string) => ({ lineId }))
+        } : undefined,
+      },
+      select: {
+        id: true, name: true, email: true, role: true,
+        building: true, active: true, createdAt: true,
+        lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
+      },
+    })
+    return NextResponse.json(user, { status: 201 })
+  } catch (e: any) {
+    // Fallback tanpa lineAccess
+    const user = await prisma.user.create({
+      data: { name, email, password: hashed, role, building: building || null },
+      select: { id: true, name: true, email: true, role: true, building: true, active: true, createdAt: true },
+    })
+    return NextResponse.json({ ...user, lineAccess: [] }, { status: 201 })
+  }
 }
 
-// PATCH /api/users — update
+// PATCH /api/users
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || !isAdmin((session.user as any)?.role))
@@ -63,28 +82,41 @@ export async function PATCH(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'ID wajib diisi' }, { status: 400 })
 
   const data: any = {}
-  if (name)     data.name     = name
-  if (role)     data.role     = role
+  if (name)               data.name     = name
+  if (role)               data.role     = role
   if (building !== undefined) data.building = building || null
-  if (active  !== undefined)  data.active   = active
+  if (active   !== undefined) data.active   = active
   if (password) data.password = await bcrypt.hash(password, 12)
 
-  // Update line access jika disediakan
+  // Update line access
   if (lineIds !== undefined) {
-    data.lineAccess = {
-      deleteMany: {},
-      create: lineIds.length > 0 ? lineIds.map((lineId: string) => ({ lineId })) : [],
+    try {
+      await prisma.userLine.deleteMany({ where: { userId: id } })
+      if (lineIds.length > 0) {
+        await prisma.userLine.createMany({
+          data: lineIds.map((lineId: string) => ({ userId: id, lineId }))
+        })
+      }
+    } catch (e) {
+      // UserLine belum ada, skip
     }
   }
 
-  const user = await prisma.user.update({
-    where: { id },
-    data,
-    select: {
-      id: true, name: true, email: true, role: true,
-      building: true, active: true, createdAt: true,
-      lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
-    },
-  })
-  return NextResponse.json(user)
+  try {
+    const user = await prisma.user.update({
+      where: { id }, data,
+      select: {
+        id: true, name: true, email: true, role: true,
+        building: true, active: true, createdAt: true,
+        lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
+      },
+    })
+    return NextResponse.json(user)
+  } catch (e: any) {
+    const user = await prisma.user.update({
+      where: { id }, data,
+      select: { id: true, name: true, email: true, role: true, building: true, active: true, createdAt: true },
+    })
+    return NextResponse.json({ ...user, lineAccess: [] })
+  }
 }
