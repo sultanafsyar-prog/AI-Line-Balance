@@ -17,9 +17,9 @@ export function getGWT(op: { va: number; nvan: number; nva: number; allowance: n
 
 export function calcSectionMetrics(ops: any[], stdMP: number, takt: number) {
   const rows = ops.map(op => ({ ...op, gwt: getGWT(op) }))
-  const totalGWT = parseFloat(rows.reduce((s, r) => s + r.gwt, 0).toFixed(2))
-  const theorMP  = parseFloat((totalGWT / takt).toFixed(2))
-  const lbr      = stdMP > 0 ? parseFloat((theorMP / stdMP * 100).toFixed(1)) : 0
+  const totalGWT  = parseFloat(rows.reduce((s, r) => s + r.gwt, 0).toFixed(2))
+  const theorMP   = parseFloat((totalGWT / takt).toFixed(2))
+  const lbr       = stdMP > 0 ? parseFloat((theorMP / stdMP * 100).toFixed(1)) : 0
   const bottleneck = rows.reduce((m, r) => r.gwt > m.gwt ? r : m, rows[0] ?? { gwt: 0, name: '-' })
   return { rows, totalGWT, theorMP, lbr, bottleneck }
 }
@@ -30,16 +30,29 @@ export function formatDate(d: Date | string) {
 
 export function today() { return new Date().toISOString().slice(0, 10) }
 
-// Role helpers
-export type UserRole = 'IE_ADMIN' | 'IE_OPERATOR' | 'PRODUCTION_SUPERVISOR' | 'PRODUCTION_OPERATOR' | 'MANAGEMENT' | 'IT_ADMIN'
+// ─── ROLE HELPERS ────────────────────────────────────────────
+export type UserRole = 'IE_ADMIN' | 'IE_OPERATOR' | 'TEAM_LEADER' | 'MANAGEMENT' | 'IT_ADMIN'
 
-export function isIE(role?: string) { return role === 'IE_ADMIN' || role === 'IE_OPERATOR' }
-export function isProduction(role?: string) { return role === 'PRODUCTION_SUPERVISOR' || role === 'PRODUCTION_OPERATOR' }
-export function canInputActual(role?: string) { return isProduction(role) || isIE(role) }
-export function canManageModels(role?: string) { return isIE(role) }
+export function isIE(role?: string)          { return role === 'IE_ADMIN' || role === 'IE_OPERATOR' }
+export function isTeamLeader(role?: string)  { return role === 'TEAM_LEADER' }
+export function isManagement(role?: string)  { return role === 'MANAGEMENT' }
+export function isAdmin(role?: string)       { return role === 'IE_ADMIN' || role === 'IT_ADMIN' }
+export function canInputActual(role?: string){ return role === 'TEAM_LEADER' || isIE(role) }
+export function canManageModels(role?: string){ return isIE(role) }
+export function canViewAll(role?: string)    { return isIE(role) || role === 'IT_ADMIN' }
 
 export const ROLE_LABELS: Record<string, string> = {
-  IE_ADMIN: 'IE Admin', IE_OPERATOR: 'IE Operator',
-  PRODUCTION_SUPERVISOR: 'Supervisor', PRODUCTION_OPERATOR: 'Operator',
-  MANAGEMENT: 'Management', IT_ADMIN: 'IT Admin',
+  IE_ADMIN:    'IE Admin',
+  IE_OPERATOR: 'IE Operator',
+  TEAM_LEADER: 'Team Leader',
+  MANAGEMENT:  'Manager',
+  IT_ADMIN:    'IT Admin',
+}
+
+export const ROLE_COLORS: Record<string, string> = {
+  IE_ADMIN:    'badge-bad',
+  IE_OPERATOR: 'badge-warn',
+  TEAM_LEADER: 'badge-info',
+  MANAGEMENT:  'badge-ok',
+  IT_ADMIN:    'badge-warn',
 }

@@ -1,18 +1,20 @@
-import type { Metadata } from 'next'
-import './globals.css'
-import Providers from './providers'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import Sidebar from '@/components/layout/Sidebar'
 
-export const metadata: Metadata = {
-  title: 'IE Line Balance System',
-  description: 'Sistem Manajemen Lini Produksi Sepatu',
-}
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession(authOptions)
+  if (!session) redirect('/login')
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = session.user as any
+
   return (
-    <html lang="id">
-      <body className="bg-gray-50 text-gray-900 antialiased">
-        <Providers>{children}</Providers>
-      </body>
-    </html>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <Sidebar user={user} />
+      <main className="flex-1 overflow-auto">
+        <div className="p-6 max-w-7xl mx-auto">{children}</div>
+      </main>
+    </div>
   )
 }

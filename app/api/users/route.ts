@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { isAdmin } from '@/lib/utils'
 import bcrypt from 'bcryptjs'
-
-function isAdmin(role?: string) {
-  return role === 'IE_ADMIN' || role === 'IT_ADMIN'
-}
 
 // GET /api/users
 export async function GET() {
@@ -15,7 +12,11 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true, building: true, active: true, createdAt: true },
+    select: {
+      id: true, name: true, email: true, role: true,
+      building: true, active: true, createdAt: true,
+      lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
+    },
     orderBy: [{ role: 'asc' }, { name: 'asc' }],
   })
   return NextResponse.json(users)
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!session || !isAdmin((session.user as any)?.role))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { name, email, password, role, building } = await req.json()
+  const { name, email, password, role, building, lineIds } = await req.json()
   if (!name || !email || !password || !role)
     return NextResponse.json({ error: 'Nama, email, password, dan role wajib diisi' }, { status: 400 })
 
@@ -36,8 +37,18 @@ export async function POST(req: NextRequest) {
 
   const hashed = await bcrypt.hash(password, 12)
   const user = await prisma.user.create({
-    data: { name, email, password: hashed, role, building: building || null },
-    select: { id: true, name: true, email: true, role: true, building: true, active: true, createdAt: true },
+    data: {
+      name, email, password: hashed, role,
+      building: building || null,
+      lineAccess: lineIds?.length > 0 ? {
+        create: lineIds.map((lineId: string) => ({ lineId }))
+      } : undefined,
+    },
+    select: {
+      id: true, name: true, email: true, role: true,
+      building: true, active: true, createdAt: true,
+      lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
+    },
   })
   return NextResponse.json(user, { status: 201 })
 }
@@ -48,7 +59,7 @@ export async function PATCH(req: NextRequest) {
   if (!session || !isAdmin((session.user as any)?.role))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id, name, role, building, active, password } = await req.json()
+  const { id, name, role, building, active, password, lineIds } = await req.json()
   if (!id) return NextResponse.json({ error: 'ID wajib diisi' }, { status: 400 })
 
   const data: any = {}
@@ -58,10 +69,22 @@ export async function PATCH(req: NextRequest) {
   if (active  !== undefined)  data.active   = active
   if (password) data.password = await bcrypt.hash(password, 12)
 
+  // Update line access jika disediakan
+  if (lineIds !== undefined) {
+    data.lineAccess = {
+      deleteMany: {},
+      create: lineIds.length > 0 ? lineIds.map((lineId: string) => ({ lineId })) : [],
+    }
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data,
-    select: { id: true, name: true, email: true, role: true, building: true, active: true, createdAt: true },
+    select: {
+      id: true, name: true, email: true, role: true,
+      building: true, active: true, createdAt: true,
+      lineAccess: { include: { line: { select: { id: true, building: true, lineNo: true } } } },
+    },
   })
   return NextResponse.json(user)
 }
