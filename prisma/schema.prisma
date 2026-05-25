@@ -1,5 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(PRODUCTION_OPERATOR)
+  building  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  actuals   Actual[]
+}
+
+enum Role {
+  IE_ADMIN
+  IE_OPERATOR
+  PRODUCTION_SUPERVISOR
+  PRODUCTION_OPERATOR
+  MANAGEMENT
+  IT_ADMIN
+}
+
+model ShoeModel {
+  id           String           @id @default(cuid())
+  name         String           @unique
+  article      String
+  stage        String           @default("Production CFM")
+  lineType     LineType         @default(MINI)
+  active       Boolean          @default(true)
+  uploadedFrom String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  sections     Section[]
+  assignments  LineAssignment[]
+}
+
+enum LineType {
+  MINI
+  BIG
+}
+
+model Section {
+  id         String      @id @default(cuid())
+  modelId    String
+  name       String
+  stdMP      Float
+  taktTime   Float
+  model      ShoeModel   @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  operations Operation[]
+  actuals    Actual[]
+
+  @@unique([modelId, name])
+}
+
+model Operation {
+  id        String  @id @default(cuid())
+  sectionId String
+  seq       Int
+  name      String
+  va        Float   @default(0)
+  nvan      Float   @default(0)
+  nva       Float   @default(0)
+  mcCT      Float   @default(0)
+  allowance Float   @default(0.15)
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId, seq])
+}
+
+model Line {
+  id          String           @id @default(cuid())
+  building    String
+  lineNo      Int
+  lineType    LineType         @default(MINI)
+  active      Boolean          @default(true)
+  assignments LineAssignment[]
+  actuals     Actual[]
+  alerts      Alert[]
+
+  @@unique([building, lineNo])
+  @@index([building])
+}
+
+model LineAssignment {
+  id         String    @id @default(cuid())
+  lineId     String
+  modelId    String
+  assignedAt DateTime  @default(now())
+  assignedBy String
+  active     Boolean   @default(true)
+  line       Line      @relation(fields: [lineId], references: [id])
+  model      ShoeModel @relation(fields: [modelId], references: [id])
+
+  @@index([lineId, active])
+}
+
+model Actual {
+  id        String   @id @default(cuid())
+  lineId    String
+  sectionId String
+  date      String
+  hour      Int
+  output    Int
+  mpActual  Int
+  downtime  Int      @default(0)
+  dtReason  String?
+  defect    Int      @default(0)
+  inputBy   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  line      Line     @relation(fields: [lineId], references: [id])
+  section   Section  @relation(fields: [sectionId], references: [id])
+  user      User     @relation(fields: [inputBy], references: [id])
+
+  @@unique([lineId, sectionId, date, hour])
+  @@index([lineId, date])
+}
+
+model Alert {
+  id          String    @id @default(cuid())
+  lineId      String
+  type        AlertType
+  message     String
+  triggeredAt DateTime  @default(now())
+  resolvedAt  DateTime?
+  resolved    Boolean   @default(false)
+  line        Line      @relation(fields: [lineId], references: [id])
+
+  @@index([lineId, resolved])
+}
+
+enum AlertType {
+  OUTPUT_LOW
+  BOTTLENECK
+  DOWNTIME_HIGH
+  DEFECT_HIGH
 }
