@@ -5,7 +5,8 @@ import { BUILDINGS, LINE_TYPES } from '@/lib/utils'
 type Line = { id: string; building: string; lineNo: number; model: { name: string; lineType: string } | null; sections: { id: string; name: string; stdMP: number; taktTime: number }[] }
 
 const DT_REASONS = ['Mesin rusak', 'Material kurang', 'Style change', 'QC hold', 'Operator kurang', 'Lainnya']
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 7)
+const SHIFT_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+const OT_HOURS    = [17, 18, 19]
 
 export default function InputPage() {
   const [lines, setLines]   = useState<Line[]>([])
@@ -193,7 +194,7 @@ export default function InputPage() {
             <div>
               <label className="label">Jam ke-</label>
               <select className="input" value={form.hour} onChange={e => setForm(f => ({ ...f, hour: e.target.value }))}>
-                {HOURS.map(h => <option key={h} value={h}>{h}:00 – {h+1}:00</option>)}
+                {[...SHIFT_HOURS, ...OT_HOURS].map(h => <option key={h} value={h}>{h}:00 – {h+1}:00</option>)}
               </select>
             </div>
             <div>

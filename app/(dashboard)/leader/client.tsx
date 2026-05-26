@@ -4,9 +4,37 @@ import { signOut } from 'next-auth/react'
 import { LINE_TYPES } from '@/lib/utils'
 
 const DT_REASONS = ['Mesin rusak', 'Material kurang', 'Style change', 'QC hold', 'Operator kurang', 'Lainnya']
-// Shift 07:30-16:30 + overtime
-const SHIFT_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-const OT_HOURS    = [17, 18, 19]
+// Shift 1: 07:30-16:30 | OT s/d 19:30
+const SHIFT1_HOURS    = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+const SHIFT1_OT_HOURS = [17, 18, 19]
+// Shift 2: 20:00-06:00 | OT s/d 09:00
+// Virtual hours: 24=00:00*, 25=01:00*, ..., 29=05:00*, 30=06:00*, 31=07:00*
+const SHIFT2_HOURS    = [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
+const SHIFT2_OT_HOURS = [30, 31, 32]
+
+function displayHour(h: number): string {
+  if (h <= 23) return `${h}:00`
+  return `${String(h - 24).padStart(2,'0')}:00*` // * = hari berikutnya
+}
+
+// Work date untuk shift 2 (melewati tengah malam)
+function getWorkDate(shift: 1 | 2): string {
+  const now = new Date()
+  if (shift === 2 && now.getHours() < 8) {
+    // Jam 00-07: masih bagian shift 2 kemarin
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    return yesterday.toISOString().slice(0, 10)
+  }
+  return now.toISOString().slice(0, 10)
+}
+
+// Auto-detect shift dari jam sekarang
+function detectShift(): 1 | 2 {
+  const h = new Date().getHours()
+  if (h >= 20 || h < 8) return 2  // 20:00-07:59 = shift 2
+  return 1
+}
 const SECTIONS = ['Cutting', 'Treatment', 'Preparation', 'PC Sewing', 'Sewing', 'Assembly', 'Packing']
 const SF_SECTIONS = ['Stockfit']
 
@@ -14,8 +42,11 @@ interface Props { lines: any[]; userId: string; userName: string }
 
 export default function LeaderClient({ lines, userId, userName }: Props) {
   const [selLineId, setSelLineId] = useState(lines[0]?.id ?? '')
-  const [showOT, setShowOT] = useState(false)
-  const activeHours = showOT ? [...SHIFT_HOURS, ...OT_HOURS] : SHIFT_HOURS
+  const [showOT, setShowOT]   = useState(false)
+  const [shift, setShift]     = useState<1|2>(detectShift())
+  const activeHours = shift === 1
+    ? (showOT ? [...SHIFT1_HOURS, ...SHIFT1_OT_HOURS] : SHIFT1_HOURS)
+    : (showOT ? [...SHIFT2_HOURS, ...SHIFT2_OT_HOURS] : SHIFT2_HOURS)
   const [selSec, setSelSec]       = useState('Assembly')
   const [tab, setTab]             = useState<'input' | 'status' | 'std'>('input')
   const [saving, setSaving]       = useState(false)
@@ -68,8 +99,9 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         lineId: selLineId, sectionId: section.id,
-        date: new Date().toISOString().slice(0, 10),
+        date: getWorkDate(shift),
         hour: parseInt(form.hour),
+        shift,
         output: outputNum,
         mpActual: parseInt(form.mpActual),
         downtime: parseInt(form.downtime) || 0,
@@ -300,7 +332,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     { label: 'Jam input', value: `${todayActs.length}`, sub: 'jam', color: '#111827' },
                     { label: 'LLER terakhir', value: `${ller}%`, sub: '', color: llerColor },
                   ].map(m => (
-                    <div key={m.label} style={{ background: '#fff', borderRadius: 16, padding: '14px 10px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                    <div key={m.label} style={{ background: '#fff', borderRadius: 16, padding: '12px 8px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                       <div style={{ fontSize: 24, fontWeight: 800, color: m.color }}>{m.value}</div>
                       <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{m.label}</div>
                     </div>
@@ -406,7 +438,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                   fontSize: 18, fontWeight: 800, letterSpacing: '0.02em',
                   boxShadow: saving ? 'none' : '0 4px 12px rgba(29,158,117,0.4)',
                 }}>
-                {saving ? 'Menyimpan...' : `✓ Simpan jam ${form.hour}:00`}
+                {saving ? 'Menyimpan...' : `✓ Simpan ${displayHour(parseInt(form.hour))} Shift ${shift}`}
               </button>
             </div>
           ) : (

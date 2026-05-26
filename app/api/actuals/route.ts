@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { lineId, sectionId, date, hour, output, mpActual, downtime, dtReason, defect } = body
+  const { lineId, sectionId, date, hour, output, mpActual, downtime, dtReason, defect, modelId } = body
 
   if (!lineId || !sectionId || !date || hour === undefined || output === undefined || mpActual === undefined)
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
