@@ -177,6 +177,223 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     return draft
   }
 
+  // ── PARSER FORMAT IE DATA (Time Study format) ─────────────
+  // Format: Cutt In Line, Prep, PC Sewing trial X, Stit, Assembly, Stockfit, Treatment
+  function parseIEData(ab: ArrayBuffer): ModelDraft {
+    const wb = XLSX.read(ab, { type: 'array' })
+    const draft = emptyDraft()
+
+    // Mapping sheet name → section
+    const sheetSecMap: Record<string, string> = {
+      'cutt in line': 'Cutting',
+      'cutting in line': 'Cutting',
+      'treatment': 'Treatment',
+      'prep': 'Preparation',
+      'preparation': 'Preparation',
+      'pc sewing trial 1': 'PC Sewing',
+      'pc sewing': 'PC Sewing',
+      'stit': 'Sewing',
+      'stitching': 'Sewing',
+      'sewing': 'Sewing',
+      'assembly': 'Assembly',
+      'stockfit': 'Stockfit',
+      'stockfitting': 'Stockfit',
+    }
+
+    // Cari model name dari sheet manapun, baris "Style:"
+    let modelName = ''
+    let mainTakt = 36
+
+    for (const sn of wb.SheetNames) {
+      const ws = wb.Sheets[sn]
+      const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+      for (const row of data.slice(0, 10)) {
+        const r0 = String(row[0] ?? '').trim().toLowerCase()
+        const r1 = String(row[1] ?? '').trim().toLowerCase()
+        // Cari "Style:" di kolom mana saja
+        for (let c = 0; c < Math.min(row.length, 6); c++) {
+          if (String(row[c] ?? '').toLowerCase().includes('style')) {
+            // Cari nilai di kolom berikutnya
+            for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
+              const v = String(row[nc] ?? '').trim()
+              if (v && v.length > 2 && !v.toLowerCase().includes('date') && !v.toLowerCase().includes('line')) {
+                if (!modelName) modelName = v.split(',')[0].trim()
+              }
+            }
+          }
+          if (String(row[c] ?? '').toLowerCase().includes('takt')) {
+            for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
+              const v = parseFloat(row[nc])
+              if (!isNaN(v) && v >= 5 && v <= 300) mainTakt = v
+            }
+          }
+        }
+      }
+      if (modelName) break
+    }
+
+    if (!modelName) throw new Error('Model/Style tidak ditemukan di file IE Data.')
+    draft.name = modelName
+    draft.article = modelName
+    draft.lineType = mainTakt <= 22 ? 'BIG' : 'MINI'
+
+    // Process setiap sheet
+    const processedSecs = new Set<string>()
+
+    for (const sn of wb.SheetNames) {
+      const nameLower = sn.toLowerCase().trim()
+
+      // Cari matching section (skip "summary" sheets dan (2) sheets jika sudah ada)
+      if (nameLower.includes('summary')) continue
+      if (nameLower.includes('(2)') || nameLower.includes('trial 2')) continue
+
+      const secName = sheetSecMap[nameLower] ??
+        Object.entries(sheetSecMap).find(([k]) => nameLower.startsWith(k))?.[1] ??
+        Object.entries(sheetSecMap).find(([k]) => nameLower.includes(k))?.[1]
+
+      if (!secName || processedSecs.has(secName)) continue
+
+      const ws = wb.Sheets[sn]
+      const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+      // Cari header row: row dengan "NO" di col[0]
+      let headerRowIdx = -1
+      let taktLocal = mainTakt
+      let stdMP = 0
+
+      for (let i = 0; i < Math.min(data.length, 15); i++) {
+        const r = data[i]
+        // Cari takt time
+        for (let c = 0; c < r.length - 1; c++) {
+          if (String(r[c] ?? '').toLowerCase().includes('takt')) {
+            for (let nc = c + 1; nc < Math.min(c + 4, r.length); nc++) {
+              const v = parseFloat(r[nc])
+              if (!isNaN(v) && v >= 5 && v <= 300) taktLocal = v
+            }
+          }
+        }
+        // Cari header row
+        const c0 = String(r[0] ?? '').trim().toUpperCase()
+        if (c0 === 'NO' || c0 === 'NO.') { headerRowIdx = i; break }
+      }
+
+      if (headerRowIdx === -1) continue
+
+      // Baca header untuk mapping kolom
+      const headerRow = data[headerRowIdx]
+      let colGWT = -1, colOpName = -1, colStdMP = -1, colRawCT = -1, colAl = -1
+
+      headerRow.forEach((h: any, idx: number) => {
+        const hStr = String(h ?? '').toLowerCase().trim()
+        if (hStr === 'gwt' && colGWT === -1) colGWT = idx
+        if ((hStr.includes('standard mp') || hStr.includes('std mp') || hStr === 'standard m/p') && colStdMP === -1) colStdMP = idx
+        if ((hStr.includes('sec/pair') || hStr === 'sec/pairs (o' || hStr.includes('sec/pairs')) && colRawCT === -1) colRawCT = idx
+        if ((hStr.includes('% allow') || hStr === 'allowance') && colAl === -1) colAl = idx
+        // Op name: biasanya kolom ke-3 dengan header "Process" atau "Component"
+        if ((hStr.includes('process') || hStr.includes('component') || hStr.includes('operation')) && idx >= 1 && colOpName === -1) {
+          // Check next column with same/similar header for the actual name column
+          colOpName = idx + 1 // op name usually in next column
+        }
+      })
+
+      // Fallback: op name biasanya col[2] untuk semua format
+      if (colOpName === -1 || colOpName < 1) colOpName = 2
+      if (colGWT === -1) colGWT = 6 // default fallback
+
+      const ops: any[] = []
+      let firstStdMPFound = false
+
+      // Parse dari baris setelah header
+      for (let i = headerRowIdx + 1; i < data.length; i++) {
+        const r = data[i]
+
+        // Stop jika baris total/summary
+        const c0str = String(r[0] ?? '').trim()
+        const c1str = String(r[1] ?? '').trim()
+        if (!c0str && !c1str) continue // skip baris kosong
+
+        const opName = String(r[colOpName] ?? '').trim() ||
+                      String(r[colOpName - 1] ?? '').trim() ||
+                      String(r[2] ?? '').trim()
+        if (!opName) continue
+        if (opName.toLowerCase().includes('total') || opName.toLowerCase().includes('sum')) break
+
+        // GWT: coba kolom GWT, fallback ke raw CT × (1+al)
+        let gwt = parseFloat(r[colGWT]) || 0
+        if (gwt === 0) {
+          const rawCT = parseFloat(r[colRawCT >= 0 ? colRawCT : 3]) || 0
+          const al = parseFloat(r[colAl >= 0 ? colAl : 4]) || 0.15
+          gwt = rawCT * (1 + al)
+        }
+        if (gwt <= 0) continue
+
+        // Ambil stdMP dari baris pertama yang punya nilai (setiap group)
+        if (!firstStdMPFound && colStdMP >= 0) {
+          const mp = parseFloat(r[colStdMP])
+          if (!isNaN(mp) && mp >= 0.5 && mp <= 200) {
+            stdMP = mp
+            firstStdMPFound = true
+          }
+        }
+        // Akumulasi stdMP dari semua group
+        if (colStdMP >= 0) {
+          const mp = parseFloat(r[colStdMP])
+          if (!isNaN(mp) && mp >= 0.5 && mp <= 200 && mp > stdMP) stdMP = mp
+        }
+
+        // Allowance
+        const alValue = colAl >= 0 ? parseFloat(r[colAl]) || 0.15 : 0.15
+        const al = alValue > 1 ? alValue : alValue // kalau > 1 berarti sudah dalam nilai (bukan persen)
+
+        // Simpan sebagai VA (IE data tidak pisah VA/NVAN/NVA)
+        ops.push({
+          id: Math.random().toString(36).slice(2),
+          name: opName,
+          va: gwt / (1 + (al > 1 ? al/100 : al)), // raw CT
+          nvan: 0, nva: 0, mcCT: 0,
+          allowance: al > 1 ? al / 100 : al,
+        })
+      }
+
+      if (ops.length > 0) {
+        const secInDraft = draft.sections.find(s => s.name === secName)
+        if (secInDraft) {
+          secInDraft.ops = ops
+          secInDraft.taktTime = taktLocal
+          if (stdMP > 0) secInDraft.stdMP = stdMP
+        }
+        processedSecs.add(secName)
+      }
+    }
+
+    if (draft.sections.filter(s => s.ops.length > 0).length === 0)
+      throw new Error('Tidak ada operasi yang terbaca dari file IE Data.')
+
+    return draft
+  }
+
+  // Deteksi format file: NB Standard atau IE Data
+  function detectAndParse(ab: ArrayBuffer): ModelDraft {
+    const wb = XLSX.read(ab, { type: 'array' })
+    const sheetNames = wb.SheetNames.map(s => s.toLowerCase())
+
+    // NB Standard: ada sheet "LINE BALANCING RESUME" dan "LB " prefix
+    if (sheetNames.some(s => s.includes('line balancing resume')) &&
+        sheetNames.some(s => s.startsWith('lb '))) {
+      return parseNBStandard(ab)
+    }
+
+    // IE Data: ada sheet seperti "Assembly", "Stockfit", "Prep", "Stit"
+    if (sheetNames.some(s => s === 'assembly' || s === 'stockfit' || s === 'stit' || s === 'prep')) {
+      return parseIEData(ab)
+    }
+
+    // Default: coba NB Standard
+    try { return parseNBStandard(ab) } catch {
+      return parseIEData(ab)
+    }
+  }
+
 // ─── EDITABLE OP ROW ─────────────────────────────────────────
 function OpRow({ op, onChange, onDelete }: { op: Op; onChange: (op: Op) => void; onDelete: () => void }) {
   const gwt = parseFloat(((op.va + op.nvan + op.nva) * (1 + op.allowance)).toFixed(2))
@@ -379,7 +596,7 @@ export default function ModelsPage() {
     const reader = new FileReader()
     reader.onload = ev => {
       try {
-        const draft = parseNBStandard(ev.target!.result as ArrayBuffer)
+        const draft = detectAndParse(ev.target!.result as ArrayBuffer)
         const filledSecs = draft.sections.filter(s => s.ops.length > 0)
         const totalOps = filledSecs.reduce((sum, s) => sum + s.ops.length, 0)
         setParseMsg(`Berhasil membaca ${filledSecs.length} section, ${totalOps} operasi${!draft.name ? ' — nama model tidak terbaca, isi manual' : ''}`)
