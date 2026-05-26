@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const model = await prisma.shoeModel.update({
       where: { id: existing.id },
       data: {
-        article, stage, lineType, uploadedFrom,
+        article, stage, lineType, uploadedFrom, active: true,
         sections: {
           create: sections.map((s: any) => ({
             name: s.name, stdMP: s.stdMP, taktTime: s.taktTime,
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
   const model = await prisma.shoeModel.create({
     data: {
-      name, article, stage, lineType: lineType ?? 'MINI', uploadedFrom,
+      name, article, stage, lineType: lineType ?? 'MINI', uploadedFrom, active: true,
       sections: {
         create: sections.map((s: any) => ({
           name: s.name, stdMP: s.stdMP, taktTime: s.taktTime,

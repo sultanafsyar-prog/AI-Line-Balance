@@ -30,6 +30,24 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       return ''
     }
 
+    // Deteksi takt time dari sebuah row — cari nilai antara 5-300 detik
+    function detectTakt(row: any[], fallback: number): number {
+      for (let i = 4; i < 15; i++) {
+        const v = parseFloat(row[i])
+        if (!isNaN(v) && v >= 5 && v <= 300) return v
+      }
+      return fallback
+    }
+
+    // Deteksi stdMP dari sebuah row — cari nilai antara 1-200
+    function detectStdMP(row: any[]): number {
+      for (let i = 3; i < 20; i++) {
+        const v = parseFloat(row[i])
+        if (!isNaN(v) && v >= 1 && v <= 200) return v
+      }
+      return 0
+    }
+
     // ── 1. LINE BALANCING RESUME ──────────────────────────────
     const rws = wb.Sheets['LINE BALANCING RESUME']
     if (!rws) throw new Error('Sheet "LINE BALANCING RESUME" tidak ditemukan')
@@ -37,93 +55,118 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
 
     let mainTakt = 36
     const secMPs: Record<string, number> = {}
+    const secNames = ['Cutting', 'Preparation', 'PC Sewing', 'Sewing', 'Stitching', 'Assembly', 'Stockfitting', 'Stockfit', 'Packing', 'Treatment']
 
     for (const row of rd) {
-      const rowStr = row.slice(0, 8).map((v: any) => String(v ?? '').trim())
+      const rowStr = row.slice(0, 10).map((v: any) => String(v ?? '').trim())
       const fullRow = rowStr.join('|')
-      if (fullRow.includes('TAKT TIME')) mainTakt = parseFloat(firstVal(row, 3, 4, 2)) || 36
-      if (fullRow.includes('ITEM/MODEL') || fullRow.includes('MODEL/ARTICLE')) {
-        const val = firstVal(row, 3, 4, 2, 5)
-        if (val) { draft.name = val; draft.article = 'U-' + val }
+
+      // Takt time
+      if (fullRow.toUpperCase().includes('TAKT')) {
+        const t = detectTakt(row, 36)
+        if (t >= 5) mainTakt = t
       }
-      if (fullRow.includes('STAGE') && !fullRow.includes('SECTION')) {
+
+      // Model name
+      if (fullRow.toUpperCase().includes('ITEM') || fullRow.toUpperCase().includes('MODEL')) {
+        const val = firstVal(row, 3, 4, 2, 5, 6)
+        if (val && !isNaN(parseFloat(val)) || (val && val.length > 0)) {
+          draft.name = val; draft.article = 'U-' + val
+        }
+      }
+
+      // Stage
+      if (fullRow.toUpperCase().includes('STAGE') && !fullRow.toUpperCase().includes('SECTION')) {
         const val = firstVal(row, 3, 4, 2)
-        if (val && val.length > 2) draft.stage = val
+        if (val && val.length > 2 && isNaN(parseFloat(val))) draft.stage = val
       }
-      const c1 = rowStr[1] ?? ''
-      const mp = parseFloat(row[5]) || parseFloat(row[4])
-      if (!isNaN(mp) && mp > 0 && c1 && !c1.startsWith('TOTAL') && c1 !== 'SECTION' && c1 !== '') {
-        secMPs[c1] = mp
+
+      // Section stdMP — cari baris yang ada nama section
+      const matchedSec = secNames.find(sn =>
+        rowStr.some(v => v.toLowerCase() === sn.toLowerCase())
+      )
+      if (matchedSec) {
+        // Cari IE Standard Labor — biasanya kolom ke-4 atau ke-5 setelah nama section
+        const mp = detectStdMP(row)
+        if (mp > 0) {
+          // Normalize nama
+          const normalName = matchedSec === 'Stitching' ? 'Sewing'
+            : matchedSec === 'Stockfitting' ? 'Stockfit'
+            : matchedSec
+          secMPs[normalName] = mp
+        }
       }
     }
 
-    // Fallback: model name dari LB sheet
+    // Fallback model name dari LB sheet
     if (!draft.name) {
       for (const sn of wb.SheetNames) {
         if (!sn.toLowerCase().startsWith('lb ')) continue
         const ws = wb.Sheets[sn]
         const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
         const r4 = data[3] ?? []
-        const modelNo = String(r4[2] ?? '').trim()
-        const artPfx  = String(r4[4] ?? '').trim()
-        if (modelNo && !isNaN(parseInt(modelNo))) {
-          draft.name    = (artPfx || '') + modelNo
-          draft.article = (artPfx || 'U') + '-' + modelNo
-          break
+        // Cari nilai angka yang bisa jadi model number
+        for (let i = 2; i < 6; i++) {
+          const v = String(r4[i] ?? '').trim()
+          if (v && !isNaN(parseInt(v)) && parseInt(v) > 100) {
+            draft.name = v; draft.article = 'U-' + v; break
+          }
         }
+        if (draft.name) break
       }
     }
 
     if (!draft.name) throw new Error('Model/Article tidak ditemukan. Pastikan file adalah NB Standard.')
     draft.lineType = mainTakt <= 22 ? 'BIG' : 'MINI'
 
-    // ── 2. Mapping sheet → section (nama persis, case-insensitive) ──
-    const sheetCfg: Record<string, { sec: string; mpKey: string }> = {
-      'lb cutting in line': { sec: 'Cutting',     mpKey: 'Cutting'      },
-      'lb prep':            { sec: 'Preparation', mpKey: 'Preparation'  },
-      'lb pc sewing':       { sec: 'PC Sewing',   mpKey: 'PC Sewing'    },
-      'lb sewing':          { sec: 'Sewing',      mpKey: 'Stitching'    },
-      'lb  assembly':       { sec: 'Assembly',    mpKey: 'Assembly'     },
-      'lb stockfit':        { sec: 'Stockfit',    mpKey: 'Stockfitting' },
+    // ── 2. Mapping sheet → section ───────────────────────────
+    const sheetCfg: Record<string, { sec: string }> = {
+      'lb cutting in line': { sec: 'Cutting' },
+      'lb prep':            { sec: 'Preparation' },
+      'lb pc sewing':       { sec: 'PC Sewing' },
+      'lb sewing':          { sec: 'Sewing' },
+      'lb  assembly':       { sec: 'Assembly' },
+      'lb stockfit':        { sec: 'Stockfit' },
     }
 
-    // ── 3. Proses HANYA sheet yang mulai "LB " ───────────────
+    // ── 3. Proses HANYA sheet LB ─────────────────────────────
     for (const sheetName of wb.SheetNames) {
       const nameLower = sheetName.toLowerCase().trim()
-
-      // Skip TS sheets, LB format manual, dan bukan LB
       if (!nameLower.startsWith('lb ')) continue
       const cfgEntry = Object.entries(sheetCfg).find(([k]) => nameLower === k)
-      if (!cfgEntry) continue  // skip LB format manual dll
+      if (!cfgEntry) continue
       const [, cfg] = cfgEntry
 
       const ws = wb.Sheets[sheetName]
       const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
       const r4 = data[3] ?? []
-      const sheetTakt = parseFloat(r4[8]) || mainTakt
 
-      // Apply ke section di draft
+      // Smart detect takt time dari row 4
+      const rawTakt = detectTakt(r4, mainTakt)
+      // Validasi: takt time harus masuk akal (5-300 detik), bukan allowance (0.15)
+      const sheetTakt = rawTakt >= 5 ? rawTakt : mainTakt
+
+      // Stockfit punya takt berbeda — jika terdeteksi < 20, kemungkinan benar
+      const finalTakt = cfg.sec === 'Stockfit' && sheetTakt < 30 ? sheetTakt : 
+                        cfg.sec !== 'Stockfit' ? mainTakt : sheetTakt
+
       const secInDraft = draft.sections.find(s => s.name === cfg.sec)
       if (secInDraft) {
-        if (!isNaN(sheetTakt) && sheetTakt > 0) secInDraft.taktTime = sheetTakt
-        // stdMP dari RESUME
-        const stdMP = secMPs[cfg.mpKey]
-          ?? secMPs[Object.keys(secMPs).find(k =>
-              k.toLowerCase().includes(cfg.mpKey.toLowerCase().split(' ')[0])) ?? '']
-          ?? 0
-        if (stdMP > 0) secInDraft.stdMP = stdMP
+        secInDraft.taktTime = finalTakt
+        // stdMP dari RESUME, fallback ke detect dari row 4
+        const resumeMP = secMPs[cfg.sec] ?? 0
+        const fallbackMP = detectStdMP(r4)
+        secInDraft.stdMP = resumeMP > 0 ? resumeMP : fallbackMP
       }
 
       const ops: any[] = []
-      // Operasi mulai row 11 (index 10)
       for (let i = 10; i < data.length; i++) {
         const r = data[i]
-        // Nama op: col[2] utama, fallback col[3]
         const opName = String(r[2] ?? '').trim() || String(r[3] ?? '').trim()
         if (!opName) continue
         if (opName.toLowerCase().includes('total') || opName.toLowerCase().includes('subtotal')) break
 
-        // Kolom konsisten semua LB sheet: [8]=VA, [9]=NVAN, [10]=NVA, [11]=M/C CT, [13]=Allowance
+        // Kolom: [8]=VA, [9]=NVAN, [10]=NVA, [11]=M/C CT, [13]=Allowance
         const va   = parseFloat(r[8])  || 0
         const nvan = parseFloat(r[9])  || 0
         const nva  = parseFloat(r[10]) || 0
@@ -134,22 +177,18 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
 
         ops.push({
           id: Math.random().toString(36).slice(2),
-          name: opName,
-          va, nvan, nva, mcCT,
+          name: opName, va, nvan, nva, mcCT,
           allowance: al > 1 ? al / 100 : al,
         })
       }
 
-      // Update ops di section draft
-      if (ops.length > 0 && secInDraft) {
-        secInDraft.ops = ops
-      }
+      if (ops.length > 0 && secInDraft) secInDraft.ops = ops
     }
 
     const filledSecs = draft.sections.filter(s => s.ops.length > 0)
-    if (filledSecs.length === 0) {
+    if (filledSecs.length === 0)
       throw new Error('Tidak ada operasi yang terbaca. Periksa apakah file adalah NB Standard yang benar.')
-    }
+
     return draft
   }
 
