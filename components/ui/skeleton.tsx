@@ -1,80 +1,72 @@
-// Skeleton shimmer animation
-export function Skeleton({ className = '', style = {} }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <div className={`skeleton ${className}`} style={style} />
-  )
+'use client'
+
+const shimmerStyle: React.CSSProperties = {
+  display: 'block',
+  borderRadius: 6,
+  background: 'linear-gradient(to right, #F3F4F6 8%, #E5E7EB 18%, #F3F4F6 33%)',
+  backgroundSize: '800px 104px',
+  animation: 'shimmer 1.2s linear infinite',
 }
 
-// Card skeleton
-export function CardSkeleton({ lines = 3 }: { lines?: number }) {
-  return (
-    <div className="card p-4">
-      <Skeleton className="h-4 w-1/3 mb-3" />
-      {Array.from({ length: lines }).map((_, i) => (
-        <Skeleton key={i} className={`h-3 mb-2 ${i === lines - 1 ? 'w-2/3' : 'w-full'}`} />
-      ))}
-    </div>
-  )
+export function Skeleton({ width = '100%', height = 12, style = {} }: {
+  width?: string | number; height?: string | number; style?: React.CSSProperties
+}) {
+  return <span style={{ ...shimmerStyle, width, height, ...style }} />
 }
 
-// Stat card skeleton
 export function StatSkeleton() {
   return (
     <div className="card p-4">
-      <Skeleton className="h-3 w-20 mb-2" />
-      <Skeleton className="h-8 w-16 mb-1" />
-      <Skeleton className="h-3 w-24" />
+      <Skeleton width="60%" height={10} style={{ marginBottom: 8 }} />
+      <Skeleton width="40%" height={28} style={{ marginBottom: 6 }} />
+      <Skeleton width="70%" height={10} />
     </div>
   )
 }
 
-// Table row skeleton
+export function LineCardSkeleton() {
+  return (
+    <div className="card border border-gray-100 p-3">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Skeleton width={10} height={10} style={{ borderRadius: '50%', flexShrink: 0 }} />
+        <Skeleton width={60} height={14} />
+        <Skeleton width={40} height={12} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginBottom: 8 }}>
+        <Skeleton height={32} />
+        <Skeleton height={32} />
+        <Skeleton height={32} />
+      </div>
+      <Skeleton height={6} style={{ borderRadius: 4 }} />
+    </div>
+  )
+}
+
 export function TableRowSkeleton({ cols = 5 }: { cols?: number }) {
   return (
     <tr>
       {Array.from({ length: cols }).map((_, i) => (
-        <td key={i} className="px-4 py-3">
-          <Skeleton className="h-3" style={{ width: `${60 + Math.random() * 40}%` }} />
+        <td key={i} style={{ padding: '12px 16px' }}>
+          <Skeleton width={`${50 + Math.random() * 40}%`} height={12} />
         </td>
       ))}
     </tr>
   )
 }
 
-// Line card skeleton
-export function LineCardSkeleton() {
-  return (
-    <div className="card border border-gray-100 p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <Skeleton className="w-2.5 h-2.5 rounded-full" />
-        <Skeleton className="h-4 w-16" />
-        <Skeleton className="h-3 w-12" />
-      </div>
-      <div className="grid grid-cols-3 gap-1 mb-2">
-        <Skeleton className="h-8" />
-        <Skeleton className="h-8" />
-        <Skeleton className="h-8" />
-      </div>
-      <Skeleton className="h-1.5 w-full" />
-    </div>
-  )
-}
-
-// Full page loading overlay
 export function PageLoading({ message = 'Memuat data...' }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: 12 }}>
       <div className="loading-spinner" />
-      <p className="text-sm text-gray-400">{message}</p>
+      <p style={{ fontSize: 13, color: '#9CA3AF' }}>{message}</p>
     </div>
   )
 }
 
-// Inline spinner
 export function Spinner({ size = 20, color = '#1D9E75' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="animate-spin">
-      <circle cx="12" cy="12" r="10" stroke={color} strokeOpacity="0.25" strokeWidth="3" />
+      <circle cx="12" cy="12" r="10" stroke={color} strokeOpacity="0.2" strokeWidth="3" />
       <path d="M12 2a10 10 0 0 1 10 10" stroke={color} strokeWidth="3" strokeLinecap="round" />
     </svg>
   )

@@ -1,17 +1,16 @@
-import { StatSkeleton, LineCardSkeleton } from '@/components/ui/skeleton'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import ManagerClient from './client'
 
-export default function Loading() {
-  return (
-    <div className="animate-fade-in">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="skeleton h-8 w-56" />
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
-        {[...Array(6)].map((_, i) => <StatSkeleton key={i} />)}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {[...Array(9)].map((_, i) => <LineCardSkeleton key={i} />)}
-      </div>
-    </div>
-  )
+export default async function ManagerPage() {
+  const session = await getServerSession(authOptions)
+  if (!session) redirect('/login')
+
+  const user = session.user as any
+  if (user.role !== 'MANAGEMENT' && user.role !== 'IE_ADMIN' && user.role !== 'IT_ADMIN') {
+    redirect('/dashboard')
+  }
+
+  return <ManagerClient userBuilding={user.building ?? null} userName={user.name ?? ''} />
 }
