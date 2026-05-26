@@ -150,6 +150,28 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
           {/* ── YAMAZUMI ── */}
           {feat === 'yamazumi' && metrics && (
             <div>
+              {/* MP Gap Analysis */}
+              {sectionActuals.length > 0 && (() => {
+                const gap = parseFloat((avgMP - section.stdMP).toFixed(1))
+                const pct = section.stdMP > 0 ? Math.round(avgMP / section.stdMP * 100) : 0
+                return (
+                  <div className={`mb-4 px-4 py-3 rounded-xl border text-sm flex items-center justify-between flex-wrap gap-3 ${gap >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                    <div>
+                      <span className="font-medium text-gray-700">Analisis MP — </span>
+                      <span className={`font-semibold ${gap >= 0 ? 'text-teal' : 'text-red-600'}`}>
+                        {gap >= 0 ? `+${gap}` : gap} orang vs standar
+                        {gap < -1 && ' ← kemungkinan penyebab output rendah!'}
+                      </span>
+                    </div>
+                    <div className="flex gap-4 text-xs text-gray-500">
+                      <span>Std MP: <strong className="text-gray-700">{section.stdMP}</strong></span>
+                      <span>Aktual avg: <strong className="text-gray-700">{avgMP}</strong></span>
+                      <span>Efisiensi MP: <strong className={pct >= 95 ? 'text-teal' : pct >= 80 ? 'text-amber-600' : 'text-red-600'}>{pct}%</strong></span>
+                    </div>
+                  </div>
+                )
+              })()}
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 {[
                   { l: 'Standard MP', v: section.stdMP + ' orang', c: '' },

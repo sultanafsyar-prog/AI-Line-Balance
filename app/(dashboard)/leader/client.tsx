@@ -28,8 +28,18 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const line    = lines.find(l => l.id === selLineId)
   const model   = line?.assignments?.[0]?.model
   const secs    = line?.building === 'G' ? SF_SECTIONS : SECTIONS
-  const section = model?.sections?.find((s: any) => s.name === selSec)
+
+  // Auto-select section pertama yang punya operasi
+  const availableSecs = secs.filter(s => model?.sections?.some((ms: any) => ms.name === s && ms.operations?.length > 0))
+  const effectiveSec  = availableSecs.includes(selSec) ? selSec : (availableSecs[0] ?? selSec)
+  const section = model?.sections?.find((s: any) => s.name === effectiveSec)
   const tph     = model ? LINE_TYPES[model.lineType as 'MINI' | 'BIG'].tph : 100
+
+  // Auto-update selSec kalau section yang dipilih tidak ada di model ini
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  if (availableSecs.length > 0 && !availableSecs.includes(selSec)) {
+    setTimeout(() => setSelSec(availableSecs[0]), 0)
+  }
   const todayActs = (line?.actuals ?? [])
     .filter((a: any) => a.section?.name === selSec)
     .sort((a: any, b: any) => b.hour - a.hour)
@@ -42,9 +52,12 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const hasDT    = parseInt(form.downtime) > 0
 
   async function handleSave() {
-    if (!selLineId || !section || !form.output || !form.mpActual) {
-      setError('Output dan MP hadir wajib diisi'); return
+    if (!selLineId) { setError('Pilih line terlebih dahulu'); return }
+    if (!section) {
+      setError(`Section "${effectiveSec}" tidak ada di model ini. Pilih section lain.`); return
     }
+    if (!form.output) { setError('Output wajib diisi'); return }
+    if (!form.mpActual) { setError('MP hadir wajib diisi'); return }
     setSaving(true); setError(''); setSaved(false)
     const res = await fetch('/api/actuals', {
       method: 'POST',
@@ -138,7 +151,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
             {secs.map(s => {
               const hasData = model.sections?.find((ms: any) => ms.name === s)?.operations?.length > 0
               return (
-                <button key={s} onClick={() => setSelSec(s)}
+                <button key={s} onClick={() => setSelSec(s)} 
                   style={{
                     display: 'inline-block', padding: '8px 14px', marginRight: 6,
                     borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
