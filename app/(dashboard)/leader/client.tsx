@@ -4,7 +4,9 @@ import { signOut } from 'next-auth/react'
 import { LINE_TYPES } from '@/lib/utils'
 
 const DT_REASONS = ['Mesin rusak', 'Material kurang', 'Style change', 'QC hold', 'Operator kurang', 'Lainnya']
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 7)
+// Shift 07:30-16:30 + overtime
+const SHIFT_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+const OT_HOURS    = [17, 18, 19]
 const SECTIONS = ['Cutting', 'Treatment', 'Preparation', 'PC Sewing', 'Sewing', 'Assembly', 'Packing']
 const SF_SECTIONS = ['Stockfit']
 
@@ -12,6 +14,8 @@ interface Props { lines: any[]; userId: string; userName: string }
 
 export default function LeaderClient({ lines, userId, userName }: Props) {
   const [selLineId, setSelLineId] = useState(lines[0]?.id ?? '')
+  const [showOT, setShowOT] = useState(false)
+  const activeHours = showOT ? [...SHIFT_HOURS, ...OT_HOURS] : SHIFT_HOURS
   const [selSec, setSelSec]       = useState('Assembly')
   const [tab, setTab]             = useState<'input' | 'status' | 'std'>('input')
   const [saving, setSaving]       = useState(false)
@@ -177,7 +181,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     Pilih jam
                   </div>
                   <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
-                    {HOURS.map(h => (
+                    {activeHours.map((h: number) => (
                       <button key={h} onClick={() => setForm(f => ({ ...f, hour: String(h) }))}
                         style={{
                           flexShrink: 0, width: 52, height: 48, borderRadius: 10, fontSize: 14,
