@@ -11,7 +11,10 @@ export async function GET() {
   const models = await prisma.shoeModel.findMany({
     where: { active: true },
     include: {
-      sections: { include: { operations: { orderBy: { seq: 'asc' } } }, orderBy: { name: 'asc' } },
+      sections: {
+        include: { operations: { orderBy: { seq: 'asc' } } },
+        orderBy: { name: 'asc' }
+      },
       assignments: { where: { active: true }, include: { line: true } },
     },
     orderBy: { name: 'asc' },
@@ -19,38 +22,52 @@ export async function GET() {
   return NextResponse.json(models)
 }
 
-async function saveSections(modelId: string, sections: any[]) {
-  for (const s of sections) {
-    const sec = await prisma.section.create({
-      data: { modelId, name: s.name, stdMP: s.stdMP ?? 0, taktTime: s.taktTime ?? 36 }
+// Simpan sections: UPDATE jika sudah ada (preserve actuals), CREATE jika baru
+async function saveSections(modelId: string, newSections: any[]) {
+  for (const s of newSections) {
+    const secName = String(s.name ?? '').trim()
+    if (!secName) continue
+
+    // Cari section yang sudah ada
+    const existing = await prisma.section.findUnique({
+      where: { modelId_name: { modelId, name: secName } }
     })
-    // Batch per 15 ops
+
+    let secId: string
+
+    if (existing) {
+      // Update section info, JANGAN hapus section (ada actuals yang referensi)
+      await prisma.section.update({
+        where: { id: existing.id },
+        data: { stdMP: s.stdMP ?? 0, taktTime: s.taktTime ?? 36 }
+      })
+      // Hapus operations lama saja (tidak ada relasi ke Actual)
+      await prisma.operation.deleteMany({ where: { sectionId: existing.id } })
+      secId = existing.id
+    } else {
+      // Buat section baru
+      const created = await prisma.section.create({
+        data: { modelId, name: secName, stdMP: s.stdMP ?? 0, taktTime: s.taktTime ?? 36 }
+      })
+      secId = created.id
+    }
+
+    // Buat operations baru per batch 15
     const ops = (s.ops ?? []).map((op: any, i: number) => ({
-      sectionId: sec.id,
+      sectionId: secId,
       seq: i + 1,
       name: String(op.name ?? '').slice(0, 200),
-      va: Number(op.va) || 0,
-      nvan: Number(op.nvan) || 0,
-      nva: Number(op.nva) || 0,
-      mcCT: Number(op.mcCT) || 0,
+      va:        Number(op.va)        || 0,
+      nvan:      Number(op.nvan)      || 0,
+      nva:       Number(op.nva)       || 0,
+      mcCT:      Number(op.mcCT)      || 0,
       allowance: Number(op.allowance) || 0.15,
     }))
+
     for (let i = 0; i < ops.length; i += 15) {
       await prisma.operation.createMany({ data: ops.slice(i, i + 15) })
     }
   }
-}
-
-async function deleteModelData(modelId: string) {
-  // Hapus operations dulu (explicit, jangan andalkan cascade)
-  const sections = await prisma.section.findMany({
-    where: { modelId }, select: { id: true }
-  })
-  for (const sec of sections) {
-    await prisma.operation.deleteMany({ where: { sectionId: sec.id } })
-  }
-  // Lalu hapus sections
-  await prisma.section.deleteMany({ where: { modelId } })
 }
 
 export async function POST(req: NextRequest) {
@@ -61,33 +78,28 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { name, article, stage, lineType, uploadedFrom, sections } = body
-    if (!name || !sections?.length)
-      return NextResponse.json({ error: 'Nama model dan sections wajib diisi' }, { status: 400 })
 
-    const validSections = sections.filter((s: any) => s.ops?.length > 0)
+    if (!name) return NextResponse.json({ error: 'Nama model wajib diisi' }, { status: 400 })
+    const validSections = (sections ?? []).filter((s: any) => (s.ops ?? []).length > 0)
     if (!validSections.length)
       return NextResponse.json({ error: 'Minimal 1 section harus punya operasi' }, { status: 400 })
 
-    // Cek apakah sudah ada
+    // Cek apakah model sudah ada
     const existing = await prisma.shoeModel.findUnique({ where: { name } })
 
     if (existing) {
-      // 1. Hapus data lama secara eksplisit
-      await deleteModelData(existing.id)
-
-      // 2. Update model info
+      // Update model info saja, JANGAN hapus model/sections
       await prisma.shoeModel.update({
         where: { id: existing.id },
         data: {
-          article: article ?? existing.article,
-          stage: stage ?? existing.stage,
-          lineType: lineType ?? existing.lineType,
+          article:      article      ?? existing.article,
+          stage:        stage        ?? existing.stage,
+          lineType:     lineType     ?? existing.lineType,
           uploadedFrom: uploadedFrom ?? existing.uploadedFrom,
           active: true,
         }
       })
-
-      // 3. Buat sections + operations baru
+      // Update sections + operations
       await saveSections(existing.id, validSections)
 
       const updated = await prisma.shoeModel.findUnique({
@@ -101,9 +113,9 @@ export async function POST(req: NextRequest) {
     const model = await prisma.shoeModel.create({
       data: {
         name,
-        article: article ?? name,
-        stage: stage ?? 'Production CFM',
-        lineType: lineType ?? 'MINI',
+        article:      article      ?? name,
+        stage:        stage        ?? 'Production CFM',
+        lineType:     lineType     ?? 'MINI',
         uploadedFrom: uploadedFrom ?? 'Upload',
         active: true,
       }
@@ -119,7 +131,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[POST /api/models]', err?.message ?? err)
     return NextResponse.json(
-      { error: err?.message ?? 'Gagal menyimpan model' },
+      { error: err?.message ?? 'Internal server error' },
       { status: 500 }
     )
   }
