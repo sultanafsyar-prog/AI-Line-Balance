@@ -6,7 +6,18 @@ import Sidebar from '@/components/layout/Sidebar'
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
+
   const user = session.user as any
+
+  // Team Leader: full screen tanpa sidebar
+  if (user.role === 'TEAM_LEADER') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {children}
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar user={user} />
