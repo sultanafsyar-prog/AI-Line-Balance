@@ -1,131 +1,221 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { BUILDINGS, ROLE_LABELS, isIE, isTeamLeader, isManagement } from '@/lib/utils'
 
-interface Props { user: { name?: string; email?: string; role?: string; building?: string } }
+const ROLE_LABELS: Record<string, string> = {
+  IE_ADMIN:     'IE Admin',
+  IE_OPERATOR:  'IE Operator',
+  TEAM_LEADER:  'Team Leader',
+  MANAGEMENT:   'Management',
+  IT_ADMIN:     'IT Admin',
+}
+
+function isIE(role?: string) {
+  return role === 'IE_ADMIN' || role === 'IE_OPERATOR'
+}
+
+interface Props {
+  user: { name?: string; email?: string; role?: string; building?: string }
+}
 
 export default function Sidebar({ user }: Props) {
-  const path = usePathname()
-  const ie   = isIE(user.role)
-  const tl   = isTeamLeader(user.role)
-  const mgmt = isManagement(user.role)
-  const isAdm = user.role === 'IE_ADMIN' || user.role === 'IT_ADMIN'
-
-  // Team Leader: tampilan minimal
-  if (tl) {
-    return (
-      <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col">
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-teal rounded-lg flex items-center justify-center">
-              <span className="text-white text-xs font-bold">IE</span>
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-gray-900">Line Balance</div>
-              <div className="text-xs text-gray-400">Team Leader</div>
-            </div>
-          </div>
-        </div>
-        <nav className="flex-1 p-3 space-y-0.5">
-          <Link href="/leader"
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-              path.startsWith('/leader') ? 'bg-teal-light text-teal-dark font-medium' : 'text-gray-600 hover:bg-gray-50'
-            }`}>
-            ✎ Input & Status
-          </Link>
-        </nav>
-        <div className="p-3 border-t border-gray-100">
-          <div className="flex items-center gap-2 px-2 py-1 mb-2">
-            <div className="w-7 h-7 rounded-full bg-teal flex items-center justify-center text-white text-xs font-medium">
-              {user.name?.[0]?.toUpperCase() ?? 'T'}
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-medium text-gray-800 truncate">{user.name}</div>
-              <div className="text-xs text-gray-400">Team Leader</div>
-            </div>
-          </div>
-          <button onClick={() => signOut({ callbackUrl: '/login' })}
-            className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            Keluar
-          </button>
-        </div>
-      </aside>
-    )
-  }
+  const path     = usePathname()
+  const ie       = isIE(user.role)
+  const [open, setOpen] = useState(true)
 
   const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: '⊞' },
+    { href: '/dashboard',  label: 'Dashboard',    icon: '⊞' },
     ...(ie ? [{ href: '/models', label: 'Model library', icon: '◫' }] : []),
-    ...(ie ? [{ href: '/monitor', label: 'Monitor', icon: '◉' }] : []),
-    ...(mgmt ? [{ href: '/manager', label: 'Dashboard Manager', icon: '◉' }] : []),
+    { href: '/input',      label: 'Input aktual', icon: '✎' },
+    { href: '/monitor',    label: 'Monitor',      icon: '◉' },
     ...(ie ? [{ href: '/analytics', label: 'Analitik', icon: '▦' }] : []),
-    ...(isAdm ? [{ href: '/users', label: 'Users', icon: '◑' }] : []),
+    ...(user.role === 'IT_ADMIN' ? [{ href: '/users', label: 'Users', icon: '◑' }] : []),
   ]
 
-  const totalLines = Object.values(BUILDINGS).reduce((a, b) => a + b, 0)
+  const initials = (user.name ?? 'U')
+    .split(' ')
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase())
+    .join('')
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col">
-      <div className="p-4 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-teal rounded-lg flex items-center justify-center">
-            <span className="text-white text-xs font-bold">IE</span>
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-gray-900">Line Balance</div>
-            <div className="text-xs text-gray-400">{ROLE_LABELS[user.role ?? ''] ?? user.role}</div>
-          </div>
+    <aside
+      style={{
+        width: open ? '224px' : '60px',
+        flexShrink: 0,
+        background: '#fff',
+        borderRight: '1px solid #f0f0ef',
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'width 0.2s ease',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      {/* ── Header / Logo ── */}
+      <div style={{
+        padding: '14px 12px',
+        borderBottom: '1px solid #f0f0ef',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minHeight: '56px',
+      }}>
+        <div style={{
+          minWidth: '32px', height: '32px',
+          background: '#1D9E75', borderRadius: '8px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <span style={{ color: '#fff', fontSize: '11px', fontWeight: 700 }}>IE</span>
         </div>
-      </div>
-
-      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(item => (
-          <Link key={item.href} href={item.href}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-              path === item.href || path.startsWith(item.href + '/')
-                ? 'bg-teal-light text-teal-dark font-medium'
-                : 'text-gray-600 hover:bg-gray-50'
-            }`}>
-            <span className="text-base w-4 text-center">{item.icon}</span>
-            {item.label}
-          </Link>
-        ))}
-
-        {ie && (
-          <div className="mt-4 pt-3 border-t border-gray-100">
-            <p className="text-xs text-gray-400 px-3 mb-2 uppercase tracking-wider">Pabrik</p>
-            <div className="px-3 space-y-1 text-xs text-gray-500">
-              {Object.entries(BUILDINGS).map(([b, lc]) => (
-                <div key={b} className="flex justify-between">
-                  <span>Gedung {b}</span>
-                  <span className="font-medium">{lc} line</span>
-                </div>
-              ))}
-              <div className="flex justify-between pt-1 border-t border-gray-100 font-medium text-gray-700">
-                <span>Total</span><span>{totalLines} line</span>
-              </div>
+        {open && (
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a18', whiteSpace: 'nowrap' }}>
+              Line Balance
+            </div>
+            <div style={{ fontSize: '11px', color: '#888780', whiteSpace: 'nowrap' }}>
+              {ROLE_LABELS[user.role ?? ''] ?? user.role}
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Toggle button ── */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        title={open ? 'Tutup sidebar' : 'Buka sidebar'}
+        style={{
+          position: 'absolute',
+          top: '16px',
+          right: open ? '10px' : '8px',
+          width: '22px', height: '22px',
+          borderRadius: '50%',
+          border: '1px solid #e0dfd7',
+          background: '#fff',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '10px', color: '#888780',
+          zIndex: 10,
+          flexShrink: 0,
+        }}
+      >
+        {open ? '◀' : '▶'}
+      </button>
+
+      {/* ── Nav items ── */}
+      <nav style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {navItems.map(item => {
+          const active = path === item.href || path.startsWith(item.href + '/')
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={!open ? item.label : undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: open ? '8px 10px' : '8px',
+                borderRadius: '8px',
+                textDecoration: 'none',
+                background: active ? '#E1F5EE' : 'transparent',
+                color: active ? '#0F6E56' : '#5F5E5A',
+                fontSize: '13px',
+                fontWeight: active ? 500 : 400,
+                transition: 'background 0.12s',
+                justifyContent: open ? 'flex-start' : 'center',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+              }}
+              onMouseEnter={e => {
+                if (!active) (e.currentTarget as HTMLElement).style.background = '#f5f5f3'
+              }}
+              onMouseLeave={e => {
+                if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'
+              }}
+            >
+              <span style={{ fontSize: '15px', flexShrink: 0 }}>{item.icon}</span>
+              {open && <span>{item.label}</span>}
+            </Link>
+          )
+        })}
       </nav>
 
-      <div className="p-3 border-t border-gray-100">
-        <div className="flex items-center gap-2 px-2 py-1 mb-2">
-          <div className="w-7 h-7 rounded-full bg-teal flex items-center justify-center text-white text-xs font-medium">
-            {user.name?.[0]?.toUpperCase() ?? 'U'}
+      {/* ── User info + Logout ── */}
+      <div style={{
+        padding: '10px 8px',
+        borderTop: '1px solid #f0f0ef',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+      }}>
+        {/* Avatar + nama (hanya saat open) */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px 8px',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          justifyContent: open ? 'flex-start' : 'center',
+        }}>
+          <div style={{
+            minWidth: '30px', height: '30px',
+            borderRadius: '50%',
+            background: '#E1F5EE',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '11px', fontWeight: 600, color: '#0F6E56',
+            flexShrink: 0,
+          }}>
+            {initials}
           </div>
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-gray-800 truncate">{user.name}</div>
-            <div className="text-xs text-gray-400 truncate">
-              {user.building ? `Gedung ${user.building}` : 'Semua gedung'}
+          {open && (
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: '#1a1a18', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user.name}
+              </div>
+              <div style={{ fontSize: '11px', color: '#888780', whiteSpace: 'nowrap' }}>
+                {user.building ? `Gedung ${user.building}` : 'Semua gedung'}
+              </div>
             </div>
-          </div>
+          )}
         </div>
-        <button onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-          Keluar
+
+        {/* Tombol Logout — selalu muncul, ikon saja kalau collapsed */}
+        <button
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          title="Keluar"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: open ? '7px 10px' : '7px',
+            borderRadius: '8px',
+            border: '1px solid #f0f0ef',
+            background: 'transparent',
+            cursor: 'pointer',
+            color: '#A32D2D',
+            fontSize: '13px',
+            fontWeight: 500,
+            width: '100%',
+            justifyContent: open ? 'flex-start' : 'center',
+            transition: 'background 0.12s',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = '#FCEBEB')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        >
+          {/* Ikon pintu keluar */}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          {open && <span>Keluar</span>}
         </button>
       </div>
     </aside>
