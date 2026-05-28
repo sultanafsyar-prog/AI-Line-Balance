@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { calcSectionMetrics, isIE, LINE_TYPES, getGWT } from '@/lib/utils'
 import Link from 'next/link'
+import YamazumiAktual from '@/components/YamazumiAktual'
+import CloseShiftButton from '@/components/CloseShiftButton'
 
 interface Props {
   line: any
@@ -13,7 +15,7 @@ interface Props {
 
 export default function LineDetailClient({ line, allModels, user, sections }: Props) {
   const [selSec, setSelSec] = useState(sections[sections.length > 1 ? sections.indexOf('Assembly') !== -1 ? sections.indexOf('Assembly') : 0 : 0])
-  const [feat, setFeat] = useState<'yamazumi' | 'input' | 'monitor' | 'ai'>('yamazumi')
+  const [feat, setFeat] = useState<'yamazumi' | 'yamazumi-aktual' | 'input' | 'monitor' | 'ai'>('yamazumi')
   const [inputF, setInputF] = useState({ output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0', hour: String(new Date().getHours()) })
   const [saving, setSaving] = useState(false)
   const [aiText, setAiText] = useState('')
@@ -80,10 +82,11 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   })) ?? []
 
   const feats = [
-    { key: 'yamazumi', label: '📊 Yamazumi' },
-    { key: 'input', label: '✎ Input aktual' },
-    { key: 'monitor', label: '◉ Monitor' },
-    { key: 'ai', label: '🤖 AI' },
+    { key: 'yamazumi',        label: '📊 Yamazumi Std' },
+    { key: 'yamazumi-aktual', label: '📈 Yamazumi Aktual' },
+    { key: 'input',           label: '✎ Input aktual' },
+    { key: 'monitor',         label: '◉ Monitor' },
+    { key: 'ai',              label: '🤖 AI' },
   ]
 
   return (
@@ -104,9 +107,18 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
           ) : <p className="text-sm text-gray-400">Belum ada model</p>}
         </div>
         {isIE(user?.role) && (
-          <button onClick={() => setAssigning(true)} className="btn btn-secondary text-xs">
-            {model ? 'Ganti model' : 'Assign model'}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setAssigning(true)} className="btn btn-secondary text-xs">
+              {model ? 'Ganti model' : 'Assign model'}
+            </button>
+            {model && (
+              <CloseShiftButton
+                lineId={line.id}
+                lineLabel={`Gedung ${line.building} — Line ${line.lineNo}`}
+                onClosed={() => window.location.reload()}
+              />
+            )}
+          </div>
         )}
       </div>
 
@@ -177,7 +189,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                   { l: 'Standard MP', v: section.stdMP + ' orang', c: '' },
                   { l: 'Theoretical MP', v: metrics.theorMP + ' orang', c: '' },
                   { l: 'LBR', v: metrics.lbr + '%', c: metrics.lbr >= 85 ? 'text-teal' : metrics.lbr >= 70 ? 'text-amber-600' : 'text-red-600' },
-                  { l: 'Bottleneck', v: metrics.bottleneck.gwt + 's', c: metrics.bottleneck.gwt > takt ? 'text-red-600' : 'text-teal' },
+                  { l: 'Max GWT', v: metrics.bottleneck.gwt + 's', c: metrics.bottleneck.gwt > takt ? 'text-amber-600' : 'text-teal' },
                 ].map(m => (
                   <div key={m.l} className="card p-3">
                     <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{m.l}</div>
@@ -232,8 +244,8 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                           <td className={`px-3 py-2 font-medium text-xs ${isBn ? 'text-red-600' : isHi ? 'text-amber-600' : 'text-gray-900'}`}>{r.gwt}</td>
                           <td className={`px-3 py-2 text-xs ${diff > 0 ? 'text-red-600' : 'text-teal'}`}>{diff > 0 ? '+' : ''}{diff}s</td>
                           <td className="px-3 py-2">
-                            <span className={`badge ${isBn ? 'badge-bad' : isHi ? 'badge-warn' : 'badge-ok'}`}>
-                              {isBn ? 'Bottleneck' : isHi ? 'Review' : 'Normal'}
+                            <span className={`badge ${isBn ? 'badge-warn' : isHi ? 'badge-warn' : 'badge-ok'}`}>
+                              {isBn ? 'Perlu split' : isHi ? 'Review' : 'Normal'}
                             </span>
                           </td>
                         </tr>
@@ -245,7 +257,24 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
             </div>
           )}
 
-          {/* ── INPUT AKTUAL ── */}
+          {/* ── YAMAZUMI AKTUAL ── */}
+          {feat === 'yamazumi-aktual' && (
+            <div className="card p-4">
+              <YamazumiAktual
+                actuals={sectionActuals.map((a: any) => ({
+                  hour:           a.hour,
+                  output:         a.output ?? 0,
+                  mpActual:       a.mpActual ?? 0,
+                  downtime:       a.downtime ?? 0,
+                  downtimeReason: a.dtReason,
+                  defect:         a.defect ?? 0,
+                }))}
+                taktTime={takt}
+                stdMP={section?.stdMP ?? 0}
+                sectionName={selSec}
+              />
+            </div>
+          )}
           {feat === 'input' && (
             <div>
               <div className="card p-5 max-w-lg mb-5">
