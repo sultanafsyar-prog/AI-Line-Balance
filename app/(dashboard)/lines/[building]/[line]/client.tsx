@@ -5,6 +5,7 @@ import { calcSectionMetrics, isIE, LINE_TYPES, getGWT } from '@/lib/utils'
 import Link from 'next/link'
 import YamazumiAktual from '@/components/YamazumiAktual'
 import CloseShiftButton from '@/components/CloseShiftButton'
+import StyleCard from '@/components/StyleCard'
 
 interface Props {
   line: any
@@ -15,7 +16,7 @@ interface Props {
 
 export default function LineDetailClient({ line, allModels, user, sections }: Props) {
   const [selSec, setSelSec] = useState(sections[sections.length > 1 ? sections.indexOf('Assembly') !== -1 ? sections.indexOf('Assembly') : 0 : 0])
-  const [feat, setFeat] = useState<'yamazumi' | 'yamazumi-aktual' | 'input' | 'monitor' | 'ai'>('yamazumi')
+  const [feat, setFeat] = useState< 'style' | 'yamazumi' | 'yamazumi-aktual' | 'input' | 'monitor' | 'ai'>('style')
   const [inputF, setInputF] = useState({ output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0', hour: String(new Date().getHours()) })
   const [saving, setSaving] = useState(false)
   const [aiText, setAiText] = useState('')
@@ -82,6 +83,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   })) ?? []
 
   const feats = [
+    { key: 'style',          label: '👟 Style & Target' },
     { key: 'yamazumi',        label: '📊 Yamazumi Std' },
     { key: 'yamazumi-aktual', label: '📈 Yamazumi Aktual' },
     { key: 'input',           label: '✎ Input aktual' },
@@ -256,7 +258,26 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
               </div>
             </div>
           )}
-
+          {feat === 'style' && (
+           <StyleCard
+             model={model ? {
+                id:        model.id,
+                name:      model.name,
+                article:   model.article,
+                lineType:  model.lineType,
+                imageUrl:  (model as any).imageUrl,
+                sections:  model.sections?.map((s: any) => ({
+                  name:       s.name,
+                  taktTime:   s.taktTime ?? 36,
+                  stdMP:      s.stdMP ?? 0,
+                  operations: s.operations ?? [],
+                })) ?? [],
+              } : null}
+              lineId={line.id}
+              totalActual={totOut}
+              canSetTarget={['PPIC','IE_ADMIN','MANAGEMENT'].includes(user?.role ?? '')}
+            />
+          )} 
           {/* ── YAMAZUMI AKTUAL ── */}
           {feat === 'yamazumi-aktual' && (
             <div className="card p-4">

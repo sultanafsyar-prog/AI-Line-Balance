@@ -41,6 +41,7 @@ enum Role {
   TEAM_LEADER   // input aktual, hanya line miliknya
   MANAGEMENT    // view semua / per gedung, no input
   IT_ADMIN
+  PPIC
 }
 
 // ─── MODEL SEPATU ───────────────────────────────────────────
@@ -62,6 +63,21 @@ model ShoeModel {
 enum LineType {
   MINI // 100 pairs/jam, takt 36s
   BIG  // 180 pairs/jam, takt 20s
+}
+
+model DailyTarget {
+  id          String   @id @default(cuid())
+  lineId      String
+  line        Line     @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  date        String
+  targetPairs Int
+  setBy       String
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([lineId, date])
+  @@index([date])
 }
 
 // ─── SECTION PER MODEL ───────────────────────────────────────
@@ -108,6 +124,7 @@ model Line {
   actuals     Actual[]
   alerts      Alert[]
   userAccess  UserLine[]
+  dailyTargets DailyTarget[] 
 
   @@unique([building, lineNo])
   @@index([building])

@@ -267,16 +267,41 @@ export default function TVClient({ building, lines, sections }: Props) {
               )}
 
               {/* Line header */}
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span style={{ fontSize: '22px', fontWeight: 700, color: C.white }}>
-                  Line {line.lineNo}
-                </span>
-                {m.model && (
-                  <span style={{ fontSize: '12px', color: C.dim, fontWeight: 400 }}>
-                    {m.model}
-                  </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                {(m as any).imageUrl && (
+                  <img src={(m as any).imageUrl} alt={m.model ?? ''}
+                    style={{ width: '36px', height: '36px', objectFit: 'cover',
+                      borderRadius: '6px', flexShrink: 0, border: '1px solid #1f2937' }} />
                 )}
+                <div>
+                  <span style={{ fontSize: '18px', fontWeight: 700, color: C.white }}>
+                    Line {line.lineNo}
+                  </span>
+                  {m.model && (
+                    <span style={{ fontSize: '11px', color: C.dim, marginLeft: '6px' }}>
+                      {m.model}
+                    </span>
+                  )}
+                  {(m as any).article && (
+                    <div style={{ fontSize: '10px', color: C.gray }}>{(m as any).article}</div>
+                  )}
+                </div>
               </div>
+              {(m as any).dailyTarget && (
+                <div style={{
+                  background: '#1a1f2e', borderRadius: '6px', padding: '5px 10px',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  marginBottom: '6px'
+                }}>
+                  <span style={{ fontSize: '11px', color: C.dim }}>Target hari ini</span>
+                  <span style={{
+                    fontSize: '13px', fontWeight: 600,
+                    color: m.totOut >= (m as any).dailyTarget.targetPairs ? C.green : C.amber
+                  }}>
+                    {m.totOut} / {(m as any).dailyTarget.targetPairs} pairs
+                  </span>
+                </div>
+              )}
 
               {/* LLER besar */}
               <div style={{
