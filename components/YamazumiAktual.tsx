@@ -68,7 +68,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
     const dtDetik   = (a.downtime ?? 0) * 60
     const waktuEfektif = Math.max(3600 - dtDetik, 0)
     const output    = a.output ?? 0
-    const ct        = output > 0 ? Math.round(waktuEfektif / output) : null
+    const ct = output > 0 ? Math.round(3600 / output) : null
     const targetOut = taktTime > 0 ? Math.floor(3600 / taktTime) : 0
     const gap       = output - targetOut
     const color     = ct !== null ? barColor(ct, taktTime) : null
