@@ -9,9 +9,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-interface Props { params: { id: string } }
-
-export async function POST(req: NextRequest, { params }: Props) {
+// POST /api/models/upload-image?modelId=xxx
+export async function POST(req: NextRequest) {
+  // ── Auth ──────────────────────────────────────────────────
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -20,18 +20,24 @@ export async function POST(req: NextRequest, { params }: Props) {
     return NextResponse.json({ error: 'Hanya IE Admin yang bisa upload foto model.' }, { status: 403 })
   }
 
-  const modelId = params.id
-  const model   = await prisma.shoeModel.findUnique({ where: { id: modelId } })
+  // ── Ambil modelId dari query string ──────────────────────
+  const { searchParams } = new URL(req.url)
+  const modelId = searchParams.get('modelId')
+  if (!modelId) {
+    return NextResponse.json({ error: 'modelId wajib diisi.' }, { status: 400 })
+  }
+
+  const model = await prisma.shoeModel.findUnique({ where: { id: modelId } })
   if (!model) return NextResponse.json({ error: 'Model tidak ditemukan.' }, { status: 404 })
 
   try {
     const formData = await req.formData()
     const file     = formData.get('image') as File | null
-    if (!file) return NextResponse.json({ error: 'File tidak ditemukan.' }, { status: 400 })
+    if (!file) return NextResponse.json({ error: 'File tidak ditemukan di request.' }, { status: 400 })
 
     // Validasi tipe file
     if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: 'Hanya file gambar yang diizinkan.' }, { status: 400 })
+      return NextResponse.json({ error: 'Hanya file gambar (jpg, png, webp) yang diizinkan.' }, { status: 400 })
     }
 
     // Validasi ukuran (max 5MB)
@@ -39,7 +45,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       return NextResponse.json({ error: 'Ukuran file maksimal 5MB.' }, { status: 400 })
     }
 
-    const ext      = file.name.split('.').pop() ?? 'jpg'
+    const ext      = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
     const fileName = `${modelId}.${ext}`
     const buffer   = Buffer.from(await file.arrayBuffer())
 
@@ -47,12 +53,15 @@ export async function POST(req: NextRequest, { params }: Props) {
     const { error: uploadError } = await supabaseAdmin.storage
       .from('model-images')
       .upload(fileName, buffer, {
-        contentType:  file.type,
-        upsert:       true, // overwrite jika sudah ada
+        contentType: file.type,
+        upsert:      true,
       })
 
     if (uploadError) {
-      return NextResponse.json({ error: `Upload gagal: ${uploadError.message}` }, { status: 500 })
+      return NextResponse.json(
+        { error: `Upload ke Supabase gagal: ${uploadError.message}` },
+        { status: 500 }
+      )
     }
 
     // Ambil public URL
@@ -62,20 +71,24 @@ export async function POST(req: NextRequest, { params }: Props) {
 
     const imageUrl = urlData.publicUrl
 
-    // Simpan URL ke database
-    await prisma.shoeModel.update({
-      where: { id: modelId },
-      data:  { imageUrl } as any
-    })
+    // Simpan URL ke database — pakai $executeRaw karena kolom imageUrl
+    // mungkin belum ada di Prisma client (perlu prisma generate ulang)
+    await prisma.$executeRaw`
+      UPDATE "ShoeModel"
+      SET    "imageUrl" = ${imageUrl}, "updatedAt" = NOW()
+      WHERE  id = ${modelId}
+    `
 
     return NextResponse.json({ success: true, imageUrl })
+
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    console.error('Upload error:', e)
+    return NextResponse.json({ error: e.message ?? 'Upload gagal.' }, { status: 500 })
   }
 }
 
-// DELETE — hapus foto model
-export async function DELETE(req: NextRequest, { params }: Props) {
+// DELETE /api/models/upload-image?modelId=xxx
+export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -84,21 +97,33 @@ export async function DELETE(req: NextRequest, { params }: Props) {
     return NextResponse.json({ error: 'Tidak diizinkan.' }, { status: 403 })
   }
 
-  const modelId = params.id
-  const model   = await (prisma.shoeModel as any).findUnique({ where: { id: modelId } })
-  if (!model?.imageUrl) return NextResponse.json({ success: true })
+  const { searchParams } = new URL(req.url)
+  const modelId = searchParams.get('modelId')
+  if (!modelId) return NextResponse.json({ error: 'modelId wajib.' }, { status: 400 })
 
-  // Hapus dari storage
-  const fileName = model.imageUrl.split('/').pop()
-  if (fileName) {
-    await supabaseAdmin.storage.from('model-images').remove([fileName])
+  try {
+    // Ambil URL lama
+    const rows = await prisma.$queryRaw<{ imageUrl: string | null }[]>`
+      SELECT "imageUrl" FROM "ShoeModel" WHERE id = ${modelId}
+    `
+    const imageUrl = rows[0]?.imageUrl
+
+    if (imageUrl) {
+      const fileName = imageUrl.split('/').pop()
+      if (fileName) {
+        await supabaseAdmin.storage.from('model-images').remove([fileName])
+      }
+    }
+
+    // Hapus URL dari database
+    await prisma.$executeRaw`
+      UPDATE "ShoeModel"
+      SET    "imageUrl" = NULL, "updatedAt" = NOW()
+      WHERE  id = ${modelId}
+    `
+
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
   }
-
-  // Hapus URL dari database
-  await prisma.shoeModel.update({
-    where: { id: modelId },
-    data:  { imageUrl: null } as any
-  })
-
-  return NextResponse.json({ success: true })
 }
