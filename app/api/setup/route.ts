@@ -2,71 +2,100 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
-const BUILDINGS: Record<string, number> = { C:1, D:6, E:6, F:5, H:5, I:4, G:7 }
+/**
+ * GET /api/setup?token=<SETUP_SECRET>
+ *
+ * SECURITY:
+ * - Token diambil dari environment variable SETUP_SECRET, bukan hardcode
+ * - Setelah seed berhasil, HAPUS file ini atau set SETUP_ENABLED=false di Vercel
+ * - Jangan pernah commit token ke GitHub
+ *
+ * Setup di Vercel Environment Variables:
+ *   SETUP_SECRET = <random string panjang, misal: openssl rand -hex 32>
+ *   SETUP_ENABLED = true   (setelah setup selesai, ganti jadi false atau hapus)
+ */
 
-// GET /api/setup?key=setup-ie-lb-2024
-// Jalankan SEKALI untuk isi data awal, lalu HAPUS file ini
+const BUILDINGS: Record<string, number> = {
+  C: 1, D: 6, E: 6, F: 5, H: 5, I: 4, G: 7,
+}
+
 export async function GET(req: NextRequest) {
-  const token = new URL(req.url).searchParams.get('token')
-  if (token !== 'init2024')
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // ── 1. Cek apakah setup diizinkan ──────────────────────────────
+  if (process.env.SETUP_ENABLED !== 'true') {
+    return NextResponse.json(
+      { error: 'Setup endpoint is disabled. Set SETUP_ENABLED=true in environment variables to enable.' },
+      { status: 403 }
+    )
+  }
 
+  // ── 2. Validasi token dari env variable ────────────────────────
+  const setupSecret = process.env.SETUP_SECRET
+  if (!setupSecret) {
+    return NextResponse.json(
+      { error: 'SETUP_SECRET environment variable is not set.' },
+      { status: 500 }
+    )
+  }
+
+  const token = new URL(req.url).searchParams.get('token')
+  if (!token || token !== setupSecret) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // ── 3. Jalankan seed ───────────────────────────────────────────
   try {
     const results: string[] = []
-
-    // ─── 1. USERS DEFAULT ────────────────────────────────────
-    // Ganti email & password setelah pertama login!
     const password = await bcrypt.hash('password123', 12)
-    const users = [
-      { name: 'IE Admin',         email: 'ie.admin@factory.com',        role: 'IE_ADMIN',              building: null },
-      { name: 'IE Operator',      email: 'ie.operator@factory.com',     role: 'IE_OPERATOR',           building: null },
-      { name: 'Supervisor',       email: 'prod.supervisor@factory.com', role: 'PRODUCTION_SUPERVISOR', building: null },
-      { name: 'Operator',         email: 'prod.operator@factory.com',   role: 'PRODUCTION_OPERATOR',   building: null },
-      { name: 'Factory Manager',  email: 'manager@factory.com',         role: 'MANAGEMENT',            building: null },
+
+    const usersData = [
+      { name: 'IE Admin',        email: 'ie.admin@factory.com',    role: 'IE_ADMIN'    },
+      { name: 'IE Operator',     email: 'ie.operator@factory.com', role: 'IE_OPERATOR' },
+      { name: 'Team Leader D-1', email: 'leader.d1@factory.com',   role: 'TEAM_LEADER', building: 'D' },
+      { name: 'Factory Manager', email: 'manager@factory.com',     role: 'MANAGEMENT'  },
+      { name: 'IT Admin',        email: 'it.admin@factory.com',    role: 'IT_ADMIN'    },
     ]
-    for (const u of users) {
+
+    for (const u of usersData) {
       await prisma.user.upsert({
-        where: { email: u.email }, update: {},
-        create: { ...u, password, role: u.role as any }
+        where: { email: u.email },
+        update: {},
+        create: {
+          name: u.name,
+          email: u.email,
+          password,
+          role: u.role as any,
+          building: (u as any).building ?? null,
+        },
       })
     }
-    results.push(`✅ ${users.length} default users created`)
+    results.push(`✅ ${usersData.length} users created`)
 
-    // ─── 2. LINES (struktur gedung & line) ───────────────────
-    // Ini data tetap — struktur pabrik tidak berubah
     let lineCount = 0
     for (const [building, count] of Object.entries(BUILDINGS)) {
       for (let i = 1; i <= count; i++) {
         await prisma.line.upsert({
           where: { building_lineNo: { building, lineNo: i } },
           update: {},
-          create: { building, lineNo: i, lineType: 'MINI' }
+          create: { building, lineNo: i, lineType: 'MINI' as any },
         })
         lineCount++
       }
     }
-    results.push(`✅ ${lineCount} lines created (7 gedung, C/D/E/F/G/H/I)`)
-    results.push('ℹ️ Model sepatu: upload lewat menu Model Library setelah login')
+    results.push(`✅ ${lineCount} lines created`)
 
-    return NextResponse.json({
-      success: true,
-      message: '🎉 Setup berhasil! Hapus file ini sekarang, lalu login.',
-      results,
-      next_steps: [
-        '1. Hapus file app/api/setup/route.ts',
-        '2. Login sebagai IE Admin',
-        '3. Ganti password default di User Management',
-        '4. Upload model sepatu lewat Model Library → Upload NB Standard',
-        '5. Assign model ke line produksi',
-      ],
-      logins: [
-        { role: 'IE Admin',    email: 'ie.admin@factory.com',        password: 'password123' },
-        { role: 'IE Operator', email: 'ie.operator@factory.com',     password: 'password123' },
-        { role: 'Supervisor',  email: 'prod.supervisor@factory.com', password: 'password123' },
-        { role: 'Operator',    email: 'prod.operator@factory.com',   password: 'password123' },
-        { role: 'Manager',     email: 'manager@factory.com',         password: 'password123' },
-      ]
-    })
+    // Assign leader D-1 ke line D-1
+    const leaderD1 = await prisma.user.findUnique({ where: { email: 'leader.d1@factory.com' } })
+    const lineD1   = await prisma.line.findFirst({ where: { building: 'D', lineNo: 1 } })
+    if (leaderD1 && lineD1) {
+      await prisma.userLine.upsert({
+        where: { userId_lineId: { userId: leaderD1.id, lineId: lineD1.id } },
+        update: {},
+        create: { userId: leaderD1.id, lineId: lineD1.id },
+      })
+      results.push('✅ Leader assigned to D-1')
+    }
+
+    return NextResponse.json({ success: true, results })
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
