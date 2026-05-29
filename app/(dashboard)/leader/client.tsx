@@ -17,22 +17,24 @@ function displayHour(h: number): string {
   return `${String(h - 24).padStart(2,'0')}:00*` // * = hari berikutnya
 }
 
-// Work date untuk shift 2 (melewati tengah malam)
-function getWorkDate(shift: 1 | 2): string {
+// Work date — timezone Asia/Jakarta (UTC+7)
+// Shift 2 melewati tengah malam: jam 00:00-07:59 WIB masih dihitung hari kemarin
+function getWorkDate(shiftNum: 1 | 2): string {
   const now = new Date()
-  if (shift === 2 && now.getHours() < 8) {
-    // Jam 00-07: masih bagian shift 2 kemarin
-    const yesterday = new Date(now)
-    yesterday.setDate(yesterday.getDate() - 1)
-    return yesterday.toISOString().slice(0, 10)
+  // Jam sekarang di WIB
+  const wibHour = parseInt(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta', hour: 'numeric', hour12: false }))
+  if (shiftNum === 2 && wibHour < 8) {
+    // Jam 00-07 WIB: masih bagian shift 2 kemarin
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    return yesterday.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
   }
-  return now.toISOString().slice(0, 10)
+  return now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
 }
 
-// Auto-detect shift dari jam sekarang
+// Auto-detect shift dari jam sekarang (WIB)
 function detectShift(): 1 | 2 {
-  const h = new Date().getHours()
-  if (h >= 20 || h < 8) return 2  // 20:00-07:59 = shift 2
+  const h = parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta', hour: 'numeric', hour12: false }))
+  if (h >= 20 || h < 8) return 2  // 20:00-07:59 WIB = shift 2
   return 1
 }
 const SECTIONS = ['Cutting', 'Treatment', 'Preparation', 'PC Sewing', 'Sewing', 'Assembly', 'Packing']
@@ -48,15 +50,25 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
     ? (showOT ? [...SHIFT1_HOURS, ...SHIFT1_OT_HOURS] : SHIFT1_HOURS)
     : (showOT ? [...SHIFT2_HOURS, ...SHIFT2_OT_HOURS] : SHIFT2_HOURS)
   const [selSec, setSelSec]       = useState('Assembly')
-  const [tab, setTab]             = useState<'input' | 'status' | 'std'>('input')
+  const [tab, setTab]             = useState<'input' | 'status' | 'std' | 'ai'>('input')
   const [saving, setSaving]       = useState(false)
   const [saved, setSaved]         = useState(false)
   const [error, setError]         = useState('')
   const [showLines, setShowLines] = useState(false)
+  const [aiResult, setAiResult]   = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
 
   const nowH = new Date().getHours()
+  const defaultHour = (() => {
+    const detected = detectShift()
+    if (detected === 1) return (nowH >= 7 && nowH <= 19) ? nowH : 7
+    // Shift 2: jam 20-23 pakai langsung, jam 0-7 pakai virtual (24+)
+    if (nowH >= 20) return nowH
+    if (nowH < 8) return nowH + 24  // virtual: 0→24, 1→25, ..., 7→31
+    return 20 // fallback
+  })()
   const [form, setForm] = useState({
-    hour: String(nowH >= 7 && nowH <= 18 ? nowH : 7),
+    hour: String(defaultHour),
     output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0',
   })
 
@@ -148,11 +160,26 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               </div>
             )}
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {ller > 0 && (
-              <div style={{ fontSize: 28, fontWeight: 800, color: llerColor, lineHeight: 1 }}>{ller}%</div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: llerColor, lineHeight: 1 }}>{ller}%</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>LLER</div>
+              </div>
             )}
-            <div style={{ fontSize: 11, color: '#9CA3AF' }}>LLER</div>
+            <button onClick={() => signOut({ callbackUrl: '/login' })}
+              title="Keluar"
+              style={{
+                width: 36, height: 36, borderRadius: 10, border: '1px solid #E5E7EB',
+                background: '#F9FAFB', cursor: 'pointer', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -207,30 +234,69 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
             {/* ─ INPUT TAB ─ */}
             {tab === 'input' && (
               <div>
+                {/* Shift selector + OT toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 0, borderRadius: 10, overflow: 'hidden', border: '1px solid #E5E7EB' }}>
+                    {([1, 2] as const).map(s => (
+                      <button key={s} onClick={() => { setShift(s); setForm(f => ({ ...f, hour: String(s === 1 ? 7 : 20) })) }}
+                        style={{
+                          padding: '8px 16px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                          background: shift === s ? '#1D9E75' : '#F9FAFB',
+                          color: shift === s ? '#fff' : '#6B7280',
+                        }}>
+                        Shift {s}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => setShowOT(!showOT)}
+                    style={{
+                      padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      background: showOT ? '#FEF3C7' : '#F3F4F6',
+                      color: showOT ? '#92400E' : '#6B7280',
+                      border: showOT ? '1px solid #FCD34D' : '1px solid #E5E7EB',
+                    }}>
+                    {showOT ? '✓ Lembur aktif' : '+ Lembur'}
+                  </button>
+                </div>
+
+                {/* Info range jam */}
+                <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 12, padding: '8px 12px', background: '#F9FAFB', borderRadius: 10 }}>
+                  {shift === 1
+                    ? `Shift 1: 07:00 – 16:00${showOT ? ' + Lembur 17:00 – 19:00' : ''}`
+                    : `Shift 2: 20:00 – 05:00${showOT ? ' + Lembur 06:00 – 08:00' : ''}`
+                  }
+                </div>
+
                 {/* Jam selector */}
                 <div style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
                     Pilih jam
                   </div>
                   <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
-                    {activeHours.map((h: number) => (
-                      <button key={h} onClick={() => setForm(f => ({ ...f, hour: String(h) }))}
-                        style={{
-                          flexShrink: 0, width: 52, height: 48, borderRadius: 10, fontSize: 14,
-                          fontWeight: 700, cursor: 'pointer', border: 'none',
-                          background: form.hour === String(h) ? '#1D9E75' : '#F3F4F6',
-                          color: form.hour === String(h) ? '#fff' : '#6B7280',
-                        }}>
-                        {h}
-                      </button>
-                    ))}
+                    {activeHours.map((h: number) => {
+                      const isOT = shift === 1
+                        ? SHIFT1_OT_HOURS.includes(h)
+                        : SHIFT2_OT_HOURS.includes(h)
+                      return (
+                        <button key={h} onClick={() => setForm(f => ({ ...f, hour: String(h) }))}
+                          style={{
+                            flexShrink: 0, width: 52, height: 48, borderRadius: 10, fontSize: 14,
+                            fontWeight: 700, cursor: 'pointer',
+                            border: isOT ? '2px solid #FCD34D' : 'none',
+                            background: form.hour === String(h) ? '#1D9E75' : isOT ? '#FFFBEB' : '#F3F4F6',
+                            color: form.hour === String(h) ? '#fff' : isOT ? '#92400E' : '#6B7280',
+                          }}>
+                          {displayHour(h)}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
                 {/* Output */}
                 <div style={{ background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                    Output jam {form.hour}:00
+                    Output jam {displayHour(parseInt(form.hour))}
                   </div>
                   <input type="number" inputMode="numeric" pattern="[0-9]*"
                     placeholder={`Target: ${tph}`}
@@ -352,7 +418,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       return (
                         <div key={a.id} style={{ padding: '14px 16px', borderBottom: i < todayActs.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{a.hour}:00 — {a.hour + 1}:00</span>
+                            <span style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{displayHour(a.hour)} — {displayHour(a.hour + 1)}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <span style={{ fontSize: 22, fontWeight: 800, color: '#111827' }}>{a.output}</span>
                               <span style={{ fontSize: 14, fontWeight: 700, color: g >= 0 ? '#1D9E75' : '#EF4444' }}>
@@ -404,25 +470,95 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                         Daftar operasi — {selSec}
                       </div>
                       {(section.operations ?? []).map((op: any, i: number) => {
-                        const gwt = parseFloat(((op.va + op.nvan + op.nva) * (1 + op.allowance)).toFixed(1))
-                        const isBn = gwt > section.taktTime
+                        const gwt = parseFloat(((op.va + op.nvan + op.nva) * (1 + op.allowance)).toFixed(2))
+                        const mpNeeded = section.taktTime > 0 ? Math.ceil(gwt / section.taktTime) : 1
+                        const effCT = parseFloat((gwt / mpNeeded).toFixed(2))
+                        const isMultiMP = mpNeeded > 1
                         return (
                           <div key={op.id} style={{
                             padding: '12px 16px',
                             borderBottom: i < section.operations.length - 1 ? '1px solid #F3F4F6' : 'none',
-                            background: isBn ? '#FEF2F2' : '#fff',
+                            background: isMultiMP ? '#EFF6FF' : '#fff',
                           }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: 14, color: '#374151', flex: 1, marginRight: 8 }}>{i + 1}. {op.name}</span>
-                              <span style={{ fontSize: 15, fontWeight: 700, color: isBn ? '#EF4444' : '#374151', flexShrink: 0 }}>
-                                {gwt}s {isBn ? '⚠' : ''}
+                              <span style={{ fontSize: 15, fontWeight: 700, color: '#374151', flexShrink: 0 }}>
+                                {gwt}s
                               </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12, color: '#9CA3AF' }}>
+                              <span>Eff CT: {effCT}s</span>
+                              {isMultiMP && (
+                                <span style={{ color: '#2563EB', fontWeight: 600 }}>MP: {mpNeeded} org</span>
+                              )}
                             </div>
                           </div>
                         )
                       })}
                     </div>
                   </>
+                )}
+              </div>
+            )}
+
+            {/* ─ AI TAB ─ */}
+            {tab === 'ai' && (
+              <div>
+                <div style={{ background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <span style={{ fontSize: 24 }}>🤖</span>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>AI Rekomendasi</div>
+                      <div style={{ fontSize: 13, color: '#9CA3AF' }}>Analisis {effectiveSec} berdasarkan data hari ini</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!section) return
+                      setAiLoading(true); setAiResult('')
+                      try {
+                        const res = await fetch('/api/analytics', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ lineId: selLineId, sectionName: effectiveSec }),
+                        })
+                        if (res.ok) {
+                          const data = await res.json()
+                          setAiResult(data.analysis ?? 'Tidak ada hasil.')
+                        } else {
+                          const d = await res.json()
+                          setAiResult(`⚠ ${d.error ?? 'Gagal mendapatkan analisis'}`)
+                        }
+                      } catch {
+                        setAiResult('⚠ Koneksi gagal. Coba lagi nanti.')
+                      }
+                      setAiLoading(false)
+                    }}
+                    disabled={aiLoading || !section || todayActs.length === 0}
+                    style={{
+                      width: '100%', height: 52, borderRadius: 14, border: 'none',
+                      cursor: (aiLoading || todayActs.length === 0) ? 'not-allowed' : 'pointer',
+                      background: aiLoading ? '#E5E7EB' : todayActs.length === 0 ? '#F3F4F6' : '#1D9E75',
+                      color: todayActs.length === 0 ? '#9CA3AF' : '#fff',
+                      fontSize: 15, fontWeight: 700,
+                      boxShadow: (aiLoading || todayActs.length === 0) ? 'none' : '0 4px 12px rgba(29,158,117,0.3)',
+                    }}>
+                    {aiLoading ? '⏳ Menganalisis...' : todayActs.length === 0 ? 'Belum ada data hari ini' : '🔍 Analisis Section Ini'}
+                  </button>
+                </div>
+
+                {aiResult && (
+                  <div style={{
+                    background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                    fontSize: 14, lineHeight: 1.7, color: '#374151',
+                  }}>
+                    {aiResult.split('\n').map((ln, i) => {
+                      if (ln.startsWith('## ')) return <div key={i} style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginTop: i > 0 ? 16 : 0, marginBottom: 6 }}>{ln.replace('## ', '')}</div>
+                      if (ln.startsWith('- ')) return <div key={i} style={{ paddingLeft: 12, position: 'relative' as const }}><span style={{ position: 'absolute' as const, left: 0 }}>•</span>{ln.replace('- ', '')}</div>
+                      if (ln.trim() === '') return <div key={i} style={{ height: 8 }} />
+                      return <div key={i}>{ln}</div>
+                    })}
+                  </div>
                 )}
               </div>
             )}
@@ -447,15 +583,16 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                 { key: 'status', icon: '◉', label: 'Status' },
                 { key: 'input', icon: '✎', label: 'Input' },
                 { key: 'std', icon: '📋', label: 'Standar' },
+                { key: 'ai', icon: '🤖', label: 'AI' },
               ].map(t => (
-                <button key={t.key} onClick={() => setTab(t.key as any)}
+                <button key={t.key} onClick={() => setTab(t.key as 'status' | 'input' | 'std' | 'ai')}
                   style={{
-                    flex: 1, padding: '12px 8px 16px', border: 'none', cursor: 'pointer',
-                    background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    flex: 1, padding: '10px 4px 14px', border: 'none', cursor: 'pointer',
+                    background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                     borderTop: tab === t.key ? '3px solid #1D9E75' : '3px solid transparent',
                   }}>
-                  <span style={{ fontSize: 20 }}>{t.icon}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: tab === t.key ? '#1D9E75' : '#9CA3AF' }}>{t.label}</span>
+                  <span style={{ fontSize: 18 }}>{t.icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: tab === t.key ? '#1D9E75' : '#9CA3AF' }}>{t.label}</span>
                 </button>
               ))}
             </div>
@@ -463,15 +600,10 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
         </>
       )}
 
-      {/* Logout di status tab */}
-      {tab === 'status' && (
-        <div style={{ position: 'fixed', top: 12, right: 16, zIndex: 20 }}>
-          <button onClick={() => signOut({ callbackUrl: '/login' })}
-            style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#6B7280', cursor: 'pointer' }}>
-            Keluar
-          </button>
-        </div>
-      )}
+      {/* Watermark TAC */}
+      <div style={{ textAlign: 'center', padding: '12px 0 80px', fontSize: 10, color: '#D1D5DB' }}>
+        Developed by <span style={{ fontWeight: 600 }}>Third Axis Center</span>
+      </div>
     </div>
   )
 }
