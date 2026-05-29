@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireSession } from '@/lib/api-helpers'
 
 // GET /api/templates/download
 // Generate template Excel yang bisa diisi IE lalu diupload kembali
 export async function GET() {
+  const auth = await requireSession()
+  if (auth instanceof NextResponse) return auth
+
   const wb = XLSX.utils.book_new()
 
   // ─── SHEET 1: MODEL INFO ─────────────────────────────────────

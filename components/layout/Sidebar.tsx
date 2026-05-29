@@ -17,7 +17,7 @@ function isIE(role?: string) {
 }
 
 interface Props {
-  user: { name?: string; email?: string; role?: string; building?: string }
+  user: { name?: string | null; email?: string | null; role?: string; building?: string | null }
 }
 
 export default function Sidebar({ user }: Props) {

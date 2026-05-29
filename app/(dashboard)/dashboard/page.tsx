@@ -37,7 +37,7 @@ export default async function DashboardPage() {
     return acc
   }, {} as Record<string, typeof lines>)
 
-  const userBuilding = (session?.user as any)?.building
+  const userBuilding = session?.user?.building
 
   return (
     <div>

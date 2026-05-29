@@ -6,7 +6,7 @@ export default async function Home() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
 
-  const role = (session.user as any)?.role
+  const role = session.user.role
   if (role === 'TEAM_LEADER') redirect('/leader')
   if (role === 'MANAGEMENT') redirect('/manager')
   redirect('/dashboard')

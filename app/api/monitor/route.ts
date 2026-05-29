@@ -1,17 +1,29 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { Prisma } from '@prisma/client'
 import { today } from '@/lib/utils'
+import { requireSession } from '@/lib/api-helpers'
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireSession()
+  if (auth instanceof NextResponse) return auth
+  const session = auth
 
-  const userBuilding = (session.user as any)?.building
+  // Same scope logic as /api/lines
+  const where: Prisma.LineWhereInput = { active: true }
+
+  if (session.user.role === 'TEAM_LEADER') {
+    const access = await prisma.userLine.findMany({
+      where: { userId: session.user.id },
+      select: { lineId: true },
+    })
+    where.id = { in: access.map(a => a.lineId) }
+  } else if (session.user.building) {
+    where.building = session.user.building
+  }
 
   const lines = await prisma.line.findMany({
-    where: { active: true, ...(userBuilding ? { building: userBuilding } : {}) },
+    where,
     include: {
       assignments: {
         where: { active: true }, take: 1,
@@ -55,9 +67,12 @@ export async function GET() {
         output: latestActual.output,
         mpActual: latestActual.mpActual,
         hour: latestActual.hour,
-        section: (latestActual as any).section?.name ?? '',
+        section: latestActual.section?.name ?? '',
       } : null,
-      todayTotals: { output: totalOutput, downtime: totalDowntime, defect: totalDefect, hours: actuals.length, avgMP },
+      todayTotals: {
+        output: totalOutput, downtime: totalDowntime,
+        defect: totalDefect, hours: actuals.length, avgMP,
+      },
       alerts: line.alerts.map(a => ({ type: a.type, message: a.message })),
       ller, gap, targetPPH: tph,
     }

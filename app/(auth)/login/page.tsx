@@ -51,6 +51,9 @@ export default function LoginPage() {
         <p className="text-center text-xs text-gray-400 mt-6">
           Hubungi IT Admin jika lupa password
         </p>
+        <p className="text-center text-xs text-gray-300 mt-3">
+          Developed by <span className="font-medium text-gray-400">Third Axis Center</span>
+        </p>
       </div>
     </div>
   )

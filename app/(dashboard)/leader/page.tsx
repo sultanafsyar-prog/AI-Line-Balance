@@ -9,7 +9,7 @@ export default async function LeaderPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
 
-  const user = session.user as any
+  const user = session.user
   if (user.role !== 'TEAM_LEADER') redirect('/dashboard')
 
   // Ambil semua line yang di-assign ke team leader ini
@@ -44,5 +44,5 @@ export default async function LeaderPage() {
 
   const lines = userLines.map(ul => ul.line)
 
-  return <LeaderClient lines={lines as any} userId={user.id} userName={user.name} />
+  return <LeaderClient lines={lines as any} userId={user.id} userName={user.name ?? user.email ?? 'User'} />
 }

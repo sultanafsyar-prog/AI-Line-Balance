@@ -7,7 +7,7 @@ export default async function ManagerPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
 
-  const user = session.user as any
+  const user = session.user
   if (user.role !== 'MANAGEMENT' && user.role !== 'IE_ADMIN' && user.role !== 'IT_ADMIN') {
     redirect('/dashboard')
   }

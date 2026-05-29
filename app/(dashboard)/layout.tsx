@@ -7,7 +7,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
 
-  const user = session.user as any
+  const user = session.user
 
   // Team Leader: full screen tanpa sidebar
   if (user.role === 'TEAM_LEADER') {

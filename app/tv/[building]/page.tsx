@@ -36,7 +36,11 @@ export default async function TVPage({ params }: Props) {
         where: { resolved: false },
         orderBy: { triggeredAt: 'desc' },
         take: 3
-      }
+      },
+      dailyTargets: {
+        where: { date: today() },
+        take: 1,
+      },
     }
   })
 

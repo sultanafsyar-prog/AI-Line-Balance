@@ -1,4 +1,4 @@
-import { NextAuthOptions } from 'next-auth'
+import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from './db'
@@ -10,26 +10,42 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'credentials',
       credentials: {
-        email: { label: 'Email', type: 'email' },
+        email:    { label: 'Email',    type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
-        const user = await prisma.user.findUnique({ where: { email: credentials.email, active: true } })
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email, active: true },
+        })
         if (!user) return null
         const valid = await bcrypt.compare(credentials.password, user.password)
         if (!valid) return null
-        return { id: user.id, name: user.name, email: user.email, role: user.role, building: user.building }
+        return {
+          id:       user.id,
+          name:     user.name,
+          email:    user.email,
+          role:     user.role,
+          building: user.building,
+        }
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) { token.role = (user as any).role; token.building = (user as any).building; token.id = user.id }
+      if (user) {
+        token.id       = user.id
+        token.role     = user.role
+        token.building = user.building
+      }
       return token
     },
     async session({ session, token }) {
-      if (session.user) { (session.user as any).role = token.role; (session.user as any).building = token.building; (session.user as any).id = token.id }
+      if (session.user) {
+        session.user.id       = token.id
+        session.user.role     = token.role
+        session.user.building = token.building
+      }
       return session
     },
   },

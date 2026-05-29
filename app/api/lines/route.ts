@@ -1,23 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { isIE, today } from '@/lib/utils'
+import { today } from '@/lib/utils'
+import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
+import { LineAssignSchema } from '@/lib/validation'
 
 // GET /api/lines?building=D
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireSession()
+  if (auth instanceof NextResponse) return auth
+  const session = auth
 
   const { searchParams } = new URL(req.url)
   const building = searchParams.get('building')
 
+  // Build where clause sesuai role:
+  // - Team Leader: hanya line yang di-assign ke user via UserLine
+  // - Management dengan building scope: filter by building
+  // - IE/IT Admin: bisa lihat semua, atau filter by building param
+  let where: Record<string, unknown> = { active: true }
+
+  if (session.user.role === 'TEAM_LEADER') {
+    const lineIds = await prisma.userLine.findMany({
+      where: { userId: session.user.id },
+      select: { lineId: true },
+    }).then(rows => rows.map(r => r.lineId))
+    where = { ...where, id: { in: lineIds } }
+  } else {
+    const effectiveBuilding = session.user.building ?? building
+    if (effectiveBuilding) {
+      where = { ...where, building: effectiveBuilding }
+    }
+  }
+
   const lines = await prisma.line.findMany({
-    where: { active: true, ...(building ? { building } : {}) },
+    where,
     include: {
       assignments: {
         where: { active: true },
-        include: { model: { include: { sections: { include: { operations: { orderBy: { seq: 'asc' } } } } } } },
+        include: {
+          model: {
+            include: {
+              sections: { include: { operations: { orderBy: { seq: 'asc' } } } }
+            }
+          }
+        },
         take: 1,
         orderBy: { assignedAt: 'desc' },
       },
@@ -29,22 +55,24 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(lines)
 }
 
-// POST /api/lines/assign
+// POST /api/lines — assign model ke line
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || !isIE((session.user as any)?.role))
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const auth = await requireRole(['IE_ADMIN', 'IE_OPERATOR'])
+  if (auth instanceof NextResponse) return auth
 
-  const { lineId, modelId } = await req.json()
-  if (!lineId) return NextResponse.json({ error: 'lineId required' }, { status: 400 })
+  const parsed = await parseBody(req, LineAssignSchema)
+  if (parsed instanceof NextResponse) return parsed
+  const { lineId, modelId } = parsed
 
-  // Nonaktifkan assignment lama
-  await prisma.lineAssignment.updateMany({ where: { lineId, active: true }, data: { active: false } })
+  await prisma.lineAssignment.updateMany({
+    where: { lineId, active: true },
+    data: { active: false }
+  })
 
   if (!modelId) return NextResponse.json({ message: 'Assignment removed' })
 
   const assignment = await prisma.lineAssignment.create({
-    data: { lineId, modelId, assignedBy: (session.user as any).id },
+    data: { lineId, modelId, assignedBy: auth.user.id },
     include: { model: true, line: true },
   })
   return NextResponse.json(assignment, { status: 201 })

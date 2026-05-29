@@ -6,7 +6,7 @@ import { isIE } from '@/lib/utils'
 export default async function ModelCreatePage() {
   const session = await getServerSession(authOptions)
 
-  if (!session || !isIE((session.user as any)?.role)) {
+  if (!session || !isIE(session.user.role)) {
     redirect('/dashboard')
   }
 

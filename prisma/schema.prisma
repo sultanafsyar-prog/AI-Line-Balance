@@ -53,6 +53,7 @@ model ShoeModel {
   lineType     LineType @default(MINI)
   active       Boolean  @default(true)
   uploadedFrom String?
+  imageUrl     String?  // URL foto model (disimpan di Supabase Storage)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -147,19 +148,20 @@ model LineAssignment {
 
 // ─── DATA AKTUAL PRODUKSI (per jam) ──────────────────────────
 model Actual {
-  id        String   @id @default(cuid())
-  lineId    String
-  sectionId String
-  date      String
-  hour      Int
-  output    Int
-  mpActual  Int
-  downtime  Int      @default(0)
-  dtReason  String?
-  defect    Int      @default(0)
-  inputBy   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  lineId      String
+  sectionId   String
+  date        String
+  hour        Int
+  output      Int
+  mpActual    Int
+  downtime    Int      @default(0)
+  dtReason    String?
+  defect      Int      @default(0)
+  inputBy     String
+  shiftClosed Boolean  @default(false) // true setelah shift di-close, data tidak boleh diubah
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   line    Line    @relation(fields: [lineId], references: [id])
   section Section @relation(fields: [sectionId], references: [id])
@@ -167,6 +169,26 @@ model Actual {
 
   @@unique([lineId, sectionId, date, hour])
   @@index([lineId, date])
+  @@index([lineId, date, shiftClosed])
+}
+
+// ─── ARSIP SHIFT (audit log untuk shift yang ditutup) ─────
+model ShiftArchive {
+  id           String   @id @default(cuid())
+  lineId       String
+  date         String
+  shiftLabel   String
+  closedBy     String   // user id IE Admin yang tutup shift
+  closedAt     DateTime @default(now())
+  totalOutput  Int
+  totalDT      Int
+  totalDefect  Int
+  avgLler      Int
+  managerEmail String?
+  emailSent    Boolean  @default(false)
+
+  @@index([lineId, date])
+  @@index([closedAt])
 }
 
 // ─── ALERT ───────────────────────────────────────────────────

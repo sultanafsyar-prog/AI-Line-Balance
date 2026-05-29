@@ -32,12 +32,13 @@ interface Props {
 }
 
 // ── Warna berdasarkan rasio CT/TT ────────────────────────────
+// Konteks: data AKTUAL vs Takt Time. Label menunjukkan performa aktual.
 function barColor(ct: number, tt: number) {
   const ratio = ct / tt
-  if (ratio <= 0.9)  return { fill: '#1D9E75', label: 'Efisien',    text: '#085041' }
-  if (ratio <= 1.0)  return { fill: '#EF9F27', label: 'Mendekati TT', text: '#633806' }
-  if (ratio <= 1.3)  return { fill: '#E24B4A', label: 'Bottleneck',  text: '#791F1F' }
-  return               { fill: '#A32D2D', label: 'Kritis',     text: '#501313' }
+  if (ratio <= 0.9)  return { fill: '#1D9E75', label: 'Efisien',       text: '#085041' }
+  if (ratio <= 1.0)  return { fill: '#EF9F27', label: 'Mendekati TT',  text: '#633806' }
+  if (ratio <= 1.3)  return { fill: '#E24B4A', label: 'Melebihi TT',   text: '#791F1F' }
+  return               { fill: '#A32D2D', label: 'Kritis',          text: '#501313' }
 }
 
 // ── Format jam ───────────────────────────────────────────────
@@ -88,8 +89,8 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
     : null
   const avgStatus = avgCT !== null ? barColor(avgCT, taktTime) : null
 
-  // Jam bottleneck
-  const bottleneckJams = jamData.filter(j => j.ct !== null && j.ct > taktTime)
+  // Jam yang melebihi takt time
+  const overTaktJams = jamData.filter(j => j.ct !== null && j.ct > taktTime)
   const efisienJams    = jamData.filter(j => j.ct !== null && j.ct <= taktTime)
 
   return (
@@ -130,11 +131,11 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
             bg:    '#E1F5EE',
           },
           {
-            label: 'Jam bottleneck',
-            value: `${bottleneckJams.length} jam`,
+            label: 'Jam melebihi TT',
+            value: `${overTaktJams.length} jam`,
             sub:   `CT > TT`,
-            color: bottleneckJams.length > 0 ? '#A32D2D' : '#3d3d3a',
-            bg:    bottleneckJams.length > 0 ? '#FCEBEB' : '#f5f5f3',
+            color: overTaktJams.length > 0 ? '#A32D2D' : '#3d3d3a',
+            bg:    overTaktJams.length > 0 ? '#FCEBEB' : '#f5f5f3',
           },
         ].map((card, i) => (
           <div key={i} style={{
@@ -334,23 +335,23 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
       </div>
 
       {/* ── Insight otomatis ── */}
-      {bottleneckJams.length > 0 && (
+      {overTaktJams.length > 0 && (
         <div style={{
           marginTop: '16px', padding: '12px 14px',
           background: '#FCEBEB', borderRadius: '8px',
           borderLeft: '3px solid #E24B4A',
           fontSize: '12px', color: '#A32D2D', lineHeight: 1.6,
         }}>
-          <strong>Insight otomatis:</strong> {bottleneckJams.length} dari {jamData.length} jam
+          <strong>Insight otomatis:</strong> {overTaktJams.length} dari {jamData.length} jam
           memiliki CT aktual di atas Takt Time ({taktTime}s) →{' '}
-          {bottleneckJams.map(j => `jam ${fmtHour(j.hour)}`).join(', ')}.
-          {bottleneckJams.some(j => (j.downtime ?? 0) > 10)
+          {overTaktJams.map(j => `jam ${fmtHour(j.hour)}`).join(', ')}.
+          {overTaktJams.some(j => (j.downtime ?? 0) > 10)
             ? ' Kemungkinan penyebab utama: downtime tinggi.'
             : ' Kemungkinan penyebab: output rendah atau MP kurang.'}
         </div>
       )}
 
-      {bottleneckJams.length === 0 && validCTs.length > 0 && (
+      {overTaktJams.length === 0 && validCTs.length > 0 && (
         <div style={{
           marginTop: '16px', padding: '12px 14px',
           background: '#E1F5EE', borderRadius: '8px',

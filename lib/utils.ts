@@ -16,27 +16,43 @@ export function getGWT(op: { va: number; nvan: number; nva: number; allowance: n
 }
 
 export function calcSectionMetrics(ops: any[], stdMP: number, takt: number) {
-  const rows = ops.map(op => ({ ...op, gwt: getGWT(op) }))
+  const rows = ops.map(op => {
+    const gwt        = getGWT(op)
+    const mpNeeded   = takt > 0 ? Math.ceil(gwt / takt) : 1        // MP dibutuhkan per operasi
+    const effectiveCT = parseFloat((gwt / mpNeeded).toFixed(2))     // CT efektif setelah dibagi MP
+    return { ...op, gwt, mpNeeded, effectiveCT }
+  })
   const totalGWT  = parseFloat(rows.reduce((s, r) => s + r.gwt, 0).toFixed(2))
   const theorMP   = parseFloat((totalGWT / takt).toFixed(2))
   const lbr       = stdMP > 0 ? parseFloat((theorMP / stdMP * 100).toFixed(1)) : 0
-  const bottleneck = rows.reduce((m, r) => r.gwt > m.gwt ? r : m, rows[0] ?? { gwt: 0, name: '-' })
-  return { rows, totalGWT, theorMP, lbr, bottleneck }
+  // maxGwtOp = operasi dengan GWT tertinggi (untuk info, BUKAN "bottleneck")
+  const maxGwtOp  = rows.reduce((m, r) => r.gwt > m.gwt ? r : m, rows[0] ?? { gwt: 0, name: '-', mpNeeded: 1, effectiveCT: 0 })
+  // Backward compat: `bottleneck` tetap di-expose untuk kode lama yang masih pakai
+  return { rows, totalGWT, theorMP, lbr, maxGwtOp, bottleneck: maxGwtOp }
 }
 
 export function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-export function today() { return new Date().toISOString().slice(0, 10) }
+/**
+ * Tanggal hari ini dalam format YYYY-MM-DD, zona waktu Asia/Jakarta (UTC+7).
+ * Penting: jangan pakai toISOString().slice(0,10) — itu UTC, jam 00:00-07:00 WIB
+ * akan tercatat sebagai tanggal kemarin.
+ */
+export function today() {
+  // en-CA locale menghasilkan format YYYY-MM-DD
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+}
 
 // ─── ROLE HELPERS ────────────────────────────────────────────
-export type UserRole = 'IE_ADMIN' | 'IE_OPERATOR' | 'TEAM_LEADER' | 'MANAGEMENT' | 'IT_ADMIN'
+export type UserRole = 'IE_ADMIN' | 'IE_OPERATOR' | 'TEAM_LEADER' | 'MANAGEMENT' | 'IT_ADMIN' | 'PPIC'
 
 export function isIE(role?: string)          { return role === 'IE_ADMIN' || role === 'IE_OPERATOR' }
 export function isTeamLeader(role?: string)  { return role === 'TEAM_LEADER' }
 export function isManagement(role?: string)  { return role === 'MANAGEMENT' }
 export function isAdmin(role?: string)       { return role === 'IE_ADMIN' || role === 'IT_ADMIN' }
+export function isPPIC(role?: string)        { return role === 'PPIC' }
 export function canInputActual(role?: string){ return role === 'TEAM_LEADER' || isIE(role) }
 export function canManageModels(role?: string){ return isIE(role) }
 export function canViewAll(role?: string)    { return isIE(role) || role === 'IT_ADMIN' }
@@ -47,6 +63,7 @@ export const ROLE_LABELS: Record<string, string> = {
   TEAM_LEADER: 'Team Leader',
   MANAGEMENT:  'Manager',
   IT_ADMIN:    'IT Admin',
+  PPIC:        'PPIC',
 }
 
 export const ROLE_COLORS: Record<string, string> = {
@@ -55,4 +72,5 @@ export const ROLE_COLORS: Record<string, string> = {
   TEAM_LEADER: 'badge-info',
   MANAGEMENT:  'badge-ok',
   IT_ADMIN:    'badge-warn',
+  PPIC:        'badge-info',
 }

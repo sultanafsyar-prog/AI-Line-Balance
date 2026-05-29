@@ -28,7 +28,7 @@ export default async function LineDetailPage({ params }: Props) {
 
   if (!line) notFound()
 
-  const allModels = isIE((session?.user as any)?.role)
+  const allModels = isIE(session?.user?.role)
     ? await prisma.shoeModel.findMany({ where: { active: true }, select: { id: true, name: true, article: true, lineType: true } })
     : []
 

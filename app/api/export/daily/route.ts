@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import * as XLSX from 'xlsx'
 import { today } from '@/lib/utils'
+import { jsonError, requireSession } from '@/lib/api-helpers'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireSession()
+  if (auth instanceof NextResponse) return auth
+  const session = auth
 
   const { searchParams } = new URL(req.url)
   const date = searchParams.get('date') ?? today()
-  const userBuilding = (session.user as any)?.building
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return jsonError('Format tanggal harus YYYY-MM-DD')
+  }
+  const userBuilding = session.user.building
 
   // Ambil semua data
   const lines = await prisma.line.findMany({
@@ -91,7 +94,7 @@ export async function GET(req: NextRequest) {
       const defPct = a.output > 0 ? parseFloat((a.defect / a.output * 100).toFixed(2)) : 0
       return [
         `${a.hour}:00`,
-        (a as any).section?.name ?? '—',
+        a.section?.name ?? '—',
         a.output,
         gap >= 0 ? `+${gap}` : gap,
         a.mpActual,

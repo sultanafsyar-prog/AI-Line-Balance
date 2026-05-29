@@ -1,20 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { canInputActual, today } from '@/lib/utils'
+import { today } from '@/lib/utils'
+import { requireSession, requireRole, parseBody, hasLineAccess } from '@/lib/api-helpers'
+import { ActualUpsertSchema } from '@/lib/validation'
 
 // GET /api/actuals?lineId=X&date=YYYY-MM-DD
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireSession()
+  if (auth instanceof NextResponse) return auth
+  const session = auth
 
   const { searchParams } = new URL(req.url)
   const lineId = searchParams.get('lineId')
   const date = searchParams.get('date') ?? today()
 
+  // Team Leader: hanya line miliknya
+  // Management dengan building scope: hanya line di gedungnya
+  let lineFilter: Record<string, unknown> = {}
+  if (session.user.role === 'TEAM_LEADER') {
+    const accessibleLineIds = await prisma.userLine.findMany({
+      where: { userId: session.user.id },
+      select: { lineId: true },
+    }).then(rows => rows.map(r => r.lineId))
+
+    if (lineId && !accessibleLineIds.includes(lineId)) {
+      return NextResponse.json([], { status: 200 }) // return empty array, bukan 403, supaya UI tidak error
+    }
+    lineFilter = lineId ? { lineId } : { lineId: { in: accessibleLineIds } }
+  } else if (session.user.building && session.user.role === 'MANAGEMENT') {
+    lineFilter = lineId
+      ? { lineId, line: { building: session.user.building } }
+      : { line: { building: session.user.building } }
+  } else {
+    lineFilter = lineId ? { lineId } : {}
+  }
+
   const actuals = await prisma.actual.findMany({
-    where: { ...(lineId ? { lineId } : {}), date },
+    where: { ...lineFilter, date },
     include: { section: true },
     orderBy: [{ hour: 'asc' }],
   })
@@ -23,44 +45,83 @@ export async function GET(req: NextRequest) {
 
 // POST /api/actuals
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || !canInputActual((session.user as any)?.role))
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const auth = await requireRole(['IE_ADMIN', 'IE_OPERATOR', 'TEAM_LEADER'])
+  if (auth instanceof NextResponse) return auth
 
-  const body = await req.json()
-  const { lineId, sectionId, date, hour, output, mpActual, downtime, dtReason, defect, modelId } = body
+  const parsed = await parseBody(req, ActualUpsertSchema)
+  if (parsed instanceof NextResponse) return parsed
+  const { lineId, sectionId, date, hour, output, mpActual, downtime, dtReason, defect } = parsed
 
-  if (!lineId || !sectionId || !date || hour === undefined || output === undefined || mpActual === undefined)
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  // Cek akses line sesuai role
+  if (!(await hasLineAccess(auth, lineId))) {
+    return NextResponse.json(
+      { error: 'Anda tidak punya akses ke line ini' },
+      { status: 403 }
+    )
+  }
+
+  // Cek apakah Actual untuk jam ini sudah di-close — kalau iya, tolak edit
+  const existing = await prisma.actual.findUnique({
+    where: { lineId_sectionId_date_hour: { lineId, sectionId, date: date ?? today(), hour } },
+    select: { shiftClosed: true },
+  })
+  if (existing?.shiftClosed) {
+    return NextResponse.json(
+      { error: 'Data ini sudah dikunci karena shift sudah ditutup. Hubungi IE Admin jika perlu koreksi.' },
+      { status: 409 }
+    )
+  }
 
   const actual = await prisma.actual.upsert({
-    where: { lineId_sectionId_date_hour: { lineId, sectionId, date, hour } },
-    update: { output, mpActual, downtime: downtime ?? 0, dtReason, defect: defect ?? 0 },
+    where: { lineId_sectionId_date_hour: { lineId, sectionId, date: date ?? today(), hour } },
+    update: { output, mpActual, downtime, dtReason: dtReason ?? null, defect },
     create: {
-      lineId, sectionId, date, hour, output, mpActual,
-      downtime: downtime ?? 0, dtReason, defect: defect ?? 0,
-      inputBy: (session.user as any).id,
+      lineId, sectionId, date: date ?? today(), hour, output, mpActual,
+      downtime, dtReason: dtReason ?? null, defect,
+      inputBy: auth.user.id,
     },
   })
 
-  // ─── Auto-generate alerts ───────────────────────────────────
-  const section = await prisma.section.findUnique({ where: { id: sectionId }, include: { model: true } })
+  // ─── Auto-generate alerts (dedup: cek alert serupa yang masih aktif) ──
+  const section = await prisma.section.findUnique({
+    where: { id: sectionId },
+    include: { model: true },
+  })
   if (section) {
     const tph = section.model.lineType === 'BIG' ? 180 : 100
-    if (output < tph * 0.8) {
-      await prisma.alert.create({
-        data: { lineId, type: 'OUTPUT_LOW', message: `Output ${output} pairs (${Math.round(output/tph*100)}% dari target ${tph})` }
+
+    async function ensureAlert(type: 'OUTPUT_LOW' | 'DOWNTIME_HIGH' | 'DEFECT_HIGH', message: string) {
+      const existing = await prisma.alert.findFirst({
+        where: { lineId, type, resolved: false },
       })
+      if (existing) {
+        // Update pesan saja, jangan bikin duplikat
+        await prisma.alert.update({
+          where: { id: existing.id },
+          data: { message, triggeredAt: new Date() },
+        })
+      } else {
+        await prisma.alert.create({ data: { lineId, type, message } })
+      }
+    }
+
+    if (output < tph * 0.8) {
+      await ensureAlert(
+        'OUTPUT_LOW',
+        `Output ${output} pairs (${Math.round((output / tph) * 100)}% dari target ${tph})`
+      )
     }
     if (downtime > 15) {
-      await prisma.alert.create({
-        data: { lineId, type: 'DOWNTIME_HIGH', message: `Downtime ${downtime} menit${dtReason ? ` — ${dtReason}` : ''}` }
-      })
+      await ensureAlert(
+        'DOWNTIME_HIGH',
+        `Downtime ${downtime} menit${dtReason ? ` — ${dtReason}` : ''}`
+      )
     }
     if (output > 0 && defect / output > 0.02) {
-      await prisma.alert.create({
-        data: { lineId, type: 'DEFECT_HIGH', message: `Defect ${defect} pairs (${(defect/output*100).toFixed(1)}%)` }
-      })
+      await ensureAlert(
+        'DEFECT_HIGH',
+        `Defect ${defect} pairs (${((defect / output) * 100).toFixed(1)}%)`
+      )
     }
   }
 

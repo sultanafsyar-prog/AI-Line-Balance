@@ -77,10 +77,22 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
     window.location.reload()
   }
 
-  const yamData = metrics?.rows.map(r => ({
-    name: r.name.length > 14 ? r.name.slice(0, 14) + '…' : r.name,
-    VA: r.va, NVAN: r.nvan, NVA: r.nva, gwt: r.gwt, isBn: r.gwt > takt,
-  })) ?? []
+  // Yamazumi chart standar IE: tampilkan Effective CT (GWT ÷ MP) per operasi.
+  // Ini membuktikan bahwa line sudah balanced — semua bar harus ≤ Takt Time.
+  // Operasi multi-MP ditandai label di bar.
+  const yamData = metrics?.rows.map(r => {
+    const mp = r.mpNeeded ?? 1
+    return {
+      name: r.name.length > 14 ? r.name.slice(0, 14) + '…' : r.name,
+      VA:   parseFloat((r.va / mp).toFixed(2)),
+      NVAN: parseFloat((r.nvan / mp).toFixed(2)),
+      NVA:  parseFloat((r.nva / mp).toFixed(2)),
+      gwt:  r.gwt,
+      effectiveCT: r.effectiveCT,
+      mpNeeded: mp,
+      isMultiMP: mp > 1,
+    }
+  }) ?? []
 
   const feats = [
     { key: 'style',          label: '👟 Style & Target' },
@@ -191,7 +203,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                   { l: 'Standard MP', v: section.stdMP + ' orang', c: '' },
                   { l: 'Theoretical MP', v: metrics.theorMP + ' orang', c: '' },
                   { l: 'LBR', v: metrics.lbr + '%', c: metrics.lbr >= 85 ? 'text-teal' : metrics.lbr >= 70 ? 'text-amber-600' : 'text-red-600' },
-                  { l: 'Max GWT', v: metrics.bottleneck.gwt + 's', c: metrics.bottleneck.gwt > takt ? 'text-amber-600' : 'text-teal' },
+                  { l: 'Operasi Terberat', v: metrics.maxGwtOp.name, c: 'text-gray-900 text-sm' },
                 ].map(m => (
                   <div key={m.l} className="card p-3">
                     <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{m.l}</div>
@@ -207,6 +219,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                     {l}
                   </span>
                 ))}
+                <span className="text-gray-400 ml-2">Bar = Effective CT (GWT ÷ MP)</span>
               </div>
 
               <div className="card p-4 mb-4" style={{ height: Math.max(280, yamData.length * 24 + 100) }}>
@@ -214,8 +227,16 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                   <BarChart data={yamData} margin={{ top: 10, right: 60, left: 0, bottom: 80 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-40} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 10 }} label={{ value: 'Detik (s)', angle: -90, position: 'insideLeft', style: { fontSize: 10 } }} />
-                    <Tooltip formatter={(v: any, n: string) => [v + 's', n]} />
+                    <YAxis tick={{ fontSize: 10 }} label={{ value: 'Eff CT (s)', angle: -90, position: 'insideLeft', style: { fontSize: 10 } }} />
+                    <Tooltip
+                      formatter={(v: any, n: string) => [v + 's', n]}
+                      labelFormatter={(label: string, payload: any[]) => {
+                        const d = payload?.[0]?.payload
+                        if (!d) return label
+                        const mp = d.mpNeeded > 1 ? ` | MP: ${d.mpNeeded} org` : ''
+                        return `${label} — GWT: ${d.gwt}s | Eff CT: ${d.effectiveCT}s${mp}`
+                      }}
+                    />
                     <ReferenceLine y={takt} stroke="#E24B4A" strokeWidth={2} strokeDasharray="5 4"
                       label={{ value: `TT=${takt}s`, fill: '#E24B4A', fontSize: 10, position: 'right' }} />
                     <Bar dataKey="VA" stackId="s" fill="#1D9E75" maxBarSize={40} />
@@ -228,27 +249,32 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
               <div className="card overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>{['#', 'Operasi', 'VA(s)', 'NVAN(s)', 'NVA(s)', 'GWT(s)', 'vs TT', 'Status'].map(h =>
+                    <tr>{['#', 'Operasi', 'VA(s)', 'NVAN(s)', 'NVA(s)', 'GWT(s)', 'MP', 'Eff CT(s)', 'Info'].map(h =>
                       <th key={h} className="text-left px-3 py-2 text-xs text-gray-500 font-medium uppercase tracking-wide">{h}</th>
                     )}</tr>
                   </thead>
                   <tbody>
                     {metrics.rows.map((r: any, i: number) => {
-                      const isBn = r.gwt > takt, isHi = !isBn && r.gwt > takt * 0.85
-                      const diff = parseFloat((r.gwt - takt).toFixed(2))
+                      const isMultiMP = r.mpNeeded > 1
+                      const fmtNum = (n: number) => n ? parseFloat(n.toFixed(2)) : 0
                       return (
-                        <tr key={r.id} className={`border-b border-gray-50 ${isBn ? 'bg-red-50' : isHi ? 'bg-amber-50' : ''}`}>
+                        <tr key={r.id} className={`border-b border-gray-50 ${isMultiMP ? 'bg-blue-50' : ''}`}>
                           <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
                           <td className="px-3 py-2 text-gray-800">{r.name}</td>
-                          <td className="px-3 py-2 text-teal text-xs">{r.va}</td>
-                          <td className="px-3 py-2 text-amber-600 text-xs">{r.nvan || '—'}</td>
-                          <td className="px-3 py-2 text-red-500 text-xs">{r.nva || '—'}</td>
-                          <td className={`px-3 py-2 font-medium text-xs ${isBn ? 'text-red-600' : isHi ? 'text-amber-600' : 'text-gray-900'}`}>{r.gwt}</td>
-                          <td className={`px-3 py-2 text-xs ${diff > 0 ? 'text-red-600' : 'text-teal'}`}>{diff > 0 ? '+' : ''}{diff}s</td>
+                          <td className="px-3 py-2 text-teal text-xs">{fmtNum(r.va)}</td>
+                          <td className="px-3 py-2 text-amber-600 text-xs">{fmtNum(r.nvan) || '—'}</td>
+                          <td className="px-3 py-2 text-red-500 text-xs">{fmtNum(r.nva) || '—'}</td>
+                          <td className="px-3 py-2 font-medium text-xs text-gray-900">{r.gwt}s</td>
+                          <td className={`px-3 py-2 text-xs font-medium ${isMultiMP ? 'text-blue-700' : 'text-gray-600'}`}>{r.mpNeeded}</td>
+                          <td className={`px-3 py-2 text-xs ${r.effectiveCT > takt ? 'text-amber-600 font-medium' : 'text-teal'}`}>{r.effectiveCT}s</td>
                           <td className="px-3 py-2">
-                            <span className={`badge ${isBn ? 'badge-warn' : isHi ? 'badge-warn' : 'badge-ok'}`}>
-                              {isBn ? 'Perlu split' : isHi ? 'Review' : 'Normal'}
-                            </span>
+                            {isMultiMP ? (
+                              <span className="badge" style={{ background: '#EBF5FF', color: '#1D4ED8', fontSize: '11px' }}>
+                                Multi-MP ({r.mpNeeded} org)
+                              </span>
+                            ) : (
+                              <span className="badge badge-ok">Standard</span>
+                            )}
                           </td>
                         </tr>
                       )
@@ -258,9 +284,10 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
               </div>
             </div>
           )}
+                  
           {feat === 'style' && (
-           <StyleCard
-             model={model ? {
+            <StyleCard
+              model={model ? {
                 id:        model.id,
                 name:      model.name,
                 article:   model.article,
@@ -275,9 +302,25 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
               } : null}
               lineId={line.id}
               totalActual={totOut}
+              sectionActuals={sections.map((secName: string) => {
+                const sa  = line.actuals.filter((a: any) => a.section?.name === secName)
+                const out = sa.reduce((s: number, a: any) => s + (a.output ?? 0), 0)
+                const dt  = sa.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
+                const def = sa.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
+                const sec = model?.sections?.find((s: any) => s.name === secName)
+                const tph = sec?.taktTime > 0 ? Math.floor(3600 / sec.taktTime) : 0
+                const tgt = tph * sa.length
+                return {
+                  name:   secName,
+                  ller:   tgt > 0 ? Math.round((out / tgt) * 100) : null,
+                  totOut: out,
+                  totDT:  dt,
+                  totDef: def,
+                }
+              })}
               canSetTarget={['PPIC','IE_ADMIN','MANAGEMENT'].includes(user?.role ?? '')}
             />
-          )} 
+          )}
           {/* ── YAMAZUMI AKTUAL ── */}
           {feat === 'yamazumi-aktual' && (
             <div className="card p-4">
@@ -432,7 +475,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                 <div className="text-center py-8">
                   <div className="text-4xl mb-3">🤖</div>
                   <div className="font-medium mb-2">Analisis AI — {selSec}</div>
-                  <p className="text-sm text-gray-500 mb-4">AI baca standar IE + aktual hari ini → rekomendasi bottleneck & redistribusi MP</p>
+                  <p className="text-sm text-gray-500 mb-4">AI baca standar IE + aktual hari ini → rekomendasi perbaikan & redistribusi MP</p>
                   <button onClick={runAI} className="btn btn-primary">Jalankan analisis AI ↗</button>
                 </div>
               )}

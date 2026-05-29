@@ -80,6 +80,8 @@ function calcLineMetrics(line: LineData, sections: string[]) {
   return {
     model:        model.name,
     article:      model.article,
+    imageUrl:    (model as any).imageUrl,
+    dailyTarget: (line as any).dailyTargets?.[0] ?? null,
     ller:         avgLler,
     totOut,
     totTarget,
@@ -423,6 +425,9 @@ export default function TVClient({ building, lines, sections }: Props) {
               {l.label}
             </div>
           ))}
+          <div style={{ marginLeft: 'auto', fontSize: '10px', color: C.dim, opacity: 0.6 }}>
+            Developed by <span style={{ fontWeight: 600 }}>Third Axis Center</span>
+          </div>
         </div>
       </div>
     </div>
