@@ -5,7 +5,14 @@ import { LINE_TYPES } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
-const DT_REASONS = ['Mesin rusak', 'Material kurang', 'Style change', 'QC hold', 'Operator kurang', 'Lainnya']
+const DT_REASONS_I18N: Record<string, { id: string; en: string; 'zh-TW': string }> = {
+  machine:  { id: 'Mesin rusak',       en: 'Machine breakdown',  'zh-TW': '機台故障' },
+  material: { id: 'Material kurang',   en: 'Material shortage',  'zh-TW': '材料不足' },
+  style:    { id: 'Style change',      en: 'Style change',       'zh-TW': '換款' },
+  qc:       { id: 'QC hold',           en: 'QC hold',            'zh-TW': 'QC 暫停' },
+  operator: { id: 'Operator kurang',   en: 'Operator shortage',  'zh-TW': '人員不足' },
+  other:    { id: 'Lainnya',           en: 'Others',             'zh-TW': '其他' },
+}
 // Shift 1: 07:30-16:30 | OT s/d 19:30
 const SHIFT1_HOURS    = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 const SHIFT1_OT_HOURS = [17, 18, 19]
@@ -45,7 +52,7 @@ const SF_SECTIONS = ['Stockfit']
 interface Props { lines: any[]; userId: string; userName: string }
 
 export default function LeaderClient({ lines, userId, userName }: Props) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [selLineId, setSelLineId] = useState(lines[0]?.id ?? '')
   const [showOT, setShowOT]   = useState(false)
   const [shift, setShift]     = useState<1|2>(detectShift())
@@ -91,15 +98,18 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
     setTimeout(() => setSelSec(availableSecs[0]), 0)
   }
   const todayActs = (line?.actuals ?? [])
-    .filter((a: any) => a.section?.name === selSec)
-    .sort((a: any, b: any) => b.hour - a.hour)
+    .filter((a: any) => a.section?.name === effectiveSec)
+    .sort((a: any, b: any) => a.hour - b.hour)
 
   const totalOut = todayActs.reduce((s: number, a: any) => s + a.output, 0)
-  const lastOut  = todayActs[0]?.output ?? 0
-  const ller     = tph > 0 && lastOut > 0 ? Math.round(lastOut / tph * 100) : 0
+  const totalTarget = tph * todayActs.length
+  const ller = totalTarget > 0 ? Math.round((totalOut / totalTarget) * 100) : 0
   const outputNum = parseInt(form.output) || 0
   const gap      = outputNum > 0 ? outputNum - tph : null
   const hasDT    = parseInt(form.downtime) > 0
+
+  // Set jam yang sudah ada datanya (untuk dot indicator)
+  const filledHours = new Set(todayActs.map((a: any) => a.hour))
 
   async function handleSave() {
     if (!selLineId) { setError('Pilih line terlebih dahulu'); return }
@@ -108,6 +118,15 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
     }
     if (!form.output) { setError('Output wajib diisi'); return }
     if (!form.mpActual) { setError('MP hadir wajib diisi'); return }
+
+    // Konfirmasi overwrite jika jam ini sudah ada data
+    if (filledHours.has(parseInt(form.hour))) {
+      const existing = todayActs.find((a: any) => a.hour === parseInt(form.hour))
+      if (existing && !confirm(`Jam ${displayHour(parseInt(form.hour))} sudah ada data (output: ${existing.output}). Overwrite?`)) {
+        return
+      }
+    }
+
     setSaving(true); setError(''); setSaved(false)
     const res = await fetch('/api/actuals', {
       method: 'POST',
@@ -126,8 +145,26 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
     })
     if (res.ok) {
       setSaved(true)
-      setForm(f => ({ ...f, output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
-      setTimeout(() => { setSaved(false); window.location.reload() }, 2000)
+      // Refresh data tanpa reload halaman
+      try {
+        const freshRes = await fetch(`/api/actuals?lineId=${selLineId}&date=${getWorkDate(shift)}`)
+        if (freshRes.ok) {
+          const freshActuals = await freshRes.json()
+          // Update line actuals in-place
+          if (line) {
+            line.actuals = freshActuals
+          }
+        }
+      } catch {}
+      // Pindah ke jam berikutnya yang belum diisi
+      const currentH = parseInt(form.hour)
+      const nextEmpty = activeHours.find((h: number) => h > currentH && !filledHours.has(h))
+      if (nextEmpty !== undefined) {
+        setForm({ hour: String(nextEmpty), output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' })
+      } else {
+        setForm(f => ({ ...f, output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
+      }
+      setTimeout(() => setSaved(false), 3000)
     } else {
       const d = await res.json()
       setError(d.error ?? 'Gagal simpan, coba lagi')
@@ -213,23 +250,27 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
         </div>
       ) : (
         <>
-          {/* ── SECTION TABS ── */}
+          {/* ── SECTION TABS (hanya tampilkan section yang punya operasi) ── */}
           <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', overflowX: 'auto', whiteSpace: 'nowrap', padding: '8px 12px' }}>
-            {secs.map(s => {
-              const hasData = model.sections?.find((ms: any) => ms.name === s)?.operations?.length > 0
+            {availableSecs.map(s => {
+              const secActs = (line?.actuals ?? []).filter((a: any) => a.section?.name === s)
+              const hasActual = secActs.length > 0
               return (
                 <button key={s} onClick={() => setSelSec(s)} 
                   style={{
                     display: 'inline-block', padding: '8px 14px', marginRight: 6,
                     borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                    background: selSec === s ? '#1D9E75' : hasData ? '#F0FDF9' : '#F3F4F6',
-                    color: selSec === s ? '#fff' : hasData ? '#065F46' : '#9CA3AF',
-                    border: selSec === s ? 'none' : `1px solid ${hasData ? '#A7F3D0' : '#E5E7EB'}`,
+                    background: selSec === s ? '#1D9E75' : hasActual ? '#F0FDF9' : '#F3F4F6',
+                    color: selSec === s ? '#fff' : hasActual ? '#065F46' : '#9CA3AF',
+                    border: selSec === s ? 'none' : `1px solid ${hasActual ? '#A7F3D0' : '#E5E7EB'}`,
                   }}>
-                  {s}
+                  {s} {hasActual && <span style={{ fontSize: 10 }}>✓</span>}
                 </button>
               )
             })}
+            {availableSecs.length === 0 && (
+              <span style={{ fontSize: 13, color: '#9CA3AF' }}>Tidak ada section dengan operasi</span>
+            )}
           </div>
 
           {/* ── CONTENT ── */}
@@ -281,16 +322,42 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       const isOT = shift === 1
                         ? SHIFT1_OT_HOURS.includes(h)
                         : SHIFT2_OT_HOURS.includes(h)
+                      const isFilled = filledHours.has(h)
                       return (
-                        <button key={h} onClick={() => setForm(f => ({ ...f, hour: String(h) }))}
+                        <button key={h} onClick={() => {
+                          // Auto-load data jika jam ini sudah ada
+                          const existing = todayActs.find((a: any) => a.hour === h)
+                          if (existing) {
+                            setForm({
+                              hour: String(h),
+                              output: String(existing.output),
+                              mpActual: String(existing.mpActual),
+                              downtime: String(existing.downtime ?? 0),
+                              dtReason: existing.dtReason ?? '',
+                              defect: String(existing.defect ?? 0),
+                            })
+                          } else {
+                            setForm(f => ({ ...f, hour: String(h), output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
+                          }
+                        }}
                           style={{
                             flexShrink: 0, width: 52, height: 48, borderRadius: 10, fontSize: 14,
-                            fontWeight: 700, cursor: 'pointer',
+                            fontWeight: 700, cursor: 'pointer', position: 'relative',
                             border: isOT ? '2px solid #FCD34D' : 'none',
                             background: form.hour === String(h) ? '#1D9E75' : isOT ? '#FFFBEB' : '#F3F4F6',
                             color: form.hour === String(h) ? '#fff' : isOT ? '#92400E' : '#6B7280',
                           }}>
                           {displayHour(h)}
+                          {/* Dot hijau kalau jam ini sudah ada data */}
+                          {isFilled && (
+                            <span style={{
+                              position: 'absolute', top: 3, right: 3,
+                              width: 8, height: 8, borderRadius: '50%',
+                              background: form.hour === String(h) ? '#fff' : '#1D9E75',
+                              border: '1.5px solid #fff',
+                            }} />
+                          )}
+                        </button>
                         </button>
                       )
                     })}
@@ -362,19 +429,24 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                 {/* Alasan DT */}
                 {hasDT && (
                   <div style={{ background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', marginBottom: 8 }}>Alasan downtime</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', marginBottom: 8 }}>{t('leader.downtimeReason')}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      {DT_REASONS.map(r => (
-                        <button key={r} onClick={() => setForm(f => ({ ...f, dtReason: r }))}
-                          style={{
-                            padding: '10px 8px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                            background: form.dtReason === r ? '#1D9E75' : '#F3F4F6',
-                            color: form.dtReason === r ? '#fff' : '#374151',
-                            border: 'none', textAlign: 'center',
-                          }}>
-                          {r}
-                        </button>
-                      ))}
+                      {Object.entries(DT_REASONS_I18N).map(([key, labels]) => {
+                        const label = labels[locale as keyof typeof labels] ?? labels.id
+                        // Simpan value dalam bahasa Indonesia (konsisten di DB)
+                        const dbValue = labels.id
+                        return (
+                          <button key={key} onClick={() => setForm(f => ({ ...f, dtReason: dbValue }))}
+                            style={{
+                              padding: '10px 8px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                              background: form.dtReason === dbValue ? '#1D9E75' : '#F3F4F6',
+                              color: form.dtReason === dbValue ? '#fff' : '#374151',
+                              border: 'none', textAlign: 'center',
+                            }}>
+                            {label}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -387,7 +459,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                 )}
                 {saved && (
                   <div style={{ background: '#F0FDF9', border: '1px solid #A7F3D0', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 14, color: '#065F46', fontWeight: 600, textAlign: 'center' }}>
-                    ✅ Data jam {form.hour}:00 berhasil disimpan!
+                    ✅ Data jam {displayHour(parseInt(form.hour))} {t('leader.saved')}
                   </div>
                 )}
               </div>
@@ -396,17 +468,34 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
             {/* ─ STATUS TAB ─ */}
             {tab === 'status' && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
-                  {[
-                    { label: 'Total output', value: `${totalOut}`, sub: 'pairs hari ini', color: '#111827' },
-                    { label: 'Jam input', value: `${todayActs.length}`, sub: 'jam', color: '#111827' },
-                    { label: 'LLER terakhir', value: `${ller}%`, sub: '', color: llerColor },
-                  ].map(m => (
-                    <div key={m.label} style={{ background: '#fff', borderRadius: 16, padding: '12px 8px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: m.color }}>{m.value}</div>
-                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{m.label}</div>
+                {/* Summary semua section */}
+                {(() => {
+                  const allActs = line?.actuals ?? []
+                  const allTotalOut = allActs.reduce((s: number, a: any) => s + a.output, 0)
+                  const allTotalDT = allActs.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
+                  const allTotalDef = allActs.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
+                  const uniqueHours = new Set(allActs.map((a: any) => a.hour)).size
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                      {[
+                        { label: t('status.totalOutput'), value: `${allTotalOut}`, sub: t('common.pairs'), color: '#111827' },
+                        { label: 'LLER', value: `${ller}%`, sub: `${effectiveSec}`, color: llerColor },
+                        { label: t('status.totalDT'), value: `${allTotalDT}`, sub: t('common.minutes'), color: allTotalDT > 30 ? '#EF4444' : '#111827' },
+                        { label: t('status.totalDefect'), value: `${allTotalDef}`, sub: t('common.pairs'), color: allTotalDef > 0 ? '#EF9F27' : '#111827' },
+                      ].map(m => (
+                        <div key={m.label} style={{ background: '#fff', borderRadius: 16, padding: '14px 12px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                          <div style={{ fontSize: 28, fontWeight: 800, color: m.color }}>{m.value}</div>
+                          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{m.label}</div>
+                          <div style={{ fontSize: 10, color: '#D1D5DB' }}>{m.sub}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )
+                })()}
+
+                {/* Per-section breakdown */}
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
+                  {t('status.perHour')} — {effectiveSec}
                 </div>
 
                 {todayActs.length === 0 ? (
