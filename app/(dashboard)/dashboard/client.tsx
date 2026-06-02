@@ -54,6 +54,25 @@ function llerBg(v: number): string {
   return '#F9FAFB'
 }
 
+/** Hitung LLER per section untuk sebuah line */
+function calcSectionLlers(line: DashLine): { name: string; ller: number; output: number; target: number }[] {
+  if (line.actuals.length === 0) return []
+  const secMap = new Map<string, { out: number; tgt: number; hours: number }>()
+  for (const a of line.actuals) {
+    const tph = a.taktTime > 0 ? Math.floor(3600 / a.taktTime) : 100
+    const prev = secMap.get(a.sectionName) ?? { out: 0, tgt: 0, hours: 0 }
+    secMap.set(a.sectionName, { out: prev.out + a.output, tgt: prev.tgt + tph, hours: prev.hours + 1 })
+  }
+  return Array.from(secMap.entries())
+    .map(([name, s]) => ({
+      name,
+      ller: s.tgt > 0 ? Math.round((s.out / s.tgt) * 100) : 0,
+      output: s.out,
+      target: s.tgt,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 // ── AI Factory Digest (rule-based, smart) ────────────────────
 function generateDigest(lines: DashLine[], buildings: Record<string, number>): string[] {
   const insights: string[] = []
@@ -139,6 +158,35 @@ function generateDigest(lines: DashLine[], buildings: Record<string, number>): s
     const dr = ((totalDef / totalOut) * 100).toFixed(1)
     if (parseFloat(dr) > 2) {
       insights.push(`🔍 Defect rate ${dr}% (${totalDef} pairs). Lakukan quality check di line dengan defect tertinggi.`)
+    }
+  }
+
+  // 8. Section imbalance — section LLER gap dalam 1 line
+  for (const l of lines) {
+    if (l.actuals.length < 2) continue
+    const secMap = new Map<string, { out: number; tgt: number }>()
+    for (const a of l.actuals) {
+      const tph = a.taktTime > 0 ? Math.floor(3600 / a.taktTime) : 100
+      const prev = secMap.get(a.sectionName) ?? { out: 0, tgt: 0 }
+      secMap.set(a.sectionName, { out: prev.out + a.output, tgt: prev.tgt + tph })
+    }
+    const secLlers = Array.from(secMap.entries())
+      .filter(([, s]) => s.tgt > 0)
+      .map(([name, s]) => ({ name, ller: Math.round((s.out / s.tgt) * 100) }))
+
+    if (secLlers.length >= 2) {
+      const sorted = secLlers.sort((a, b) => a.ller - b.ller)
+      const worst = sorted[0]
+      const best = sorted[sorted.length - 1]
+      const gap = best.ller - worst.ller
+      if (gap >= 20) {
+        insights.push(
+          `⚖️ Gdg ${l.building} L${l.lineNo}: gap antar section ${gap}%. ` +
+          `${best.name} ${best.ller}% vs ${worst.name} ${worst.ller}%. ` +
+          `Fokus perbaikan di ${worst.name}.`
+        )
+        break // only report 1 imbalanced line
+      }
     }
   }
 
@@ -333,6 +381,7 @@ export default function DashboardClient({ lines, totalModels, userName, userRole
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-gray-50 p-px">
                 {bLines.map(line => {
                   const lineLler = calcLineLler(line)
+                  const sectionLlers = calcSectionLlers(line)
                   const lineOut = line.actuals.reduce((s, a) => s + a.output, 0)
                   const hasData = line.actuals.length > 0
                   const alerts = line.alerts.length
@@ -354,7 +403,7 @@ export default function DashboardClient({ lines, totalModels, userName, userRole
                         <span className="text-sm font-semibold text-gray-800">L{line.lineNo}</span>
                       </div>
 
-                      {/* LLER bar */}
+                      {/* Line LLER (summary) */}
                       {hasData ? (
                         <>
                           <div className="text-2xl font-bold mb-1" style={{ color: llerColor(lineLler) }}>
@@ -363,6 +412,26 @@ export default function DashboardClient({ lines, totalModels, userName, userRole
                           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
                             <div className="h-full rounded-full" style={{ width: `${Math.min(lineLler, 100)}%`, background: llerColor(lineLler) }} />
                           </div>
+
+                          {/* Per-section LLER breakdown */}
+                          {sectionLlers.length > 1 && (
+                            <div className="space-y-1 mb-2">
+                              {sectionLlers.map(sec => (
+                                <div key={sec.name} className="flex items-center gap-1.5">
+                                  <span className="text-xs text-gray-400 w-12 truncate" title={sec.name}>
+                                    {sec.name.length > 6 ? sec.name.slice(0, 5) + '…' : sec.name}
+                                  </span>
+                                  <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full" style={{ width: `${Math.min(sec.ller, 100)}%`, background: llerColor(sec.ller) }} />
+                                  </div>
+                                  <span className="text-xs font-medium w-8 text-right" style={{ color: llerColor(sec.ller) }}>
+                                    {sec.ller}%
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           <div className="text-xs text-gray-500">{lineOut.toLocaleString()} {t('common.pairs')}</div>
                           {line.dailyTarget && (
                             <div className="text-xs text-gray-400">
