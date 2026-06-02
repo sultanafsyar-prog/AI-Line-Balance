@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { LINE_TYPES } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 const DT_REASONS = ['Mesin rusak', 'Material kurang', 'Style change', 'QC hold', 'Operator kurang', 'Lainnya']
 // Shift 1: 07:30-16:30 | OT s/d 19:30
@@ -43,6 +45,7 @@ const SF_SECTIONS = ['Stockfit']
 interface Props { lines: any[]; userId: string; userName: string }
 
 export default function LeaderClient({ lines, userId, userName }: Props) {
+  const { t } = useI18n()
   const [selLineId, setSelLineId] = useState(lines[0]?.id ?? '')
   const [showOT, setShowOT]   = useState(false)
   const [shift, setShift]     = useState<1|2>(detectShift())
@@ -160,15 +163,16 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {ller > 0 && (
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 28, fontWeight: 800, color: llerColor, lineHeight: 1 }}>{ller}%</div>
                 <div style={{ fontSize: 11, color: '#9CA3AF' }}>LLER</div>
               </div>
             )}
+            <LanguageSwitcher compact />
             <button onClick={() => signOut({ callbackUrl: '/login' })}
-              title="Keluar"
+              title={t('common.logout')}
               style={{
                 width: 36, height: 36, borderRadius: 10, border: '1px solid #E5E7EB',
                 background: '#F9FAFB', cursor: 'pointer', display: 'flex',
@@ -255,7 +259,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       color: showOT ? '#92400E' : '#6B7280',
                       border: showOT ? '1px solid #FCD34D' : '1px solid #E5E7EB',
                     }}>
-                    {showOT ? '✓ Lembur aktif' : '+ Lembur'}
+                    {showOT ? t('leader.overtimeActive') : t('leader.overtime')}
                   </button>
                 </div>
 
@@ -530,7 +534,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                           setAiResult(`⚠ ${d.error ?? 'Gagal mendapatkan analisis'}`)
                         }
                       } catch {
-                        setAiResult('⚠ Koneksi gagal. Coba lagi nanti.')
+                        setAiResult(t('ai.error'))
                       }
                       setAiLoading(false)
                     }}
@@ -543,7 +547,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       fontSize: 15, fontWeight: 700,
                       boxShadow: (aiLoading || todayActs.length === 0) ? 'none' : '0 4px 12px rgba(29,158,117,0.3)',
                     }}>
-                    {aiLoading ? '⏳ Menganalisis...' : todayActs.length === 0 ? 'Belum ada data hari ini' : '🔍 Analisis Section Ini'}
+                    {aiLoading ? t('ai.analyzing') : todayActs.length === 0 ? t('ai.noData') : t('ai.analyze')}
                   </button>
                 </div>
 
@@ -574,16 +578,16 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                   fontSize: 18, fontWeight: 800, letterSpacing: '0.02em',
                   boxShadow: saving ? 'none' : '0 4px 12px rgba(29,158,117,0.4)',
                 }}>
-                {saving ? 'Menyimpan...' : `✓ Simpan ${displayHour(parseInt(form.hour))} Shift ${shift}`}
+                {saving ? t('common.saving') : `✓ Simpan ${displayHour(parseInt(form.hour))} Shift ${shift}`}
               </button>
             </div>
           ) : (
             <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, maxWidth: 480, margin: '0 auto', background: '#fff', borderTop: '1px solid #E5E7EB', display: 'flex' }}>
               {[
-                { key: 'status', icon: '◉', label: 'Status' },
-                { key: 'input', icon: '✎', label: 'Input' },
-                { key: 'std', icon: '📋', label: 'Standar' },
-                { key: 'ai', icon: '🤖', label: 'AI' },
+                { key: 'status', icon: '◉', label: t('leader.tabStatus') },
+                { key: 'input', icon: '✎', label: t('leader.tabInput') },
+                { key: 'std', icon: '📋', label: t('leader.tabStandard') },
+                { key: 'ai', icon: '🤖', label: t('leader.tabAI') },
               ].map(t => (
                 <button key={t.key} onClick={() => setTab(t.key as 'status' | 'input' | 'std' | 'ai')}
                   style={{
@@ -602,7 +606,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
 
       {/* Watermark TAC */}
       <div style={{ textAlign: 'center', padding: '12px 0 80px', fontSize: 10, color: '#D1D5DB' }}>
-        Developed by <span style={{ fontWeight: 600 }}>Third Axis Center</span>
+        {t('app.by')} <span style={{ fontWeight: 600 }}>Third Axis Center</span>
       </div>
     </div>
   )

@@ -3,6 +3,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { useI18n } from '@/lib/i18n'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 const ROLE_LABELS: Record<string, string> = {
   IE_ADMIN:     'IE Admin',
@@ -24,14 +26,15 @@ export default function Sidebar({ user }: Props) {
   const path     = usePathname()
   const ie       = isIE(user.role)
   const [open, setOpen] = useState(true)
+  const { t }    = useI18n()
 
   const navItems = [
-    { href: '/dashboard',  label: 'Dashboard',    icon: '⊞' },
-    ...(ie ? [{ href: '/models', label: 'Model library', icon: '◫' }] : []),
-    { href: '/input',      label: 'Input aktual', icon: '✎' },
-    { href: '/monitor',    label: 'Monitor',      icon: '◉' },
-    ...(ie ? [{ href: '/analytics', label: 'Analitik', icon: '▦' }] : []),
-    ...(user.role === 'IT_ADMIN' ? [{ href: '/users', label: 'Users', icon: '◑' }] : []),
+    { href: '/dashboard',  label: t('nav.dashboard'),    icon: '⊞' },
+    ...(ie ? [{ href: '/models', label: t('nav.modelLibrary'), icon: '◫' }] : []),
+    { href: '/input',      label: t('nav.inputActual'),  icon: '✎' },
+    { href: '/monitor',    label: t('nav.monitor'),      icon: '◉' },
+    ...(ie ? [{ href: '/analytics', label: t('nav.analytics'), icon: '▦' }] : []),
+    ...(user.role === 'IT_ADMIN' ? [{ href: '/users', label: t('nav.users'), icon: '◑' }] : []),
   ]
 
   const initials = (user.name ?? 'U')
@@ -178,7 +181,7 @@ export default function Sidebar({ user }: Props) {
                 {user.name}
               </div>
               <div style={{ fontSize: '11px', color: '#888780', whiteSpace: 'nowrap' }}>
-                {user.building ? `Gedung ${user.building}` : 'Semua gedung'}
+                {user.building ? `Gedung ${user.building}` : t('nav.allBuildings')}
               </div>
             </div>
           )}
@@ -215,8 +218,34 @@ export default function Sidebar({ user }: Props) {
             <polyline points="16 17 21 12 16 7"/>
             <line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
-          {open && <span>Keluar</span>}
+          {open && <span>{t('common.logout')}</span>}
         </button>
+
+        {/* Language switcher */}
+        {open && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
+            <LanguageSwitcher compact={false} openUp />
+          </div>
+        )}
+        {!open && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
+            <LanguageSwitcher compact={true} openUp />
+          </div>
+        )}
+
+        {/* Watermark */}
+        {open && (
+          <div style={{
+            textAlign: 'center',
+            fontSize: '10px',
+            color: '#c4c4c0',
+            marginTop: '8px',
+            lineHeight: '1.3',
+          }}>
+            {t('app.by')}<br />
+            <span style={{ fontWeight: 600, color: '#a3a39e' }}>Third Axis Center</span>
+          </div>
+        )}
       </div>
     </aside>
   )

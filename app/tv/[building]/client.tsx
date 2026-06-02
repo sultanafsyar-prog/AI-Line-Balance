@@ -1,5 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useI18n } from '@/lib/i18n'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 // ── Types ────────────────────────────────────────────────────
 interface LineData {
@@ -183,6 +185,7 @@ export default function TVClient({ building, lines, sections }: Props) {
   const [now, setNow]             = useState(new Date())
   const [tickerIdx, setTickerIdx] = useState(0)
   const [fadeIn, setFadeIn]       = useState(true)
+  const { t }                     = useI18n()
 
   const lineMetrics = lines.map(l => ({ line: l, m: calcLine(l, sections) }))
   const insights    = lineMetrics.map(({ line, m }) => genInsight(line.lineNo, building, m))
@@ -241,27 +244,30 @@ export default function TVClient({ building, lines, sections }: Props) {
           }}>IE</div>
           <div>
             <div style={{ fontSize: '22px', fontWeight: 700, color: C.white, letterSpacing: '-0.5px' }}>
-              Gedung {building} — Digital Andon Board
+              Gedung {building} — {t('tv.title')}
             </div>
             <div style={{ fontSize: '13px', color: C.dim }}>
-              IE Line Balance System · Real-time Production Monitoring
+              {t('app.title')} · {t('tv.subtitle')}
             </div>
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: C.white, fontVariantNumeric: 'tabular-nums' }}>{timeStr}</div>
-          <div style={{ fontSize: '12px', color: C.dim }}>{dateStr}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <LanguageSwitcher dark compact />
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: C.white, fontVariantNumeric: 'tabular-nums' }}>{timeStr}</div>
+            <div style={{ fontSize: '12px', color: C.dim }}>{dateStr}</div>
+          </div>
         </div>
       </div>
 
       {/* ══ KPI SUMMARY ══ */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
         {[
-          { label: 'Avg LLER', value: withData.length > 0 ? `${avgLler}%` : '—', color: gColor.text, bg: gColor.bg, bd: gColor.border },
-          { label: 'Total Output', value: `${totalOutput.toLocaleString()}`, color: C.white, bg: C.card, bd: C.border },
-          { label: 'Target Harian', value: totalDailyTarget > 0 ? `${totalDailyTarget.toLocaleString()}` : '—', color: C.blue, bg: C.blueBg, bd: '#1e3a5f' },
-          { label: 'Downtime', value: `${totalDT} mnt`, color: totalDT > 60 ? C.red : totalDT > 30 ? C.amber : C.white, bg: C.card, bd: C.border },
-          { label: 'Alert', value: `${totalAlerts}`, color: totalAlerts > 0 ? C.red : C.green, bg: totalAlerts > 0 ? C.redBg : C.greenBg, bd: totalAlerts > 0 ? C.redBd : C.greenBd },
+          { label: t('tv.avgLler'), value: withData.length > 0 ? `${avgLler}%` : '—', color: gColor.text, bg: gColor.bg, bd: gColor.border },
+          { label: t('tv.totalOutput'), value: `${totalOutput.toLocaleString()}`, color: C.white, bg: C.card, bd: C.border },
+          { label: t('tv.dailyTarget'), value: totalDailyTarget > 0 ? `${totalDailyTarget.toLocaleString()}` : '—', color: C.blue, bg: C.blueBg, bd: '#1e3a5f' },
+          { label: t('tv.downtime'), value: `${totalDT} ${t('common.minutes')}`, color: totalDT > 60 ? C.red : totalDT > 30 ? C.amber : C.white, bg: C.card, bd: C.border },
+          { label: t('tv.alert'), value: `${totalAlerts}`, color: totalAlerts > 0 ? C.red : C.green, bg: totalAlerts > 0 ? C.redBg : C.greenBg, bd: totalAlerts > 0 ? C.redBd : C.greenBd },
         ].map((k, i) => (
           <div key={i} style={{ background: k.bg, border: `1px solid ${k.bd}`, borderRadius: '10px', padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: '26px', fontWeight: 700, color: k.color, lineHeight: 1.1 }}>{k.value}</div>
@@ -274,7 +280,7 @@ export default function TVClient({ building, lines, sections }: Props) {
       {totalDailyTarget > 0 && (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '8px 14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ fontSize: '12px', color: C.dim }}>Progress target harian gedung</span>
+            <span style={{ fontSize: '12px', color: C.dim }}>${t('tv.progressTitle')}</span>
             <span style={{ fontSize: '13px', fontWeight: 600, color: totalOutput >= totalDailyTarget ? C.green : C.amber }}>
               {totalOutput.toLocaleString()} / {totalDailyTarget.toLocaleString()} pairs
             </span>
@@ -327,7 +333,7 @@ export default function TVClient({ building, lines, sections }: Props) {
               {dt && (
                 <div style={{ background: C.surface, borderRadius: '8px', padding: '8px 10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '11px', color: C.dim }}>Target harian</span>
+                    <span style={{ fontSize: '11px', color: C.dim }}>${t('tv.targetToday')}</span>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: m.totOut >= dt.targetPairs ? C.green : C.amber }}>
                       {m.totOut} / {dt.targetPairs}
                     </span>
@@ -350,14 +356,14 @@ export default function TVClient({ building, lines, sections }: Props) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '22px', fontWeight: 700, color: C.white }}>{m.totOut.toLocaleString()}</div>
-                  <div style={{ fontSize: '11px', color: C.dim }}>output pairs</div>
+                  <div style={{ fontSize: '11px', color: C.dim }}>${t('tv.outputPairs')}</div>
                 </div>
               </div>
 
               {/* Sparkline trend per jam */}
               {m.hourlyOutputs.length > 1 && (
                 <div style={{ background: C.surface, borderRadius: '8px', padding: '8px 10px' }}>
-                  <div style={{ fontSize: '11px', color: C.dim, marginBottom: '4px' }}>Tren output per jam</div>
+                  <div style={{ fontSize: '11px', color: C.dim, marginBottom: '4px' }}>${t('tv.trendTitle')}</div>
                   <Sparkline data={m.hourlyOutputs} color={col.text} height={30} />
                 </div>
               )}
@@ -365,9 +371,9 @@ export default function TVClient({ building, lines, sections }: Props) {
               {/* Stats: MP, DT, Defect */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
                 {[
-                  { label: 'Avg MP', value: m.hasData ? `${m.avgMP}` : '—', warn: false },
-                  { label: 'Downtime', value: m.hasData ? `${m.totDT}m` : '—', warn: m.totDT > 20 },
-                  { label: 'Defect', value: m.hasData ? `${m.totDef}` : '—', warn: m.totDef > 0 },
+                  { label: t('tv.avgMP'), value: m.hasData ? `${m.avgMP}` : '—', warn: false },
+                  { label: t('tv.downtime'), value: m.hasData ? `${m.totDT}m` : '—', warn: m.totDT > 20 },
+                  { label: t('tv.defect'), value: m.hasData ? `${m.totDef}` : '—', warn: m.totDef > 0 },
                 ].map((s, i) => (
                   <div key={i} style={{ background: C.surface, borderRadius: '6px', padding: '6px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: '16px', fontWeight: 700, color: s.warn ? C.amber : C.white }}>{s.value}</div>
@@ -395,7 +401,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                 })}
                 {!m.hasData && (
                   <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '99px', padding: '3px 10px', fontSize: '12px', color: C.gray }}>
-                    Menunggu input
+                    ${t('tv.waitingInput')}
                   </div>
                 )}
               </div>
@@ -419,13 +425,13 @@ export default function TVClient({ building, lines, sections }: Props) {
           display: 'flex', alignItems: 'center', gap: '6px',
         }}>
           <span style={{ fontSize: '14px' }}>💡</span>
-          Auto Insight
+          ${t('tv.autoInsight')}
         </div>
         <div style={{
           fontSize: '14px', color: C.white, lineHeight: 1.5, flex: 1,
           opacity: fadeIn ? 1 : 0, transition: 'opacity 0.4s ease',
         }}>
-          {insights[tickerIdx] ?? 'Mengumpulkan data...'}
+          {insights[tickerIdx] ?? t('tv.collecting')}
         </div>
         <div style={{ flexShrink: 0, display: 'flex', gap: '5px', alignItems: 'center' }}>
           {insights.map((_, i) => (
@@ -441,7 +447,7 @@ export default function TVClient({ building, lines, sections }: Props) {
       {/* ══ FOOTER ══ */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ fontSize: '11px', color: C.gray }}>
-          Auto-refresh 60 detik · {withData.length}/{lines.length} line aktif
+          ${t('tv.autoRefresh')} · {withData.length}/{lines.length} ${t('tv.lineActive')}
         </div>
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
           {[
