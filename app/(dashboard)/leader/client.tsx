@@ -358,7 +358,6 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                             }} />
                           )}
                         </button>
-                        </button>
                       )
                     })}
                   </div>
@@ -599,7 +598,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               <div>
                 <div style={{ background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <span style={{ fontSize: 24 }}>🤖</span>
+                    <span style={{ fontSize: 24 }}><img src="/claude-logo.svg" alt="AI" style={{ width: 18, height: 18 }} /></span>
                     <div>
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>AI Rekomendasi</div>
                       <div style={{ fontSize: 13, color: '#9CA3AF' }}>Analisis {effectiveSec} berdasarkan data hari ini</div>
@@ -676,7 +675,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                 { key: 'status', icon: '◉', label: t('leader.tabStatus') },
                 { key: 'input', icon: '✎', label: t('leader.tabInput') },
                 { key: 'std', icon: '📋', label: t('leader.tabStandard') },
-                { key: 'ai', icon: '🤖', label: t('leader.tabAI') },
+                { key: 'ai', icon: '⚡', label: t('leader.tabAI') },
               ].map(t => (
                 <button key={t.key} onClick={() => setTab(t.key as 'status' | 'input' | 'std' | 'ai')}
                   style={{

@@ -100,7 +100,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
     { key: 'yamazumi-aktual', label: '📈 Yamazumi Aktual' },
     { key: 'input',           label: '✎ Input aktual' },
     { key: 'monitor',         label: '◉ Monitor' },
-    { key: 'ai',              label: '🤖 AI' },
+    { key: 'ai',              label: '⚡ AI' },
   ]
 
   return (
@@ -473,13 +473,13 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
             <div className="card p-5">
               {!aiText && !aiLoading && (
                 <div className="text-center py-8">
-                  <div className="text-4xl mb-3">🤖</div>
+                  <div className="text-4xl mb-3"><img src="/claude-logo.svg" alt="AI" style={{ width: 40, height: 40 }} /></div>
                   <div className="font-medium mb-2">Analisis AI — {selSec}</div>
                   <p className="text-sm text-gray-500 mb-4">AI baca standar IE + aktual hari ini → rekomendasi perbaikan & redistribusi MP</p>
                   <button onClick={runAI} className="btn btn-primary">Jalankan analisis AI ↗</button>
                 </div>
               )}
-              {aiLoading && <div className="text-center py-8 text-gray-500 text-sm">🤖 AI sedang menganalisis lini...</div>}
+              {aiLoading && <div className="text-center py-8 text-gray-500 text-sm"><img src="/claude-logo.svg" alt="AI" style={{ width: 20, height: 20, display: 'inline-block', marginRight: 6 }} /> AI sedang menganalisis lini...</div>}
               {aiText && (
                 <div>
                   <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap text-sm">{aiText}</div>
