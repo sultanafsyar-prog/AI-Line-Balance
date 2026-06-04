@@ -472,17 +472,7 @@ export default function TVClient({ building, lines, sections }: Props) {
               background: sc.bg, border: `2px solid ${hasAlert ? C.red : sc.border}`,
               borderRadius: '13px', padding: '12px',
               display: 'flex', flexDirection: 'column', gap: '8px',
-              position: 'relative', overflow: 'hidden',
             }}>
-              {hasAlert && (
-                <div style={{
-                  position: 'absolute', top: '1px', right: '8px',
-                  background: C.red, borderRadius: '88px',
-                  padding: '2px 8px', fontSize: '8px', fontWeight: 680, color: '#fff',
-                  zIndex: 2,
-                }}>⚠ ALERT</div>
-              )}
-
               {/* Line header + status */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
@@ -498,15 +488,24 @@ export default function TVClient({ building, lines, sections }: Props) {
                     </>
                   ) : <div style={{ fontSize: '12px', color: C.gray }}>Belum ada model</div>}
                 </div>
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
                   <div style={{ fontSize: '24px', fontWeight: 800, color: sc.text, lineHeight: 1 }}>
                     {m.hasData ? `${m.ller}%` : '—'}
                   </div>
-                  <div style={{
-                    background: sc.bg, border: `1px solid ${sc.border}`,
-                    borderRadius: '4px', padding: '2px 8px', marginTop: '3px',
-                    fontSize: '9px', fontWeight: 700, color: sc.text,
-                  }}>{sc.label}</div>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {hasAlert && (
+                      <div style={{
+                        background: C.red, borderRadius: '4px',
+                        padding: '2px 6px', fontSize: '8px', fontWeight: 700, color: '#fff',
+                        whiteSpace: 'nowrap',
+                      }}>⚠ ALERT</div>
+                    )}
+                    <div style={{
+                      background: sc.bg, border: `1px solid ${sc.border}`,
+                      borderRadius: '4px', padding: '2px 8px',
+                      fontSize: '9px', fontWeight: 700, color: sc.text,
+                    }}>{sc.label}</div>
+                  </div>
                 </div>
               </div>
 
