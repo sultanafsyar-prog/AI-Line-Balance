@@ -470,7 +470,7 @@ export default function TVClient({ building, lines, sections }: Props) {
           return (
             <div key={line.id} style={{
               background: sc.bg, border: `2px solid ${hasAlert ? C.red : sc.border}`,
-              borderRadius: '14px', padding: '12px',
+              borderRadius: '13px', padding: '12px',
               display: 'flex', flexDirection: 'column', gap: '8px',
               position: 'relative', overflow: 'hidden',
             }}>
