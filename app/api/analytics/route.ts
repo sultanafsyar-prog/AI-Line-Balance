@@ -82,7 +82,9 @@ export async function POST(req: NextRequest) {
 
   const targetPerHour  = section.taktTime > 0 ? Math.floor(3600 / section.taktTime) : 0
   const totalTargetOut = targetPerHour * sectionActuals.length
-  const llerPct        = totalTargetOut > 0 ? Math.round((totOut / totalTargetOut) * 100) : 0
+  // LLER = Theoretical MP / Actual MP × 100% (formula IE)
+  // Output Achievement terpisah dari LLER
+  const outputAchieve  = totalTargetOut > 0 ? Math.round((totOut / totalTargetOut) * 100) : 0
   const mpGap          = avgMP - section.stdMP
   const mpGapText      = mpGap >= 0
     ? `+${mpGap.toFixed(1)} (LEBIH dari standar)`
@@ -96,8 +98,10 @@ export async function POST(req: NextRequest) {
   const sumGwt = opsWithGwt.reduce((s, o) => s + o.gwt, 0)
 
   const theorMP = ops.length > 0 && section.taktTime > 0
-    ? Math.ceil(sumGwt / section.taktTime)
+    ? parseFloat((sumGwt / section.taktTime).toFixed(2))
     : 0
+  // LLER = Theoretical MP / Actual MP × 100%
+  const llerPct = avgMP > 0 && theorMP > 0 ? Math.round((theorMP / avgMP) * 100) : 0
   const lbr = ops.length > 0 && section.taktTime > 0
     ? Math.round((sumGwt / (ops.length * section.taktTime)) * 100)
     : 0
@@ -163,7 +167,7 @@ Analisis data aktual di bawah untuk temukan masalah NYATA.
 
 DATA AKTUAL LAPANGAN HARI INI (${sectionActuals.length} jam ter-input):
 - Total output     : ${totOut} pairs dari target ${totalTargetOut} pairs
-- LLER             : ${llerPct}% ${llerPct >= 90 ? '(BAIK)' : llerPct >= 75 ? '(PERLU PERHATIAN)' : '(KRITIS)'}
+- LLER (labor eff) : ${llerPct}% (TheoMP ${theorMP} / ActMP ${avgMP}) ${llerPct >= 90 ? '(BAIK)' : llerPct >= 75 ? '(PERLU PERHATIAN)' : '(KRITIS)'}
 - Rata-rata MP     : ${avgMP} orang vs std ${section.stdMP} | Gap: ${mpGapText}
 - Total downtime   : ${totDT} menit ${totDT > 30 ? '(TINGGI - investigasi penyebab)' : ''}
 - Total defect     : ${totDef} pairs${totOut > 0 ? ` (${((totDef / totOut) * 100).toFixed(1)}% defect rate)` : ''}

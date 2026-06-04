@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) { return clsx(inputs) }
 export const BUILDINGS: Record<string, number> = { C: 1, D: 6, E: 6, F: 5, H: 5, I: 4, G: 7 }
 export const STOCKFIT_BUILDING = 'G'
 export const SECTIONS = ['Cutting', 'Treatment', 'Preparation', 'PC Sewing', 'Sewing', 'Assembly', 'Packing']
-export const SF_SECTIONS = ['Stockfit']
+export const SF_SECTIONS = ['Buffing', 'Degreaser', 'UV', 'Stockfit']
 export const LINE_TYPES = {
   MINI: { label: 'Mini Line', tph: 100, takt: 36 },
   BIG:  { label: 'Big Line',  tph: 180, takt: 20 },

@@ -9,7 +9,7 @@ type Op = { id: string; name: string; va: number; nvan: number; nva: number; mcC
 type Sec = { name: string; stdMP: number; taktTime: number; ops: Op[] }
 type ModelDraft = { name: string; article: string; stage: string; lineType: 'MINI' | 'BIG'; sections: Sec[] }
 
-const ALL_SECTIONS = [...SECTIONS, 'Stockfit']
+const ALL_SECTIONS = [...SECTIONS, ...SF_SECTIONS]
 const STAGES = ['PTR', 'Pre-Production', 'Production CFM']
 const newOp = (): Op => ({ id: Math.random().toString(36).slice(2), name: '', va: 0, nvan: 0, nva: 0, mcCT: 0, allowance: 15 })
 const emptyDraft = (): ModelDraft => ({
@@ -372,7 +372,133 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     return draft
   }
 
-  // Deteksi format file: NB Standard atau IE Data
+  // ── PARSER STOCKFIT NB STANDARD ─────────────────────────────
+  // Format: sheet per model (U740, U509, etc.)
+  // Kolom C = section (BUFFING, DEGREESER, UV, STOCKFIT)
+  // Semua section dalam 1 sheet, bukan sheet terpisah
+  function parseStockfitNBStandard(ab: ArrayBuffer, targetSheet?: string): ModelDraft {
+    const wb = XLSX.read(ab, { type: 'array' })
+
+    // Section name mapping dari Excel → sistem
+    const SEC_MAP: Record<string, string> = {
+      'BUFFING': 'Buffing',
+      'DEGREESER': 'Degreaser',
+      'DEGREASER': 'Degreaser',
+      'UV': 'UV',
+      'STOCKFIT': 'Stockfit',
+      'STOCKFITTING': 'Stockfit',
+    }
+
+    // Pilih sheet (default: pertama yang valid)
+    const sheetName = targetSheet ?? wb.SheetNames.find(sn => {
+      const ws = wb.Sheets[sn]
+      const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+      const r4 = data[3] ?? []
+      return String(r4[0] ?? '').toLowerCase().includes('stockfit')
+    }) ?? wb.SheetNames[0]
+
+    const ws = wb.Sheets[sheetName]
+    if (!ws) throw new Error(`Sheet "${sheetName}" tidak ditemukan.`)
+    const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+    // ── Header dari row 4 (index 3) ──
+    // XLSX.js: col A kosong → shift -1
+    // [0]=process, [1]=model#, [3]=article, [5]=workTime, [6]=target/hr, [7]=taktTime, [8]=allowance, [9]=theoMP, [11]=ieStdMP
+    const r4 = data[3] ?? []
+    const modelNo  = String(r4[1] ?? sheetName).trim()
+    const article  = String(r4[3] ?? '').trim()
+    const taktTime = parseFloat(r4[7]) || 14.4
+    const ieStdMP  = parseFloat(r4[11]) || 0
+
+    const draft: ModelDraft = {
+      name: `${modelNo}`,
+      article: article ? `${article}-${modelNo}` : modelNo,
+      stage: 'Production CFM',
+      lineType: taktTime <= 15 ? 'MINI' : 'BIG',
+      sections: SF_SECTIONS.map(s => ({ name: s, stdMP: 0, taktTime, ops: [] })),
+    }
+
+    // ── Parse operations dari row 11+ (index 10+) ──
+    let currentSection = ''
+    const sectionOps: Record<string, Op[]> = {}
+    const sectionMP: Record<string, number> = {}
+
+    for (let i = 10; i < data.length; i++) {
+      const r = data[i]
+      const procNo = parseFloat(r[0])
+      if (isNaN(procNo) || procNo <= 0) continue
+
+      // Col C = section name (hanya muncul di operasi pertama setiap section)
+      const colC = String(r[1] ?? '').trim().toUpperCase()
+      if (colC && SEC_MAP[colC]) {
+        currentSection = SEC_MAP[colC]
+      }
+      if (!currentSection) continue
+
+      // Col D = operation name (sub-name)
+      const opName = String(r[2] ?? '').trim()
+      if (!opName) continue
+      if (opName.toLowerCase().includes('total') || opName.toLowerCase().includes('water spider')) break
+
+      // Kolom waktu (XLSX.js shifted -1 dari Excel)
+      // [7]=VA(I), [8]=NVAN(J), [9]=NVA(K), [10]=M/C CT(L), [12]=Allowance(N)
+      const va   = parseFloat(r[7])  || 0
+      const nvan = parseFloat(r[8])  || 0
+      const nva  = parseFloat(r[9])  || 0
+      const mcCT = parseFloat(r[10]) || 0
+      const al   = parseFloat(r[12]) || 0.15
+
+      if (va + nvan + nva === 0) continue
+
+      if (!sectionOps[currentSection]) sectionOps[currentSection] = []
+      sectionOps[currentSection].push({
+        id: Math.random().toString(36).slice(2),
+        name: opName,
+        va, nvan, nva, mcCT,
+        allowance: al > 1 ? al / 100 : al,
+      })
+
+      // Track IE Std MP per section dari col U (index 19)
+      const stdMPVal = parseFloat(r[19])
+      if (!isNaN(stdMPVal) && stdMPVal > 0) {
+        sectionMP[currentSection] = (sectionMP[currentSection] ?? 0) + stdMPVal
+      }
+    }
+
+    // ── Parse MP summary dari bawah sheet (row "Summary Manpower Needed") ──
+    for (let i = data.length - 10; i < data.length; i++) {
+      const r = data[i] ?? []
+      const label = String(r[0] ?? '').toLowerCase()
+      if (label === 'input' || label === 'process') {
+        // Next row has MP values
+        const mpRow = data[i] ?? r
+        // E=Buffing, G=Degreaser, I=UV, M=Stockfit (shifted: [3]=Buff, [5]=Degr, [7]=UV, [11]=SF)
+        const buffMP  = parseFloat(mpRow[3]) || 0
+        const degrMP  = parseFloat(mpRow[5]) || 0
+        const uvMP    = parseFloat(mpRow[7]) || 0
+        const sfMP    = parseFloat(mpRow[11]) || 0
+        if (buffMP > 0) sectionMP['Buffing']   = buffMP
+        if (degrMP > 0) sectionMP['Degreaser'] = degrMP
+        if (uvMP > 0)   sectionMP['UV']        = uvMP
+        if (sfMP > 0)   sectionMP['Stockfit']  = sfMP
+      }
+    }
+
+    // ── Assign ops + stdMP ke draft sections ──
+    for (const sec of draft.sections) {
+      sec.ops = sectionOps[sec.name] ?? []
+      sec.stdMP = Math.round(sectionMP[sec.name] ?? 0)
+    }
+
+    const filledSecs = draft.sections.filter(s => s.ops.length > 0)
+    if (filledSecs.length === 0) {
+      throw new Error(`Tidak ada operasi terbaca dari sheet "${sheetName}". Pastikan format sesuai NB Standard Stockfit.`)
+    }
+
+    return draft
+  }
+
+  // Deteksi format file: NB Standard, IE Data, atau Stockfit NB Standard
   function detectAndParse(ab: ArrayBuffer): ModelDraft {
     const wb = XLSX.read(ab, { type: 'array' })
     const sheetNames = wb.SheetNames.map(s => s.toLowerCase())
@@ -382,6 +508,24 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
         sheetNames.some(s => s.startsWith('lb '))) {
       return parseNBStandard(ab)
     }
+
+    // Stockfit NB Standard: sheet pertama row 4 berisi "Stockfitting"/"Stockfit"
+    try {
+      const firstSheet = wb.Sheets[wb.SheetNames[0]]
+      const data: any[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' })
+      const r4 = data[3] ?? []
+      const processName = String(r4[0] ?? '').toLowerCase()
+      if (processName.includes('stockfit')) {
+        return parseStockfitNBStandard(ab)
+      }
+      // Also check if col C has section markers (BUFFING, DEGREESER, etc.)
+      for (let i = 10; i < Math.min(data.length, 30); i++) {
+        const colC = String((data[i] ?? [])[1] ?? '').toUpperCase()
+        if (['BUFFING', 'DEGREESER', 'DEGREASER', 'UV', 'STOCKFIT'].includes(colC)) {
+          return parseStockfitNBStandard(ab)
+        }
+      }
+    } catch {}
 
     // IE Data: ada sheet seperti "Assembly", "Stockfit", "Prep", "Stit"
     if (sheetNames.some(s => s === 'assembly' || s === 'stockfit' || s === 'stit' || s === 'prep')) {
@@ -594,13 +738,39 @@ export default function ModelsPage() {
     const file = e.target.files?.[0]; if (!file) return
     setParseError(''); setParseMsg('')
     const reader = new FileReader()
-    reader.onload = ev => {
+    reader.onload = async (ev) => {
       try {
-        const draft = detectAndParse(ev.target!.result as ArrayBuffer)
-        const filledSecs = draft.sections.filter(s => s.ops.length > 0)
-        const totalOps = filledSecs.reduce((sum, s) => sum + s.ops.length, 0)
-        setParseMsg(`Berhasil membaca ${filledSecs.length} section, ${totalOps} operasi${!draft.name ? ' — nama model tidak terbaca, isi manual' : ''}`)
-        setEditor(draft)
+        const ab = ev.target!.result as ArrayBuffer
+        const wb = XLSX.read(ab, { type: 'array' })
+
+        // Check if Stockfit multi-model format
+        const firstData: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' })
+        const isStockfit = String((firstData[3] ?? [])[0] ?? '').toLowerCase().includes('stockfit')
+
+        if (isStockfit && wb.SheetNames.length > 1) {
+          // Multi-model Stockfit: upload all sheets
+          let successCount = 0, failCount = 0
+          for (const sn of wb.SheetNames) {
+            try {
+              const draft = parseStockfitNBStandard(ab, sn)
+              if (draft.sections.filter(s => s.ops.length > 0).length === 0) continue
+              draft.name = `SF-${draft.name}` // prefix untuk identifikasi Stockfit model
+              await saveModel(draft)
+              successCount++
+            } catch {
+              failCount++
+            }
+          }
+          setParseMsg(`Stockfit: ${successCount} model berhasil diupload${failCount > 0 ? `, ${failCount} gagal` : ''}. Refresh halaman.`)
+          setTimeout(() => window.location.reload(), 2000)
+        } else {
+          // Single model
+          const draft = detectAndParse(ab)
+          const filledSecs = draft.sections.filter(s => s.ops.length > 0)
+          const totalOps = filledSecs.reduce((sum, s) => sum + s.ops.length, 0)
+          setParseMsg(`Berhasil membaca ${filledSecs.length} section, ${totalOps} operasi${!draft.name ? ' — nama model tidak terbaca, isi manual' : ''}`)
+          setEditor(draft)
+        }
       } catch (err: any) {
         setParseError('Gagal baca file: ' + err.message)
       }

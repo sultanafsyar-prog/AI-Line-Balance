@@ -90,22 +90,62 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const availableSecs = secs.filter(s => model?.sections?.some((ms: any) => ms.name === s && ms.operations?.length > 0))
   const effectiveSec  = availableSecs.includes(selSec) ? selSec : (availableSecs[0] ?? selSec)
   const section = model?.sections?.find((s: any) => s.name === effectiveSec)
-  const tph     = model ? LINE_TYPES[model.lineType as 'MINI' | 'BIG'].tph : 100
+  // TPH dari section taktTime (untuk target output per jam)
+  const sectionTakt = section?.taktTime ?? 0
+  const tph = sectionTakt > 0 ? Math.floor(3600 / sectionTakt) : 0
+
+  // TheorMP per section: sum(GWT semua ops) / taktTime
+  const getGWT = (op: any) => (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15))
+  const sectionTheoMP: Record<string, number> = {}
+  for (const sec of (model?.sections ?? [])) {
+    if (!sec.taktTime || sec.taktTime <= 0) continue
+    const totalGWT = (sec.operations ?? []).reduce((s: number, op: any) => s + getGWT(op), 0)
+    sectionTheoMP[sec.name] = parseFloat((totalGWT / sec.taktTime).toFixed(2))
+  }
 
   // Auto-update selSec kalau section yang dipilih tidak ada di model ini
   // eslint-disable-next-line react-hooks/exhaustive-deps
   if (availableSecs.length > 0 && !availableSecs.includes(selSec)) {
     setTimeout(() => setSelSec(availableSecs[0]), 0)
   }
+
+  // Actuals untuk section yang sedang dipilih
   const todayActs = (line?.actuals ?? [])
     .filter((a: any) => a.section?.name === effectiveSec)
     .sort((a: any, b: any) => a.hour - b.hour)
 
   const totalOut = todayActs.reduce((s: number, a: any) => s + a.output, 0)
-  const totalTarget = tph * todayActs.length
-  const ller = totalTarget > 0 ? Math.round((totalOut / totalTarget) * 100) : 0
+
+  // Section LLER = Theoretical MP / Avg Actual MP × 100%
+  const secTheo = sectionTheoMP[effectiveSec] ?? 0
+  const secAvgMP = todayActs.length > 0
+    ? todayActs.reduce((s: number, a: any) => s + a.mpActual, 0) / todayActs.length : 0
+  const sectionLler = secAvgMP > 0 && secTheo > 0
+    ? Math.round((secTheo / secAvgMP) * 100) : 0
+
+  // Line LLER = Total TheoMP / Total Avg Actual MP × 100% (semua section)
+  const allActs = line?.actuals ?? []
+  const secMPMap = new Map<string, { mpSum: number; hours: number }>()
+  for (const a of allActs) {
+    const sName = a.section?.name ?? ''
+    const prev = secMPMap.get(sName) ?? { mpSum: 0, hours: 0 }
+    secMPMap.set(sName, { mpSum: prev.mpSum + a.mpActual, hours: prev.hours + 1 })
+  }
+  let lineTotalTheo = 0, lineTotalActMP = 0
+  for (const [sName, data] of secMPMap.entries()) {
+    const theo = sectionTheoMP[sName]
+    if (theo && theo > 0 && data.hours > 0) {
+      lineTotalTheo += theo
+      lineTotalActMP += data.mpSum / data.hours
+    }
+  }
+  const lineLler = lineTotalActMP > 0 ? Math.round((lineTotalTheo / lineTotalActMP) * 100) : 0
+
+  // LLER yang ditampilkan di header = LINE level
+  const ller = lineLler
+
   const outputNum = parseInt(form.output) || 0
-  const gap      = outputNum > 0 ? outputNum - tph : null
+  const gap      = outputNum > 0 && tph > 0 ? outputNum - tph : null
   const hasDT    = parseInt(form.downtime) > 0
 
   // Set jam yang sudah ada datanya (untuk dot indicator)
@@ -249,7 +289,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
           <div style={{ fontSize: 14, color: '#9CA3AF' }}>Hubungi tim IE untuk assign model ke line ini</div>
         </div>
       ) : (
-        <>
+        <div>
           {/* ── SECTION TABS (hanya tampilkan section yang punya operasi) ── */}
           <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', overflowX: 'auto', whiteSpace: 'nowrap', padding: '8px 12px' }}>
             {availableSecs.map(s => {
@@ -478,9 +518,9 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                       {[
                         { label: t('status.totalOutput'), value: `${allTotalOut}`, sub: t('common.pairs'), color: '#111827' },
-                        { label: 'LLER', value: `${ller}%`, sub: `${effectiveSec}`, color: llerColor },
+                        { label: 'Line LLER', value: `${lineLler}%`, sub: 'semua section', color: llerColor },
+                        { label: `${effectiveSec} LLER`, value: `${sectionLler}%`, sub: 'section aktif', color: sectionLler >= 90 ? '#1D9E75' : sectionLler >= 75 ? '#EF9F27' : '#EF4444' },
                         { label: t('status.totalDT'), value: `${allTotalDT}`, sub: t('common.minutes'), color: allTotalDT > 30 ? '#EF4444' : '#111827' },
-                        { label: t('status.totalDefect'), value: `${allTotalDef}`, sub: t('common.pairs'), color: allTotalDef > 0 ? '#EF9F27' : '#111827' },
                       ].map(m => (
                         <div key={m.label} style={{ background: '#fff', borderRadius: 16, padding: '14px 12px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                           <div style={{ fontSize: 28, fontWeight: 800, color: m.color }}>{m.value}</div>
@@ -598,7 +638,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               <div>
                 <div style={{ background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <span style={{ fontSize: 24 }}><img src="/claude-logo.svg" alt="AI" style={{ width: 18, height: 18 }} /></span>
+                    <span style={{ fontSize: 24 }}>🤖</span>
                     <div>
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>AI Rekomendasi</div>
                       <div style={{ fontSize: 13, color: '#9CA3AF' }}>Analisis {effectiveSec} berdasarkan data hari ini</div>
@@ -675,7 +715,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                 { key: 'status', icon: '◉', label: t('leader.tabStatus') },
                 { key: 'input', icon: '✎', label: t('leader.tabInput') },
                 { key: 'std', icon: '📋', label: t('leader.tabStandard') },
-                { key: 'ai', icon: '⚡', label: t('leader.tabAI') },
+                { key: 'ai', icon: '<img src="/claude-logo.svg" alt="AI" />', label: t('leader.tabAI') },
               ].map(t => (
                 <button key={t.key} onClick={() => setTab(t.key as 'status' | 'input' | 'std' | 'ai')}
                   style={{
@@ -689,7 +729,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Watermark TAC */}

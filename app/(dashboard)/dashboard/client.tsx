@@ -14,6 +14,7 @@ interface DashLine {
   id: string; building: string; lineNo: number
   model: LineModel | null; actuals: LineActual[]
   alerts: LineAlert[]; dailyTarget: number | null
+  sectionTheoMP: Record<string, number>  // theorMP per section dari IE standard
 }
 interface Props {
   lines: DashLine[]
@@ -25,19 +26,33 @@ interface Props {
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+/**
+ * LLER (Line Level Efficiency Rate)
+ * Formula IE: LLER = Theoretical MP / Actual MP × 100%
+ *
+ * theorMP : dari IE standard (total GWT semua ops / Takt Time)
+ * actual MP : rata-rata MP hadir per section per hari
+ *
+ * LLER ~96% = labor digunakan 96% efisien
+ * LLER >100% = understaffed (butuh lebih banyak orang dari teori)
+ * LLER <85%  = ada idle capacity, terlalu banyak orang
+ */
 function calcLineLler(line: DashLine): number {
   if (line.actuals.length === 0) return 0
-  // Group by section, compute LLER per section, average
-  const secMap = new Map<string, { out: number; tgt: number }>()
+  const secMap = new Map<string, { mpSum: number; hours: number }>()
   for (const a of line.actuals) {
-    const tph = a.taktTime > 0 ? Math.floor(3600 / a.taktTime) : 100
-    const prev = secMap.get(a.sectionName) ?? { out: 0, tgt: 0 }
-    secMap.set(a.sectionName, { out: prev.out + a.output, tgt: prev.tgt + tph })
+    const prev = secMap.get(a.sectionName) ?? { mpSum: 0, hours: 0 }
+    secMap.set(a.sectionName, { mpSum: prev.mpSum + a.mpActual, hours: prev.hours + 1 })
   }
-  const secLlers = Array.from(secMap.values())
-    .filter(s => s.tgt > 0)
-    .map(s => Math.round((s.out / s.tgt) * 100))
-  return secLlers.length > 0 ? Math.round(secLlers.reduce((a, b) => a + b, 0) / secLlers.length) : 0
+  let totalTheo = 0, totalActualMP = 0
+  for (const [secName, data] of secMap.entries()) {
+    const theo = line.sectionTheoMP[secName]
+    if (theo && theo > 0 && data.hours > 0) {
+      totalTheo += theo
+      totalActualMP += data.mpSum / data.hours
+    }
+  }
+  return totalActualMP > 0 ? Math.round((totalTheo / totalActualMP) * 100) : 0
 }
 
 function llerColor(v: number): string {
@@ -54,22 +69,22 @@ function llerBg(v: number): string {
   return '#F9FAFB'
 }
 
-/** Hitung LLER per section untuk sebuah line */
-function calcSectionLlers(line: DashLine): { name: string; ller: number; output: number; target: number }[] {
+/** Hitung LLER per section: theorMP / avg actual MP */
+function calcSectionLlers(line: DashLine): { name: string; ller: number; theorMP: number; avgMP: number; output: number }[] {
   if (line.actuals.length === 0) return []
-  const secMap = new Map<string, { out: number; tgt: number; hours: number }>()
+  const secMap = new Map<string, { mpSum: number; outSum: number; hours: number }>()
   for (const a of line.actuals) {
-    const tph = a.taktTime > 0 ? Math.floor(3600 / a.taktTime) : 100
-    const prev = secMap.get(a.sectionName) ?? { out: 0, tgt: 0, hours: 0 }
-    secMap.set(a.sectionName, { out: prev.out + a.output, tgt: prev.tgt + tph, hours: prev.hours + 1 })
+    const prev = secMap.get(a.sectionName) ?? { mpSum: 0, outSum: 0, hours: 0 }
+    secMap.set(a.sectionName, { mpSum: prev.mpSum + a.mpActual, outSum: prev.outSum + a.output, hours: prev.hours + 1 })
   }
   return Array.from(secMap.entries())
-    .map(([name, s]) => ({
-      name,
-      ller: s.tgt > 0 ? Math.round((s.out / s.tgt) * 100) : 0,
-      output: s.out,
-      target: s.tgt,
-    }))
+    .map(([name, s]) => {
+      const theo = line.sectionTheoMP[name] ?? 0
+      const avgMP = s.hours > 0 ? parseFloat((s.mpSum / s.hours).toFixed(1)) : 0
+      const ller = avgMP > 0 && theo > 0 ? Math.round((theo / avgMP) * 100) : 0
+      return { name, ller, theorMP: theo, avgMP, output: s.outSum }
+    })
+    .filter(s => s.theorMP > 0)
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -166,7 +181,8 @@ function generateDigest(lines: DashLine[], buildings: Record<string, number>): s
     if (l.actuals.length < 2) continue
     const secMap = new Map<string, { out: number; tgt: number }>()
     for (const a of l.actuals) {
-      const tph = a.taktTime > 0 ? Math.floor(3600 / a.taktTime) : 100
+      const tph = a.taktTime > 0 ? Math.floor(3600 / a.taktTime) : 0
+      if (tph === 0) continue
       const prev = secMap.get(a.sectionName) ?? { out: 0, tgt: 0 }
       secMap.set(a.sectionName, { out: prev.out + a.output, tgt: prev.tgt + tph })
     }
