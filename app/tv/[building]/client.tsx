@@ -476,9 +476,9 @@ export default function TVClient({ building, lines, sections }: Props) {
             }}>
               {hasAlert && (
                 <div style={{
-                  position: 'absolute', top: '8px', right: '8px',
-                  background: C.red, borderRadius: '99px',
-                  padding: '3px 10px', fontSize: '10px', fontWeight: 700, color: '#fff',
+                  position: 'absolute', top: '1px', right: '8px',
+                  background: C.red, borderRadius: '88px',
+                  padding: '2px 8px', fontSize: '8px', fontWeight: 680, color: '#fff',
                   zIndex: 2,
                 }}>⚠ ALERT</div>
               )}
