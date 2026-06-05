@@ -317,7 +317,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
               <span style={{ fontWeight: 500 }}>{sec.name}</span>
               <span style={{ textAlign: 'center', color: 'var(--color-text-secondary)' }}>{sec.operations.length}</span>
               <span style={{ textAlign: 'center' }}>{sec.taktTime}s</span>
-              <span style={{ textAlign: 'center' }}>{sec.stdMP}</span>
+              <span style={{ textAlign: 'center' }}>{parseFloat(Number(sec.stdMP).toFixed(2))}</span>
               <span style={{ textAlign: 'center', fontWeight: 500, color: '#0F6E56' }}>{pph(sec.taktTime)}</span>
               <span style={{ textAlign: 'center' }}>
                 <span style={{ background: lc.bg, color: lc.text, padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 500 }}>
@@ -331,7 +331,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
           <span>Total</span>
           <span style={{ textAlign: 'center' }}>{model.sections.reduce((s, sec) => s + sec.operations.length, 0)}</span>
           <span style={{ textAlign: 'center', color: 'var(--color-text-secondary)' }}>—</span>
-          <span style={{ textAlign: 'center' }}>{model.sections.reduce((s, sec) => s + sec.stdMP, 0)}</span>
+          <span style={{ textAlign: 'center' }}>{parseFloat(model.sections.reduce((s, sec) => s + Number(sec.stdMP), 0).toFixed(2))}</span>
           <span style={{ textAlign: 'center', color: 'var(--color-text-secondary)' }}>—</span>
           <span style={{ textAlign: 'center', color: 'var(--color-text-secondary)' }}>—</span>
         </div>

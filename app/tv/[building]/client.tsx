@@ -125,7 +125,7 @@ function calcLine(line: LineData, sections: string[]) {
   const theoPPH    = primaryYam ? Math.round(3600 / primaryYam.taktTime) : 0
   const taktStd    = primaryYam ? primaryYam.taktTime : 0
   const theoMPTotal = yamSummaries.reduce((s, y) => s + y.theorMP, 0)
-  const stdMPTotal  = yamSummaries.reduce((s, y) => s + y.stdMP, 0)
+  const stdMPTotal  = parseFloat(yamSummaries.reduce((s, y) => s + y.stdMP, 0).toFixed(2))
 
   const baseEmpty = {
     model: model?.name ?? null, article: model?.article ?? null,
@@ -623,7 +623,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                     <div style={{ padding: '6px 8px', fontSize: '10px', color: C.dim, fontWeight: 600 }}>MP</div>
                     <div style={{ padding: '6px 8px', textAlign: 'center' }}>
                       <span style={{ fontSize: '16px', fontWeight: 700, color: C.teal }}>
-                        {m.stdMPTotal > 0 ? m.stdMPTotal : '—'}
+                        {m.stdMPTotal > 0 ? parseFloat(m.stdMPTotal.toFixed(2)) : '—'}
                       </span>
                       {m.theoMPTotal > 0 && m.theoMPTotal !== m.stdMPTotal && (
                         <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>({parseFloat(m.theoMPTotal.toFixed(2))})</span>
@@ -669,7 +669,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                             display: 'flex', gap: '4px', alignItems: 'center',
                           }}>
                             <span style={{ color: C.white, fontWeight: 600, fontSize: '9px' }}>{ys.name}</span>
-                            <span style={{ color: C.teal, fontWeight: 700 }}>{ys.stdMP}</span>
+                            <span style={{ color: C.teal, fontWeight: 700 }}>{parseFloat(ys.stdMP.toFixed(2))}</span>
                             <span style={{ color: C.gray }}>/</span>
                             <span style={{ color: act ? C.white : C.gray, fontWeight: 600 }}>{act ? act.avgMP : '—'}</span>
                             {act && (
@@ -1030,7 +1030,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                     {m.taktStd > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.taktStd}<span style={{ fontSize: '10px', color: C.dim }}>s</span></div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    {m.stdMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.stdMPTotal}</div> : <span style={{ color: C.gray }}>—</span>}
+                    {m.stdMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.stdMPTotal.toFixed(2))}</div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     {m.theoMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.theoMPTotal.toFixed(2))}</div> : <span style={{ color: C.gray }}>—</span>}
