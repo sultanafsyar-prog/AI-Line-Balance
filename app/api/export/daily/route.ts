@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       },
       actuals: {
         where: { date },
-        include: { section: { select: { name: true, taktTime: true } } },
+        include: { section: { select: { name: true, taktTime: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
         orderBy: [{ section: { name: 'asc' } }, { hour: 'asc' }],
       },
     },
@@ -52,7 +52,17 @@ export async function GET(req: NextRequest) {
     const totalDef = actuals.reduce((s, a) => s + a.defect, 0)
     const avgMP = actuals.length ? Math.round(actuals.reduce((s, a) => s + a.mpActual, 0) / actuals.length) : 0
     const avgOut = actuals.length ? Math.round(totalOut / actuals.length) : 0
-    const ller = tph > 0 && actuals.length ? Math.round(avgOut / tph * 100) : 0
+    // theoMP dari section pertama yang ada data
+    const firstSec = actuals[0]?.section as any
+    let theoMP = 0
+    if (firstSec?.operations && firstSec.taktTime > 0) {
+      const totalGWT = firstSec.operations.reduce((s: number, op: any) =>
+        s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
+      theoMP = totalGWT / firstSec.taktTime
+    }
+    // LLER produktivitas gabungan
+    const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
+      ? Math.round((avgOut * avgMP) / (tph * theoMP) * 100) : 0
 
     let status = 'Tidak ada data'
     if (actuals.length > 0) status = ller >= 90 ? '✓ Baik' : ller >= 75 ? '⚠ Perlu perhatian' : '✗ Di bawah target'
@@ -115,9 +125,18 @@ export async function GET(req: NextRequest) {
     const totDef  = line.actuals.reduce((s, a) => s + a.defect, 0)
     const avgMPr  = Math.round(line.actuals.reduce((s, a) => s + a.mpActual, 0) / line.actuals.length)
     const avgOut  = Math.round(totOut / line.actuals.length)
-    const detailTakt = (line.actuals[0]?.section as any)?.taktTime ?? 0
+    const detailSec = line.actuals[0]?.section as any
+    const detailTakt = detailSec?.taktTime ?? 0
     const detailTph = detailTakt > 0 ? Math.floor(3600 / detailTakt) : 0
-    const ller    = detailTph > 0 ? Math.round(avgOut / detailTph * 100) : 0
+    let detailTheoMP = 0
+    if (detailSec?.operations && detailTakt > 0) {
+      const totalGWT = detailSec.operations.reduce((s: number, op: any) =>
+        s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
+      detailTheoMP = totalGWT / detailTakt
+    }
+    // LLER produktivitas gabungan
+    const ller = (detailTph > 0 && avgOut > 0 && avgMPr > 0 && detailTheoMP > 0)
+      ? Math.round((avgOut * avgMPr) / (detailTph * detailTheoMP) * 100) : 0
 
     const wsDetail = XLSX.utils.aoa_to_sheet([
       [`Gedung ${line.building} — Line ${line.lineNo} | Model: ${model?.name ?? '—'} | Target: ${detailTph} pairs/jam`],

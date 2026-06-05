@@ -237,9 +237,10 @@ function calcLine(line: LineData, sections: string[], building: string) {
   const avgPPH = hourlyOutputs.length > 0 ? Math.round(totOut / hourlyOutputs.length) : 0
   const actCT  = avgPPH > 0 ? parseFloat((3600 / avgPPH).toFixed(1)) : 0
 
-  // LLER MP-based — pakai theoMPTotal & avgMPActual yang sudah section-aware
-  const ller = avgMPActual > 0 && theoMPTotal > 0
-    ? Math.round((theoMPTotal / avgMPActual) * 100) : 0
+  // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
+  // Pakai avgPPH (rata-rata output/jam) sebagai actualPPH supaya stabil terhadap fluktuasi 1 jam.
+  const ller = (avgPPH > 0 && avgMPActual > 0 && theoPPH > 0 && theoMPTotal > 0)
+    ? Math.round((avgPPH * avgMPActual) / (theoPPH * theoMPTotal) * 100) : 0
 
   const gap    = lastHourOutput - theoPPH
   const totDT  = relevantActuals.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
@@ -254,7 +255,10 @@ function calcLine(line: LineData, sections: string[], building: string) {
     const avgMP   = sa.reduce((s: number, a: any) => s + (a.mpActual ?? 0), 0) / sa.length
     const avgOut  = sa.reduce((s: number, a: any) => s + (a.output ?? 0), 0) / sa.length
     const lastOut = sa.sort((a: any, b: any) => b.hour - a.hour)[0]?.output ?? 0
-    const secLler = avgMP > 0 && ys.theorMP > 0 ? Math.round((ys.theorMP / avgMP) * 100) : 0
+    // LLER per section pakai formula produktivitas yang sama
+    const secTheoPPH = ys.taktTime > 0 ? 3600 / ys.taktTime : 0
+    const secLler = (avgOut > 0 && avgMP > 0 && secTheoPPH > 0 && ys.theorMP > 0)
+      ? Math.round((avgOut * avgMP) / (secTheoPPH * ys.theorMP) * 100) : 0
     sectionActuals[ys.name] = {
       avgMP: parseFloat(avgMP.toFixed(1)),
       avgOut: Math.round(avgOut),

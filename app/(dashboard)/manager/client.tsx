@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { BUILDINGS } from '@/lib/utils'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart } from 'recharts'
 
 type LineData = {
   id: string; lineNo: number; building: string
@@ -20,6 +21,10 @@ type DashData = {
   userBuilding: string | null
 }
 
+type HourPoint = { hour: number; lller: number; output: number; mpAvg: number; lineCount: number }
+type DayPoint  = { date: string; lller: number; output: number; mpAvg: number; activeLines: number }
+type TrendData = { hourly: HourPoint[]; daily: DayPoint[] }
+
 const STATUS_CONFIG = {
   good:     { dot: 'bg-teal',       bg: 'bg-green-50',  border: 'border-green-100',  text: 'text-green-800' },
   warning:  { dot: 'bg-yellow-400', bg: 'bg-yellow-50', border: 'border-yellow-100', text: 'text-yellow-800' },
@@ -32,6 +37,7 @@ interface Props { userBuilding: string | null; userName: string }
 
 export default function ManagerClient({ userBuilding, userName }: Props) {
   const [data, setData]           = useState<DashData | null>(null)
+  const [trend, setTrend]         = useState<TrendData | null>(null)
   const [loading, setLoading]     = useState(true)
   const [selBuilding, setSelBuilding] = useState(userBuilding ?? 'ALL')
   const [lastUpdate, setLastUpdate]   = useState<Date | null>(null)
@@ -39,8 +45,12 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
 
   const fetchData = useCallback(async () => {
     const b = selBuilding !== 'ALL' ? `?building=${selBuilding}` : ''
-    const res = await fetch(`/api/manager${b}`)
-    if (res.ok) { setData(await res.json()); setLastUpdate(new Date()) }
+    const [resMain, resTrend] = await Promise.all([
+      fetch(`/api/manager${b}`),
+      fetch(`/api/lller-trend${b}`),
+    ])
+    if (resMain.ok) { setData(await resMain.json()); setLastUpdate(new Date()) }
+    if (resTrend.ok) { setTrend(await resTrend.json()) }
     setLoading(false)
   }, [selBuilding])
 
@@ -100,6 +110,119 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
               {m.sub && <div className="text-xs text-gray-400 mt-1">{m.sub}</div>}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── LLER TREND CHARTS ── */}
+      {!loading && trend && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-5 animate-fade-in">
+          {/* Chart A: Hourly trend hari ini */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-sm font-semibold text-gray-800">Tren LLER Hari Ini</div>
+                <div className="text-xs text-gray-400 mt-0.5">Per jam · {trend.hourly.length} titik data</div>
+              </div>
+              <div className="text-xs text-gray-500">
+                {trend.hourly.length > 0
+                  ? `Latest: ${trend.hourly[trend.hourly.length - 1].lller}%`
+                  : '—'}
+              </div>
+            </div>
+            {trend.hourly.length === 0 ? (
+              <div className="h-48 flex items-center justify-center text-xs text-gray-400">
+                Belum ada data hari ini
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={trend.hourly} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="hourlyGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1D9E75" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#1D9E75" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickFormatter={(h: number) => `${h}:00`} stroke="#9CA3AF" />
+                  <YAxis tick={{ fontSize: 11 }} domain={[0, 'dataMax + 10']} stroke="#9CA3AF" />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E5E7EB' }}
+                    labelFormatter={(h: number) => `Jam ${h}:00`}
+                    formatter={(v: any, name: string) => {
+                      if (name === 'lller') return [`${v}%`, 'LLER']
+                      return [v, name]
+                    }}
+                  />
+                  <ReferenceLine y={85} stroke="#EF9F27" strokeDasharray="3 3" label={{ value: 'Target 85%', position: 'right', fontSize: 10, fill: '#EF9F27' }} />
+                  <Area type="monotone" dataKey="lller" stroke="#1D9E75" strokeWidth={2} fill="url(#hourlyGrad)" dot={{ r: 3, fill: '#1D9E75' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Chart B: Daily trend 14 hari */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-sm font-semibold text-gray-800">Tren LLER 14 Hari</div>
+                <div className="text-xs text-gray-400 mt-0.5">Per hari · agregat semua line</div>
+              </div>
+              {(() => {
+                const lastN = trend.daily.filter(d => d.lller > 0).slice(-7)
+                if (lastN.length < 2) return null
+                const first = lastN[0].lller
+                const last = lastN[lastN.length - 1].lller
+                const diff = last - first
+                return (
+                  <div className={`text-xs font-medium ${diff > 0 ? 'text-teal' : diff < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                    {diff > 0 ? '↑' : diff < 0 ? '↓' : '→'} {diff > 0 ? '+' : ''}{diff}% vs awal minggu
+                  </div>
+                )
+              })()}
+            </div>
+            {trend.daily.filter(d => d.lller > 0).length === 0 ? (
+              <div className="h-48 flex items-center justify-center text-xs text-gray-400">
+                Belum ada data historis
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={trend.daily} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(d: string) => {
+                      const [, m, day] = d.split('-')
+                      return `${parseInt(day)}/${parseInt(m)}`
+                    }}
+                    stroke="#9CA3AF"
+                  />
+                  <YAxis tick={{ fontSize: 11 }} domain={[0, 'dataMax + 10']} stroke="#9CA3AF" />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E5E7EB' }}
+                    labelFormatter={(d: string) => {
+                      const dt = new Date(d)
+                      return dt.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })
+                    }}
+                    formatter={(v: any, name: string) => {
+                      if (name === 'lller') return [v > 0 ? `${v}%` : '—', 'LLER']
+                      return [v, name]
+                    }}
+                  />
+                  <ReferenceLine y={85} stroke="#EF9F27" strokeDasharray="3 3" />
+                  <Line
+                    type="monotone" dataKey="lller" stroke="#1D9E75" strokeWidth={2}
+                    dot={(props: any) => {
+                      const { cx, cy, payload } = props
+                      if (!payload || payload.lller === 0) return <></>
+                      return <circle cx={cx} cy={cy} r={3} fill="#1D9E75" />
+                    }}
+                    connectNulls={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
       )}
 

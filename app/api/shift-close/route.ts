@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     include: {
       assignments: {
         where: { active: true }, take: 1, orderBy: { assignedAt: 'desc' },
-        include: { model: { include: { sections: true } } },
+        include: { model: { include: { sections: { include: { operations: true } } } } },
       },
       actuals: {
         where: { date: today() },
@@ -79,9 +79,17 @@ export async function POST(req: NextRequest) {
     const totDT     = secActuals.reduce((s, a) => s + a.downtime, 0)
     const totDef    = secActuals.reduce((s, a) => s + a.defect, 0)
     const avgMP     = Math.round(secActuals.reduce((s, a) => s + a.mpActual, 0) / secActuals.length)
+    const avgOut    = Math.round(totOut / secActuals.length)
     const targetPH  = sec.taktTime > 0 ? Math.floor(3600 / sec.taktTime) : 0
     const totalTgt  = targetPH * secActuals.length
-    const ller      = totalTgt > 0 ? Math.round((totOut / totalTgt) * 100) : 0
+    // theoMP dari operations
+    const ops = (sec as any).operations ?? []
+    const totalGWT = ops.reduce((s: number, op: any) =>
+      s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
+    const theoMP = sec.taktTime > 0 ? totalGWT / sec.taktTime : 0
+    // LLER produktivitas gabungan
+    const ller = (targetPH > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
+      ? Math.round((avgOut * avgMP) / (targetPH * theoMP) * 100) : 0
     const defRate   = totOut > 0 ? ((totDef / totOut) * 100).toFixed(1) : '0'
 
     return [{ name: sec.name, totOut, totDT, totDef, avgMP, totalTgt, ller, defRate, jamCount: secActuals.length }]

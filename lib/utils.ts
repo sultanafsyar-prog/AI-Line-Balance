@@ -15,6 +15,25 @@ export function getGWT(op: { va: number; nvan: number; nva: number; allowance: n
   return parseFloat(((op.va + op.nvan + op.nva) * (1 + op.allowance)).toFixed(2))
 }
 
+// ─── LLER UNIFIED ─────────────────────────────────────────
+// LLER produktivitas gabungan (standardized across all pages):
+//   LLER = (actualPPH × actualMP) / (theoPPH × theoMP) × 100
+// Mengukur efisiensi gabungan: output achievement DAN manpower utilization.
+// Output rendah tapi MP juga rendah → LLER masih rendah (lebih akurat
+// dibanding rumus terpisah yang bisa misleading saat understaffed).
+//
+// Fallback ke stdMP jika theoMP tidak tersedia (untuk endpoint API ringan
+// yang tidak include operations).
+export function calcLLER(
+  actualPPH: number,
+  actualMP: number,
+  theoPPH: number,
+  theoMP: number
+): number {
+  if (actualPPH <= 0 || actualMP <= 0 || theoPPH <= 0 || theoMP <= 0) return 0
+  return Math.round((actualPPH * actualMP) / (theoPPH * theoMP) * 100)
+}
+
 export function calcSectionMetrics(ops: any[], stdMP: number, takt: number) {
   const rows = ops.map(op => {
     const gwt        = getGWT(op)

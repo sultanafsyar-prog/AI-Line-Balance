@@ -93,6 +93,21 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const availableSecs = secs.filter(s => model?.sections?.some((ms: any) => ms.name === s && ms.operations?.length > 0))
   const effectiveSec  = availableSecs.includes(selSec) ? selSec : (availableSecs[0] ?? selSec)
   const section = model?.sections?.find((s: any) => s.name === effectiveSec)
+
+  // ── MP auto-fill ───────────────────────────────────────────
+  // MP biasanya tidak berubah tiap jam (orang yang sama bekerja), jadi prefill
+  // dari input terakhir untuk hemat ketik. Tetap editable kalau ada perubahan.
+  useEffect(() => {
+    if (!selLineId || !line) return
+    const acts = (line.actuals ?? [])
+      .filter((a: any) => a.section?.name === effectiveSec)
+      .sort((a: any, b: any) => b.hour - a.hour)
+    const lastMP = acts[0]?.mpActual
+    if (lastMP && lastMP > 0) {
+      // Hanya prefill kalau field MP saat ini kosong — jangan overwrite ketikan user
+      setForm(f => f.mpActual === '' ? { ...f, mpActual: String(lastMP) } : f)
+    }
+  }, [selLineId, effectiveSec, line])
   // TPH dari section taktTime (untuk target output per jam)
   const sectionTakt = section?.taktTime ?? 0
   const tph = sectionTakt > 0 ? Math.floor(3600 / sectionTakt) : 0
@@ -120,30 +135,43 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
 
   const totalOut = todayActs.reduce((s: number, a: any) => s + a.output, 0)
 
-  // Section LLER = Theoretical MP / Avg Actual MP × 100%
+  // Section LLER produktivitas: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
   const secTheo = sectionTheoMP[effectiveSec] ?? 0
   const secAvgMP = todayActs.length > 0
     ? todayActs.reduce((s: number, a: any) => s + a.mpActual, 0) / todayActs.length : 0
-  const sectionLler = secAvgMP > 0 && secTheo > 0
-    ? Math.round((secTheo / secAvgMP) * 100) : 0
+  const secAvgOut = todayActs.length > 0
+    ? todayActs.reduce((s: number, a: any) => s + a.output, 0) / todayActs.length : 0
+  const sectionLler = (secAvgOut > 0 && secAvgMP > 0 && tph > 0 && secTheo > 0)
+    ? Math.round((secAvgOut * secAvgMP) / (tph * secTheo) * 100) : 0
 
-  // Line LLER = Total TheoMP / Total Avg Actual MP × 100% (semua section)
+  // Line LLER produktivitas — agregat semua section
   const allActs = line?.actuals ?? []
-  const secMPMap = new Map<string, { mpSum: number; hours: number }>()
+  const secMPMap = new Map<string, { mpSum: number; outSum: number; hours: number }>()
   for (const a of allActs) {
     const sName = a.section?.name ?? ''
-    const prev = secMPMap.get(sName) ?? { mpSum: 0, hours: 0 }
-    secMPMap.set(sName, { mpSum: prev.mpSum + a.mpActual, hours: prev.hours + 1 })
+    const prev = secMPMap.get(sName) ?? { mpSum: 0, outSum: 0, hours: 0 }
+    secMPMap.set(sName, {
+      mpSum: prev.mpSum + a.mpActual,
+      outSum: prev.outSum + a.output,
+      hours: prev.hours + 1,
+    })
   }
-  let lineTotalTheo = 0, lineTotalActMP = 0
+  // Numerator: Σ (sec_avgOut × sec_avgMP)
+  // Denominator: Σ (sec_theoPPH × sec_theoMP)
+  let lineNum = 0, lineDen = 0
   for (const [sName, data] of secMPMap.entries()) {
     const theo = sectionTheoMP[sName]
     if (theo && theo > 0 && data.hours > 0) {
-      lineTotalTheo += theo
-      lineTotalActMP += data.mpSum / data.hours
+      const sec = model?.sections?.find((s: any) => s.name === sName)
+      const secTakt = sec?.taktTime ?? 0
+      const secPPHTheo = secTakt > 0 ? 3600 / secTakt : 0
+      const secAvgMPVal = data.mpSum / data.hours
+      const secAvgOutVal = data.outSum / data.hours
+      lineNum += secAvgOutVal * secAvgMPVal
+      lineDen += secPPHTheo * theo
     }
   }
-  const lineLler = lineTotalActMP > 0 ? Math.round((lineTotalTheo / lineTotalActMP) * 100) : 0
+  const lineLler = lineDen > 0 ? Math.round(lineNum / lineDen * 100) : 0
 
   // LLER yang ditampilkan di header = LINE level
   const ller = lineLler
@@ -200,13 +228,14 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
           }
         }
       } catch {}
-      // Pindah ke jam berikutnya yang belum diisi
+      // Pindah ke jam berikutnya yang belum diisi — PERTAHANKAN mpActual supaya carry over
+      // (MP biasanya sama orang dari jam ke jam; tetap editable kalau ada perubahan)
       const currentH = parseInt(form.hour)
       const nextEmpty = activeHours.find((h: number) => h > currentH && !filledHours.has(h))
       if (nextEmpty !== undefined) {
-        setForm({ hour: String(nextEmpty), output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' })
+        setForm(f => ({ ...f, hour: String(nextEmpty), output: '', downtime: '0', dtReason: '', defect: '0' }))
       } else {
-        setForm(f => ({ ...f, output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
+        setForm(f => ({ ...f, output: '', downtime: '0', dtReason: '', defect: '0' }))
       }
       setTimeout(() => setSaved(false), 3000)
     } else {

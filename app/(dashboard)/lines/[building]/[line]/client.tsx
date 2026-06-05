@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { calcSectionMetrics, isIE, getGWT, today } from '@/lib/utils'
 import Link from 'next/link'
@@ -35,7 +35,21 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   const totDef = sectionActuals.reduce((s: number, a: any) => s + a.defect, 0)
   const avgMP  = sectionActuals.length ? Math.round(sectionActuals.reduce((s: number, a: any) => s + a.mpActual, 0) / sectionActuals.length) : 0
   const avgOut = sectionActuals.length ? Math.round(totOut / sectionActuals.length) : 0
-  const ller   = tph > 0 && sectionActuals.length ? parseFloat((avgOut / tph * 100).toFixed(1)) : 0
+  // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
+  const theoMP = metrics?.theorMP ?? 0
+  const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
+    ? parseFloat(((avgOut * avgMP) / (tph * theoMP) * 100).toFixed(1)) : 0
+
+  // ── MP auto-fill: prefill MP dari input terakhir section ini ──
+  // MP biasanya tidak berubah tiap jam, jadi prefill untuk hemat ketik
+  useEffect(() => {
+    const sortedActs = [...sectionActuals].sort((a: any, b: any) => b.hour - a.hour)
+    const lastMP = sortedActs[0]?.mpActual
+    if (lastMP && lastMP > 0) {
+      setInputF(f => f.mpActual === '' ? { ...f, mpActual: String(lastMP) } : f)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selSec, line.id])
 
   async function saveActual() {
     if (!section || !inputF.output || !inputF.mpActual) return
@@ -54,7 +68,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
         })
       })
       if (res.ok) {
-        setInputF(f => ({ ...f, output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
+        setInputF(f => ({ ...f, output: '', downtime: '0', dtReason: '', defect: '0' }))
         window.location.reload()
       } else {
         const data = await res.json().catch(() => ({}))

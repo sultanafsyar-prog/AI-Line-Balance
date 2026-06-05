@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       },
       actuals: {
         where: { date: today() },
-        include: { section: { select: { name: true, taktTime: true } } },
+        include: { section: { select: { name: true, taktTime: true, stdMP: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
         orderBy: { hour: 'desc' },
       },
       alerts: { where: { resolved: false } },
@@ -79,7 +79,23 @@ export async function GET(req: NextRequest) {
     const totalDefect   = actuals.reduce((s, a) => s + a.defect, 0)
     const lastActual    = actuals[0] ?? null
     const lastOutput    = lastActual?.output ?? 0
-    const ller          = tph > 0 && lastOutput > 0 ? Math.round(lastOutput / tph * 100) : 0
+    const avgMP = actuals.length > 0
+      ? actuals.reduce((s, a) => s + a.mpActual, 0) / actuals.length : 0
+    const avgOut = actuals.length > 0
+      ? actuals.reduce((s, a) => s + a.output, 0) / actuals.length : 0
+
+    // theoMP dari section terakhir
+    const latestSec = lastActual?.section as any
+    let theoMP = 0
+    if (latestSec?.operations && latestSec.taktTime > 0) {
+      const totalGWT = latestSec.operations.reduce((s: number, op: any) =>
+        s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
+      theoMP = totalGWT / latestSec.taktTime
+    }
+
+    // LLER produktivitas gabungan
+    const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
+      ? Math.round((avgOut * avgMP) / (tph * theoMP) * 100) : 0
 
     let status: LineStatus
     if (!model)               status = 'no_model'

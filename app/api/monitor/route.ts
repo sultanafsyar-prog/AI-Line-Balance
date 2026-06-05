@@ -32,7 +32,7 @@ export async function GET() {
       },
       actuals: {
         where: { date: today() },
-        include: { section: { select: { name: true, taktTime: true } } },
+        include: { section: { select: { name: true, taktTime: true, stdMP: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
         orderBy: { hour: 'desc' },
       },
       alerts: { where: { resolved: false } },
@@ -54,9 +54,23 @@ export async function GET() {
     const avgMP = actuals.length > 0
       ? Math.round(actuals.reduce((s, a) => s + a.mpActual, 0) / actuals.length)
       : 0
+    const avgOut = actuals.length > 0
+      ? actuals.reduce((s, a) => s + a.output, 0) / actuals.length
+      : 0
+
+    // theoMP dari operations section terakhir
+    const latestSec = latestActual?.section as any
+    let theoMP = 0
+    if (latestSec?.operations && latestSec.taktTime > 0) {
+      const totalGWT = latestSec.operations.reduce((s: number, op: any) =>
+        s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
+      theoMP = totalGWT / latestSec.taktTime
+    }
 
     const latestOutput = latestActual?.output ?? 0
-    const ller = tph > 0 ? Math.round(latestOutput / tph * 100) : 0
+    // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
+    const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
+      ? Math.round((avgOut * avgMP) / (tph * theoMP) * 100) : 0
     const gap  = latestOutput - tph
 
     return {
