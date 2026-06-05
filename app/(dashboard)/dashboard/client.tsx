@@ -1,4 +1,5 @@
 'use client'
+import { useState, useEffect } from 'react'
 import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 
@@ -248,9 +249,12 @@ export default function DashboardClient({ lines, totalModels, userName, userRole
     })
     .sort((a, b) => b.avgLler - a.avgLler)
 
-  const dateStr = new Date().toLocaleDateString('id-ID', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta',
-  })
+  const [dateStr, setDateStr] = useState('')
+  useEffect(() => {
+    setDateStr(new Date().toLocaleDateString('id-ID', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta',
+    }))
+  }, [])
 
   return (
     <div>

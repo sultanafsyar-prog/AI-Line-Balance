@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { today } from '@/lib/utils'
 import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
 import { ModelCreateSchema } from '@/lib/validation'
 import { saveSectionsPreservingActuals } from '@/lib/save-sections'
 
 // Helper: set daily target untuk semua line yang assign model ini
 async function setDailyTargetForModel(modelId: string, targetPairs: number, setBy: string) {
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+  const todayDate = today()
   const activeAssignments = await prisma.lineAssignment.findMany({
     where: { modelId, active: true },
     select: { lineId: true },
   })
   for (const { lineId } of activeAssignments) {
     await prisma.dailyTarget.upsert({
-      where: { lineId_date: { lineId, date: today } },
+      where: { lineId_date: { lineId, date: todayDate } },
       update: { targetPairs, setBy, note: 'Auto-set dari upload model' },
-      create: { lineId, date: today, targetPairs, setBy, note: 'Auto-set dari upload model' },
+      create: { lineId, date: todayDate, targetPairs, setBy, note: 'Auto-set dari upload model' },
     })
   }
 }

@@ -13,13 +13,12 @@ export async function GET(req: NextRequest) {
   const buildingParam = searchParams.get('building')
   const userBuilding = session.user.building
 
-  // Date range
-  const endDate = new Date()
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - days + 1)
+  // Date range — use Asia/Jakarta timezone consistent with today()
   const dateList: string[] = []
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    dateList.push(d.toISOString().slice(0, 10))
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    dateList.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }))
   }
 
   const effectiveBuilding =
@@ -114,7 +113,10 @@ export async function GET(req: NextRequest) {
     by: ['type'],
     _count: { id: true },
     where: {
-      triggeredAt: { gte: startDate, lte: endDate },
+      triggeredAt: {
+        gte: new Date(dateList[0] + 'T00:00:00+07:00'),
+        lte: new Date(dateList[dateList.length - 1] + 'T23:59:59+07:00'),
+      },
       ...(effectiveBuilding ? { line: { building: effectiveBuilding } } : {}),
     },
   })

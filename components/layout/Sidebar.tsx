@@ -12,6 +12,7 @@ const ROLE_LABELS: Record<string, string> = {
   TEAM_LEADER:  'Team Leader',
   MANAGEMENT:   'Management',
   IT_ADMIN:     'IT Admin',
+  PPIC:         'PPIC',
 }
 
 function isIE(role?: string) {

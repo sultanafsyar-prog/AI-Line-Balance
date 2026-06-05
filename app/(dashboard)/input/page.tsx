@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { BUILDINGS } from '@/lib/utils'
+import { BUILDINGS, today } from '@/lib/utils'
 
 type Line = { id: string; building: string; lineNo: number; model: { name: string; lineType: string } | null; sections: { id: string; name: string; stdMP: number; taktTime: number }[] }
 
@@ -25,7 +25,6 @@ export default function InputPage() {
 
   useEffect(() => {
     fetch('/api/lines').then(r => r.json()).then((data: any[]) => {
-      // Ambil model + sections dari line
       const mapped: Line[] = data.map(l => ({
         id: l.id, building: l.building, lineNo: l.lineNo,
         model: l.assignments?.[0]?.model ?? null,
@@ -33,7 +32,7 @@ export default function InputPage() {
       }))
       setLines(mapped)
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [])
 
   const buildings = [...new Set(lines.map(l => l.building))].sort()
@@ -50,14 +49,14 @@ export default function InputPage() {
     }
   }, [buildings, lines, selBuilding])
 
-  // Auto-select first line when building changes
+  // Auto-select first line when building changes or lines load
   useEffect(() => {
     if (selBuilding) {
-      const fl = filteredLines[0]
+      const fl = lines.filter(l => l.building === selBuilding && l.model)[0]
       setSelLineId(fl?.id ?? '')
       setSelSecId(fl?.sections[0]?.id ?? '')
     }
-  }, [selBuilding])
+  }, [selBuilding, lines])
 
   // Auto-select first section when line changes
   useEffect(() => {
@@ -65,7 +64,7 @@ export default function InputPage() {
       const sl = lines.find(l => l.id === selLineId)
       setSelSecId(sl?.sections[0]?.id ?? '')
     }
-  }, [selLineId])
+  }, [selLineId, lines])
 
   async function handleSubmit() {
     if (!selLineId || !selSecId || !form.output || !form.mpActual) {
@@ -78,7 +77,7 @@ export default function InputPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         lineId: selLineId, sectionId: selSecId,
-        date: new Date().toISOString().slice(0, 10),
+        date: today(),
         hour: parseInt(form.hour),
         output: parseInt(form.output),
         mpActual: parseInt(form.mpActual),

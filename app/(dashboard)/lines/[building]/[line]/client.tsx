@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
-import { calcSectionMetrics, isIE, getGWT } from '@/lib/utils'
+import { calcSectionMetrics, isIE, getGWT, today } from '@/lib/utils'
 import Link from 'next/link'
 import YamazumiAktual from '@/components/YamazumiAktual'
 import CloseShiftButton from '@/components/CloseShiftButton'
@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function LineDetailClient({ line, allModels, user, sections }: Props) {
-  const [selSec, setSelSec] = useState(sections[sections.length > 1 ? sections.indexOf('Assembly') !== -1 ? sections.indexOf('Assembly') : 0 : 0])
+  const [selSec, setSelSec] = useState(sections.includes('Assembly') ? 'Assembly' : sections[0] ?? '')
   const [feat, setFeat] = useState< 'style' | 'yamazumi' | 'yamazumi-aktual' | 'input' | 'monitor' | 'ai'>('style')
   const [inputF, setInputF] = useState({ output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0', hour: String(new Date().getHours()) })
   const [saving, setSaving] = useState(false)
@@ -29,7 +29,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   const metrics = section ? calcSectionMetrics(section.operations, section.stdMP, takt) : null
   const tph = takt > 0 ? Math.floor(3600 / takt) : 0
 
-  const sectionActuals = line.actuals.filter((a: any) => a.section.name === selSec).sort((a: any, b: any) => a.hour - b.hour)
+  const sectionActuals = line.actuals.filter((a: any) => a.section?.name === selSec).sort((a: any, b: any) => a.hour - b.hour)
   const totOut = sectionActuals.reduce((s: number, a: any) => s + a.output, 0)
   const totDT  = sectionActuals.reduce((s: number, a: any) => s + a.downtime, 0)
   const totDef = sectionActuals.reduce((s: number, a: any) => s + a.defect, 0)
@@ -40,41 +40,53 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   async function saveActual() {
     if (!section || !inputF.output || !inputF.mpActual) return
     setSaving(true)
-    await fetch('/api/actuals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        lineId: line.id, sectionId: section.id,
-        date: new Date().toISOString().slice(0, 10),
-        hour: parseInt(inputF.hour),
-        output: parseInt(inputF.output), mpActual: parseInt(inputF.mpActual),
-        downtime: parseInt(inputF.downtime) || 0, dtReason: inputF.dtReason,
-        defect: parseInt(inputF.defect) || 0,
+    try {
+      const res = await fetch('/api/actuals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lineId: line.id, sectionId: section.id,
+          date: today(),
+          hour: parseInt(inputF.hour),
+          output: parseInt(inputF.output), mpActual: parseInt(inputF.mpActual),
+          downtime: parseInt(inputF.downtime) || 0, dtReason: inputF.dtReason,
+          defect: parseInt(inputF.defect) || 0,
+        })
       })
-    })
+      if (res.ok) {
+        setInputF(f => ({ ...f, output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
+        window.location.reload()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error ?? 'Gagal menyimpan data')
+      }
+    } catch { alert('Gagal menyimpan — periksa koneksi') }
     setSaving(false)
-    setInputF(f => ({ ...f, output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
-    window.location.reload()
   }
 
   async function runAI() {
     setAiLoading(true); setAiText('')
-    const res = await fetch('/api/analytics', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lineId: line.id, sectionName: selSec })
-    })
-    const data = await res.json()
-    setAiText(data.analysis ?? 'Tidak ada hasil.')
+    try {
+      const res = await fetch('/api/analytics', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineId: line.id, sectionName: selSec })
+      })
+      const data = await res.json()
+      setAiText(res.ok ? (data.analysis ?? 'Tidak ada hasil.') : (data.error ?? 'Gagal menganalisis.'))
+    } catch { setAiText('Gagal menghubungi server.') }
     setAiLoading(false)
   }
 
   async function assignModel(modelId: string | null) {
-    await fetch('/api/lines', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lineId: line.id, modelId })
-    })
-    setAssigning(false)
-    window.location.reload()
+    setAssigning(true)
+    try {
+      const res = await fetch('/api/lines', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineId: line.id, modelId })
+      })
+      if (res.ok) { window.location.reload() }
+      else { alert('Gagal assign model'); setAssigning(false) }
+    } catch { alert('Gagal — periksa koneksi'); setAssigning(false) }
   }
 
   // Yamazumi chart standar IE: tampilkan Effective CT (GWT ÷ MP) per operasi.

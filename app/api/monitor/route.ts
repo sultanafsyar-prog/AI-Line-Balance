@@ -18,7 +18,7 @@ export async function GET() {
       select: { lineId: true },
     })
     where.id = { in: access.map(a => a.lineId) }
-  } else if (session.user.building) {
+  } else if (session.user.role === 'MANAGEMENT' && session.user.building) {
     where.building = session.user.building
   }
 
@@ -73,7 +73,7 @@ export async function GET() {
       } : null,
       todayTotals: {
         output: totalOutput, downtime: totalDowntime,
-        defect: totalDefect, hours: actuals.length, avgMP,
+        defect: totalDefect, hours: new Set(actuals.map(a => a.hour)).size, avgMP,
       },
       alerts: line.alerts.map(a => ({ type: a.type, message: a.message })),
       ller, gap, targetPPH: tph,

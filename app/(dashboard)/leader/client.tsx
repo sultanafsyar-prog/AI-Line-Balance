@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
 import { SF_SECTIONS as UTIL_SF_SECTIONS } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
@@ -68,19 +68,22 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const [aiResult, setAiResult]   = useState('')
   const [aiLoading, setAiLoading] = useState(false)
 
-  const nowH = new Date().getHours()
-  const defaultHour = (() => {
-    const detected = detectShift()
-    if (detected === 1) return (nowH >= 7 && nowH <= 19) ? nowH : 7
-    // Shift 2: jam 20-23 pakai langsung, jam 0-7 pakai virtual (24+)
-    if (nowH >= 20) return nowH
-    if (nowH < 8) return nowH + 24  // virtual: 0→24, 1→25, ..., 7→31
-    return 20 // fallback
-  })()
   const [form, setForm] = useState({
-    hour: String(defaultHour),
+    hour: '7',
     output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0',
   })
+
+  // Set default hour after mount to avoid hydration mismatch
+  useEffect(() => {
+    const nowH = new Date().getHours()
+    const detected = detectShift()
+    let h = 7
+    if (detected === 1) h = (nowH >= 7 && nowH <= 19) ? nowH : 7
+    else if (nowH >= 20) h = nowH
+    else if (nowH < 8) h = nowH + 24
+    else h = 20
+    setForm(f => ({ ...f, hour: String(h) }))
+  }, [])
 
   const line    = lines.find(l => l.id === selLineId)
   const model   = line?.assignments?.[0]?.model
@@ -104,10 +107,11 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   }
 
   // Auto-update selSec kalau section yang dipilih tidak ada di model ini
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  if (availableSecs.length > 0 && !availableSecs.includes(selSec)) {
-    setTimeout(() => setSelSec(availableSecs[0]), 0)
-  }
+  useEffect(() => {
+    if (availableSecs.length > 0 && !availableSecs.includes(selSec)) {
+      setSelSec(availableSecs[0])
+    }
+  }, [availableSecs.join(','), selSec])
 
   // Actuals untuk section yang sedang dipilih
   const todayActs = (line?.actuals ?? [])
@@ -715,16 +719,16 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                 { key: 'status', icon: '◉', label: t('leader.tabStatus') },
                 { key: 'input', icon: '✎', label: t('leader.tabInput') },
                 { key: 'std', icon: '📋', label: t('leader.tabStandard') },
-                { key: 'ai', icon: '<img src="/claude-logo.svg" alt="AI" />', label: t('leader.tabAI') },
-              ].map(t => (
-                <button key={t.key} onClick={() => setTab(t.key as 'status' | 'input' | 'std' | 'ai')}
+                { key: 'ai', icon: '🤖', label: t('leader.tabAI') },
+              ].map(navItem => (
+                <button key={navItem.key} onClick={() => setTab(navItem.key as 'status' | 'input' | 'std' | 'ai')}
                   style={{
                     flex: 1, padding: '10px 4px 14px', border: 'none', cursor: 'pointer',
                     background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                    borderTop: tab === t.key ? '3px solid #1D9E75' : '3px solid transparent',
+                    borderTop: tab === navItem.key ? '3px solid #1D9E75' : '3px solid transparent',
                   }}>
-                  <span style={{ fontSize: 18 }}>{t.icon}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: tab === t.key ? '#1D9E75' : '#9CA3AF' }}>{t.label}</span>
+                  <span style={{ fontSize: 18 }}>{navItem.icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: tab === navItem.key ? '#1D9E75' : '#9CA3AF' }}>{navItem.label}</span>
                 </button>
               ))}
             </div>

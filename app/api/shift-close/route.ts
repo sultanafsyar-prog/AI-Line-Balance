@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
-import { jsonError, parseBody, requireSession } from '@/lib/api-helpers'
+import { jsonError, parseBody, requireRole, hasLineAccess } from '@/lib/api-helpers'
 import { ShiftCloseSchema } from '@/lib/validation'
 
 export const maxDuration = 60
@@ -29,17 +29,18 @@ type SectionSummary = {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireSession()
+  const auth = await requireRole(['IE_ADMIN', 'IE_OPERATOR'])
   if (auth instanceof NextResponse) return auth
   const session = auth
-
-  if (!['IE_ADMIN', 'IE_OPERATOR'].includes(session.user.role)) {
-    return jsonError('Hanya IE Admin yang bisa tutup shift.', 403)
-  }
 
   const data = await parseBody(req, ShiftCloseSchema)
   if (data instanceof NextResponse) return data
   const { lineId, shiftLabel, managerEmail } = data
+
+  // Cek akses line
+  if (!(await hasLineAccess(auth, lineId))) {
+    return jsonError('Anda tidak punya akses ke line ini.', 403)
+  }
 
   const line = await prisma.line.findUnique({
     where: { id: lineId },
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
   }
 
   const sectionSummaries: SectionSummary[] = sections.flatMap(sec => {
-    const secActuals = actuals.filter(a => a.section?.name === sec.name)
+    const secActuals = actuals.filter(a => a.sectionId === sec.id)
     if (secActuals.length === 0) return []
 
     const totOut    = secActuals.reduce((s, a) => s + a.output, 0)

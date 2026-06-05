@@ -773,7 +773,7 @@ export default function ModelsPage() {
   const [parseError, setParseError] = useState('')
 
   useEffect(() => {
-    fetch('/api/models').then(r => r.json()).then(d => { setModels(d); setLoading(false) })
+    fetch('/api/models').then(r => r.json()).then(d => { setModels(d); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {

@@ -28,12 +28,14 @@ export default function MonitorPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)
 
   const fetchData = useCallback(async () => {
-    const res = await fetch('/api/monitor')
-    if (res.ok) {
-      const data = await res.json()
-      setLines(data)
-      setLastUpdate(new Date())
-    }
+    try {
+      const res = await fetch('/api/monitor')
+      if (res.ok) {
+        const data = await res.json()
+        setLines(data)
+        setLastUpdate(new Date())
+      }
+    } catch {}
     setLoading(false)
   }, [])
 

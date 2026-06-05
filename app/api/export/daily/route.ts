@@ -138,7 +138,8 @@ export async function GET(req: NextRequest) {
   // ─── SHEET: ALERTS ───────────────────────────────────────
   const alerts = await prisma.alert.findMany({
     where: {
-      triggeredAt: { gte: new Date(date + 'T00:00:00'), lte: new Date(date + 'T23:59:59') },
+      triggeredAt: { gte: new Date(date + 'T00:00:00+07:00'), lte: new Date(date + 'T23:59:59+07:00') },
+      ...(userBuilding ? { line: { building: userBuilding } } : {}),
     },
     include: { line: { select: { building: true, lineNo: true } } },
     orderBy: { triggeredAt: 'desc' },

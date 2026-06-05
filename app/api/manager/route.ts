@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
-import { requireSession } from '@/lib/api-helpers'
+import { requireRole } from '@/lib/api-helpers'
 
 type LineStatus = 'no_model' | 'no_input' | 'good' | 'warning' | 'critical'
 
@@ -35,7 +35,7 @@ type BuildingGroup = {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireSession()
+  const auth = await requireRole(['MANAGEMENT', 'IE_ADMIN', 'IE_OPERATOR', 'IT_ADMIN'])
   if (auth instanceof NextResponse) return auth
   const session = auth
 
