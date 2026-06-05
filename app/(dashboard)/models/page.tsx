@@ -382,8 +382,8 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     // Section name mapping dari Excel → sistem
     const SEC_MAP: Record<string, string> = {
       'BUFFING': 'Buffing',
-      'DEGREESER': 'Degreaser',
-      'DEGREASER': 'Degreaser',
+      'DEGREESER': 'UV',
+      'DEGREASER': 'UV',
       'UV': 'UV',
       'STOCKFIT': 'Stockfit',
       'STOCKFITTING': 'Stockfit',
@@ -478,8 +478,8 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
         const uvMP    = parseFloat(mpRow[7]) || 0
         const sfMP    = parseFloat(mpRow[11]) || 0
         if (buffMP > 0) sectionMP['Buffing']   = buffMP
-        if (degrMP > 0) sectionMP['Degreaser'] = degrMP
-        if (uvMP > 0)   sectionMP['UV']        = uvMP
+        // Degreaser + UV digabung ke UV (overwrite, bukan accumulate — hindari double-count dari op loop)
+        if (degrMP > 0 || uvMP > 0) sectionMP['UV'] = degrMP + uvMP
         if (sfMP > 0)   sectionMP['Stockfit']  = sfMP
       }
     }

@@ -66,6 +66,17 @@ function getGWT(op: any): number {
   return (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15))
 }
 
+// ── Per-line accent colors for visual differentiation ──────
+const LINE_ACCENTS = [
+  { accent: '#3b82f6', accentBg: 'rgba(59,130,246,0.08)',  accentBd: 'rgba(59,130,246,0.25)',  stripe: 'rgba(59,130,246,0.04)'  },  // blue
+  { accent: '#8b5cf6', accentBg: 'rgba(139,92,246,0.08)',  accentBd: 'rgba(139,92,246,0.25)',  stripe: 'rgba(139,92,246,0.04)'  },  // violet
+  { accent: '#06b6d4', accentBg: 'rgba(6,182,212,0.08)',   accentBd: 'rgba(6,182,212,0.25)',   stripe: 'rgba(6,182,212,0.04)'   },  // cyan
+  { accent: '#f97316', accentBg: 'rgba(249,115,22,0.08)',  accentBd: 'rgba(249,115,22,0.25)',  stripe: 'rgba(249,115,22,0.04)'  },  // orange
+  { accent: '#ec4899', accentBg: 'rgba(236,72,153,0.08)',  accentBd: 'rgba(236,72,153,0.25)',  stripe: 'rgba(236,72,153,0.04)'  },  // pink
+  { accent: '#14b8a6', accentBg: 'rgba(20,184,166,0.08)',  accentBd: 'rgba(20,184,166,0.25)',  stripe: 'rgba(20,184,166,0.04)'  },  // teal
+  { accent: '#eab308', accentBg: 'rgba(234,179,8,0.08)',   accentBd: 'rgba(234,179,8,0.25)',   stripe: 'rgba(234,179,8,0.04)'   },  // yellow
+]
+
 // ── Yamazumi summary per section ─────────────────────────────
 interface YamSummary {
   name: string
@@ -275,16 +286,29 @@ export default function TVClient({ building, lines, sections }: Props) {
     return () => clearInterval(id)
   }, [insights.length])
 
-  // Auto-rotate mode every 60s
+  // Auto-rotate mode every 20s (staggered from reload)
   useEffect(() => {
     if (!autoRotate) return
     const id = setInterval(() => {
-      setMode(m => m === 'floor' ? 'manager' : m === 'manager' ? 'ie' : 'floor')
-    }, 60000)
+      setMode(m => {
+        const next = m === 'floor' ? 'manager' : m === 'manager' ? 'ie' : 'floor'
+        // Persist mode to survive page reload
+        try { sessionStorage.setItem('tv-mode', next) } catch {}
+        return next
+      })
+    }, 20000)
     return () => clearInterval(id)
   }, [autoRotate])
 
-  // Page refresh 60s
+  // Restore mode from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('tv-mode') as ViewMode | null
+      if (saved && ['floor', 'manager', 'ie'].includes(saved)) setMode(saved)
+    } catch {}
+  }, [])
+
+  // Page refresh every 60s to get fresh data
   useEffect(() => {
     const id = setInterval(() => window.location.reload(), 60000)
     return () => clearInterval(id)
@@ -463,116 +487,255 @@ export default function TVClient({ building, lines, sections }: Props) {
         display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`,
         gap: '10px', flex: 1,
       }}>
-        {lineMetrics.map(({ line, m }) => {
+        {lineMetrics.map(({ line, m }, cardIdx) => {
           const sc       = statusColors(m.ller, m.hasData)
           const hasAlert = m.alerts && m.alerts.length > 0
+          const mpGapLine = m.avgMPActual - m.theoMPTotal
+          const la       = LINE_ACCENTS[cardIdx % LINE_ACCENTS.length]
           return (
             <div key={line.id} style={{
-              background: sc.bg, border: `2px solid ${hasAlert ? C.red : sc.border}`,
-              borderRadius: '14px', padding: '14px',
-              display: 'flex', flexDirection: 'column', gap: '10px',
-              position: 'relative',
+              background: C.card,
+              border: `2px solid ${hasAlert ? C.red : la.accentBd}`,
+              borderRadius: '13px', padding: '0',
+              display: 'flex', flexDirection: 'column',
+              overflow: 'hidden',
             }}>
-              {hasAlert && (
-                <div style={{
-                  position: 'absolute', top: '8px', right: '8px',
-                  background: C.red, borderRadius: '99px',
-                  padding: '3px 10px', fontSize: '10px', fontWeight: 700, color: '#fff',
-                }}>⚠ ALERT</div>
-              )}
+              {/* Colored top accent bar */}
+              <div style={{ height: '4px', background: hasAlert ? C.red : la.accent }} />
 
-              {/* Line + status badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  fontSize: '56px', fontWeight: 800, color: sc.text,
-                  lineHeight: 0.9, fontVariantNumeric: 'tabular-nums',
-                }}>{line.lineNo}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '11px', color: C.dim, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Line</div>
-                  {m.model ? (
-                    <>
-                      <div style={{ fontSize: '15px', fontWeight: 700, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.model}</div>
-                      <div style={{ fontSize: '10px', color: C.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.article}</div>
-                    </>
-                  ) : <div style={{ fontSize: '12px', color: C.gray }}>Belum ada model</div>}
-                </div>
-                <div style={{
-                  background: sc.bg, border: `1px solid ${sc.border}`,
-                  borderRadius: '8px', padding: '6px 12px',
-                  fontSize: '12px', fontWeight: 700, color: sc.text,
-                }}>{sc.label}</div>
-              </div>
-
-              {/* Output last hour vs target — BESAR */}
-              <div style={{
-                background: 'rgba(0,0,0,0.25)', borderRadius: '10px',
-                padding: '12px 14px',
-                display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '10px', alignItems: 'center',
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '36px', fontWeight: 800, color: sc.text, lineHeight: 1 }}>
-                    {m.hasData ? m.lastHourOutput : '—'}
-                  </div>
-                  <div style={{ fontSize: '10px', color: C.dim, marginTop: '3px' }}>
-                    AKTUAL {m.lastHour !== null ? `(jam ${m.lastHour})` : ''}
-                  </div>
-                </div>
-                <div style={{ fontSize: '22px', color: C.gray }}>/</div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '36px', fontWeight: 800, color: C.dim, lineHeight: 1 }}>
-                    {m.theoPPH || '—'}
-                  </div>
-                  <div style={{ fontSize: '10px', color: C.dim, marginTop: '3px' }}>TARGET/JAM</div>
-                </div>
-              </div>
-
-              {/* Gap + LLER */}
-              {m.hasData && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                {/* Line header + status */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{
-                    background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
-                    padding: '8px', textAlign: 'center',
-                  }}>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: gapColor(m.gap), lineHeight: 1 }}>
-                      {m.gap >= 0 ? '+' : ''}{m.gap}
+                    width: '48px', height: '48px', borderRadius: '10px',
+                    background: la.accentBg, border: `2px solid ${la.accentBd}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '22px', fontWeight: 800, color: la.accent,
+                    fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+                  }}>{line.lineNo}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '10px', color: la.accent, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Line {line.lineNo}</div>
+                    {m.model ? (
+                      <>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.model}</div>
+                        <div style={{ fontSize: '10px', color: C.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.article}</div>
+                      </>
+                    ) : <div style={{ fontSize: '12px', color: C.gray }}>Belum ada model</div>}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: sc.text, lineHeight: 1 }}>
+                      {m.hasData ? `${m.ller}%` : '—'}
                     </div>
-                    <div style={{ fontSize: '9px', color: C.dim, marginTop: '3px' }}>GAP/JAM</div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      {hasAlert && (
+                        <div style={{
+                          background: C.red, borderRadius: '4px',
+                          padding: '2px 6px', fontSize: '8px', fontWeight: 700, color: '#fff',
+                          whiteSpace: 'nowrap',
+                        }}>⚠ ALERT</div>
+                      )}
+                      <div style={{
+                        background: sc.bg, border: `1px solid ${sc.border}`,
+                        borderRadius: '4px', padding: '2px 8px',
+                        fontSize: '9px', fontWeight: 700, color: sc.text,
+                      }}>{sc.label}</div>
+                    </div>
                   </div>
+                </div>
+
+                {/* Standard vs Aktual comparison table */}
+                <div style={{
+                  background: 'rgba(0,0,0,0.25)', borderRadius: '10px',
+                  overflow: 'hidden', border: `1px solid ${la.stripe}`,
+                }}>
+                  {/* Table header */}
                   <div style={{
-                    background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
-                    padding: '8px', textAlign: 'center',
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                    background: la.stripe,
                   }}>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: sc.text, lineHeight: 1 }}>{m.ller}%</div>
-                    <div style={{ fontSize: '9px', color: C.dim, marginTop: '3px' }}>LLER</div>
+                    <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.gray, textAlign: 'center' }}></div>
+                    <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.teal, textAlign: 'center', letterSpacing: '0.5px' }}>STANDARD</div>
+                    <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.blue, textAlign: 'center', letterSpacing: '0.5px' }}>AKTUAL</div>
+                    <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.gray, textAlign: 'center', letterSpacing: '0.5px' }}>GAP</div>
                   </div>
-                </div>
-              )}
 
-              {/* Daily target progress */}
-              {m.dailyTarget && (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '10px', color: C.dim }}>TARGET HARI INI</span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: m.targetPct >= 100 ? C.green : C.amber }}>
-                      {m.totOut.toLocaleString()} / {m.dailyTarget.targetPairs.toLocaleString()} ({m.targetPct}%)
-                    </span>
+                  {/* PPH row */}
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                    borderTop: `1px solid rgba(255,255,255,0.06)`, alignItems: 'center',
+                  }}>
+                    <div style={{ padding: '6px 8px', fontSize: '10px', color: C.dim, fontWeight: 600 }}>PPH</div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '20px', fontWeight: 800, color: C.teal }}>{m.theoPPH || '—'}</span>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '20px', fontWeight: 800, color: m.hasData ? C.white : C.gray }}>
+                        {m.hasData ? m.lastHourOutput : '—'}
+                      </span>
+                      {m.lastHour !== null && <div style={{ fontSize: '8px', color: C.gray }}>jam {m.lastHour}</div>}
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      {m.hasData ? (
+                        <span style={{ fontSize: '16px', fontWeight: 700, color: gapColor(m.gap) }}>
+                          {m.gap >= 0 ? '+' : ''}{m.gap}
+                        </span>
+                      ) : <span style={{ color: C.gray }}>—</span>}
+                    </div>
                   </div>
-                  <div style={{ height: '6px', background: C.border, borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', width: `${Math.min(m.targetPct, 100)}%`,
-                      background: m.targetPct >= 100 ? C.green : C.amber, borderRadius: '3px',
-                    }} />
-                  </div>
-                </div>
-              )}
 
-              {/* Sparkline tren */}
-              {m.hourlyOutputs.length > 1 && (
-                <div>
-                  <div style={{ fontSize: '10px', color: C.dim, marginBottom: '4px' }}>TREN OUTPUT/JAM</div>
-                  <Sparkline data={m.hourlyOutputs} color={sc.text} height={24} />
+                  {/* Cycle Time row */}
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                    borderTop: `1px solid rgba(255,255,255,0.06)`, alignItems: 'center',
+                  }}>
+                    <div style={{ padding: '6px 8px', fontSize: '10px', color: C.dim, fontWeight: 600 }}>CT</div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '16px', fontWeight: 700, color: C.teal }}>
+                        {m.taktStd > 0 ? `${m.taktStd}s` : '—'}
+                      </span>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      {m.hasData && m.actCT > 0 ? (
+                        <span style={{
+                          fontSize: '16px', fontWeight: 700,
+                          color: m.taktStd > 0 && m.actCT <= m.taktStd * 1.1 ? C.green
+                               : m.taktStd > 0 && m.actCT <= m.taktStd * 1.3 ? C.amber : C.red,
+                        }}>{m.actCT}s</span>
+                      ) : <span style={{ color: C.gray }}>—</span>}
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      {m.hasData && m.actCT > 0 && m.taktStd > 0 ? (
+                        <span style={{
+                          fontSize: '13px', fontWeight: 600,
+                          color: m.actCT <= m.taktStd * 1.1 ? C.green : m.actCT <= m.taktStd * 1.3 ? C.amber : C.red,
+                        }}>
+                          {m.actCT <= m.taktStd ? '✓' : `+${(m.actCT - m.taktStd).toFixed(1)}s`}
+                        </span>
+                      ) : <span style={{ color: C.gray }}>—</span>}
+                    </div>
+                  </div>
+
+                  {/* MP row */}
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                    borderTop: `1px solid rgba(255,255,255,0.06)`, alignItems: 'center',
+                  }}>
+                    <div style={{ padding: '6px 8px', fontSize: '10px', color: C.dim, fontWeight: 600 }}>MP</div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '16px', fontWeight: 700, color: C.teal }}>
+                        {m.stdMPTotal > 0 ? m.stdMPTotal : '—'}
+                      </span>
+                      {m.theoMPTotal > 0 && m.theoMPTotal !== m.stdMPTotal && (
+                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>({m.theoMPTotal})</span>
+                      )}
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '16px', fontWeight: 700, color: m.hasData ? C.white : C.gray }}>
+                        {m.hasData ? m.avgMPActual : '—'}
+                      </span>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      {m.hasData && Math.abs(mpGapLine) > 0.3 ? (
+                        <span style={{
+                          fontSize: '13px', fontWeight: 600,
+                          color: mpGapLine > 1 ? C.amber : mpGapLine < -1 ? C.red : C.dim,
+                        }}>
+                          {mpGapLine > 0 ? '+' : ''}{mpGapLine.toFixed(1)}
+                        </span>
+                      ) : m.hasData ? <span style={{ fontSize: '13px', color: C.green }}>✓</span> : <span style={{ color: C.gray }}>—</span>}
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {/* Section breakdown */}
+                {m.yamSummaries.length > 0 && m.hasData && (
+                  <div style={{
+                    background: la.stripe, borderRadius: '8px',
+                    padding: '6px 8px', border: `1px solid ${la.accentBd}`,
+                  }}>
+                    <div style={{ fontSize: '9px', color: la.accent, fontWeight: 700, marginBottom: '4px', letterSpacing: '0.5px' }}>
+                      SECTION — STD MP / ACT MP / LLER
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {m.yamSummaries.map(ys => {
+                        const act = m.sectionActuals[ys.name]
+                        const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
+                        return (
+                          <div key={ys.name} style={{
+                            background: act ? secSc.bg : 'rgba(0,0,0,0.3)',
+                            border: `1px solid ${act ? secSc.border : C.border}`,
+                            borderRadius: '5px', padding: '3px 6px',
+                            fontSize: '9px', color: C.dim,
+                            display: 'flex', gap: '4px', alignItems: 'center',
+                          }}>
+                            <span style={{ color: C.white, fontWeight: 600, fontSize: '9px' }}>{ys.name}</span>
+                            <span style={{ color: C.teal, fontWeight: 700 }}>{ys.stdMP}</span>
+                            <span style={{ color: C.gray }}>/</span>
+                            <span style={{ color: act ? C.white : C.gray, fontWeight: 600 }}>{act ? act.avgMP : '—'}</span>
+                            {act && (
+                              <>
+                                <span style={{ color: C.gray }}>·</span>
+                                <span style={{ color: secSc.text, fontWeight: 700 }}>{act.ller}%</span>
+                              </>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Daily target + downtime/defect row */}
+                <div style={{ display: 'grid', gridTemplateColumns: m.dailyTarget ? '1fr auto' : '1fr', gap: '8px', alignItems: 'end' }}>
+                  {m.dailyTarget && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                        <span style={{ fontSize: '9px', color: C.dim }}>TARGET HARI INI</span>
+                        <span style={{ fontSize: '10px', fontWeight: 600, color: m.targetPct >= 100 ? C.green : C.amber }}>
+                          {m.totOut.toLocaleString()} / {m.dailyTarget.targetPairs.toLocaleString()} ({m.targetPct}%)
+                        </span>
+                      </div>
+                      <div style={{ height: '5px', background: C.border, borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', width: `${Math.min(m.targetPct, 100)}%`,
+                          background: m.targetPct >= 100 ? C.green : la.accent, borderRadius: '3px',
+                        }} />
+                      </div>
+                    </div>
+                  )}
+                  {m.hasData && (m.totDT > 0 || m.totDef > 0) && (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {m.totDT > 0 && (
+                        <div style={{
+                          background: m.totDT > 30 ? C.redBg : 'rgba(0,0,0,0.2)',
+                          border: `1px solid ${m.totDT > 30 ? C.redBd : C.border}`,
+                          borderRadius: '5px', padding: '3px 7px', textAlign: 'center',
+                        }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: m.totDT > 30 ? C.red : C.amber, lineHeight: 1 }}>{m.totDT}</div>
+                          <div style={{ fontSize: '8px', color: C.dim }}>DT min</div>
+                        </div>
+                      )}
+                      {m.totDef > 0 && (
+                        <div style={{
+                          background: 'rgba(0,0,0,0.2)', border: `1px solid ${C.border}`,
+                          borderRadius: '5px', padding: '3px 7px', textAlign: 'center',
+                        }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: C.amber, lineHeight: 1 }}>{m.totDef}</div>
+                          <div style={{ fontSize: '8px', color: C.dim }}>Defect</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Sparkline tren */}
+                {m.hourlyOutputs.length > 1 && (
+                  <div>
+                    <div style={{ fontSize: '9px', color: C.dim, marginBottom: '3px' }}>TREN OUTPUT/JAM · avg {m.avgPPH} prs</div>
+                    <Sparkline data={m.hourlyOutputs} color={la.accent} height={20} />
+                  </div>
+                )}
+              </div>
             </div>
           )
         })}

@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) { return clsx(inputs) }
 export const BUILDINGS: Record<string, number> = { C: 1, D: 6, E: 6, F: 5, H: 5, I: 4, G: 7 }
 export const STOCKFIT_BUILDING = 'G'
 export const SECTIONS = ['Cutting', 'Treatment', 'Preparation', 'PC Sewing', 'Sewing', 'Assembly', 'Packing']
-export const SF_SECTIONS = ['Buffing', 'Degreaser', 'UV', 'Stockfit']
+export const SF_SECTIONS = ['Buffing', 'UV', 'Stockfit']
 export const LINE_TYPES = {
   MINI: { label: 'Mini Line', tph: 100, takt: 36 },
   BIG:  { label: 'Big Line',  tph: 180, takt: 20 },
@@ -23,7 +23,7 @@ export function calcSectionMetrics(ops: any[], stdMP: number, takt: number) {
     return { ...op, gwt, mpNeeded, effectiveCT }
   })
   const totalGWT  = parseFloat(rows.reduce((s, r) => s + r.gwt, 0).toFixed(2))
-  const theorMP   = parseFloat((totalGWT / takt).toFixed(2))
+  const theorMP   = takt > 0 ? parseFloat((totalGWT / takt).toFixed(2)) : 0
   const lbr       = stdMP > 0 ? parseFloat((theorMP / stdMP * 100).toFixed(1)) : 0
   // maxGwtOp = operasi dengan GWT tertinggi (untuk info, BUKAN "bottleneck")
   const maxGwtOp  = rows.reduce((m, r) => r.gwt > m.gwt ? r : m, rows[0] ?? { gwt: 0, name: '-', mpNeeded: 1, effectiveCT: 0 })
