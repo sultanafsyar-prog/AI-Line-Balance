@@ -7,7 +7,7 @@ import Link from 'next/link'
 // ─── TYPES ───────────────────────────────────────────────────
 type Op = { id: string; name: string; va: number; nvan: number; nva: number; mcCT: number; allowance: number }
 type Sec = { name: string; stdMP: number; taktTime: number; ops: Op[] }
-type ModelDraft = { name: string; article: string; stage: string; lineType: 'MINI' | 'BIG'; sections: Sec[] }
+type ModelDraft = { name: string; article: string; stage: string; lineType: 'MINI' | 'BIG'; sections: Sec[]; dailyTarget?: number; hourlyTarget?: number }
 
 const ALL_SECTIONS = [...SECTIONS, ...SF_SECTIONS]
 const STAGES = ['PTR', 'Pre-Production', 'Production CFM']
@@ -198,21 +198,27 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       'assembly': 'Assembly',
       'stockfit': 'Stockfit',
       'stockfitting': 'Stockfit',
+      // Stockfit area sections (Degreaser merged into UV)
+      'buffing': 'Buffing',
+      'uv': 'UV',
+      'degreeser': 'UV',
+      'degreaser': 'UV',
     }
 
-    // Cari model name dari sheet manapun, baris "Style:"
+    // Cari model name, takt time, daily/hourly target dari sheet manapun
     let modelName = ''
     let mainTakt = 36
+    let dailyTarget = 0
+    let hourlyTarget = 0
 
     for (const sn of wb.SheetNames) {
       const ws = wb.Sheets[sn]
       const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
       for (const row of data.slice(0, 10)) {
-        const r0 = String(row[0] ?? '').trim().toLowerCase()
-        const r1 = String(row[1] ?? '').trim().toLowerCase()
         // Cari "Style:" di kolom mana saja
-        for (let c = 0; c < Math.min(row.length, 6); c++) {
-          if (String(row[c] ?? '').toLowerCase().includes('style')) {
+        for (let c = 0; c < Math.min(row.length, 8); c++) {
+          const cellStr = String(row[c] ?? '').toLowerCase()
+          if (cellStr.includes('style')) {
             // Cari nilai di kolom berikutnya
             for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
               const v = String(row[nc] ?? '').trim()
@@ -221,10 +227,28 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
               }
             }
           }
-          if (String(row[c] ?? '').toLowerCase().includes('takt')) {
+          // Also check col[1] or col[3] for model name in "LINE BALANCING - ..." format
+          if (cellStr.includes('line balancing') && !modelName) {
+            // Model name usually in col[3] for stockfit area format
+            const v3 = String(row[3] ?? '').trim()
+            if (v3 && v3.length > 2) modelName = v3.split('/')[0].trim()
+          }
+          if (cellStr.includes('takt')) {
             for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
               const v = parseFloat(row[nc])
               if (!isNaN(v) && v >= 5 && v <= 300) mainTakt = v
+            }
+          }
+          if (cellStr.includes('daily target') && dailyTarget === 0) {
+            for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
+              const v = parseFloat(row[nc])
+              if (!isNaN(v) && v >= 10) { dailyTarget = v; break }
+            }
+          }
+          if (cellStr.includes('hourly target') && hourlyTarget === 0) {
+            for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
+              const v = parseFloat(row[nc])
+              if (!isNaN(v) && v >= 1) { hourlyTarget = v; break }
             }
           }
         }
@@ -236,6 +260,8 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     draft.name = modelName
     draft.article = modelName
     draft.lineType = mainTakt <= 22 ? 'BIG' : 'MINI'
+    if (dailyTarget > 0) draft.dailyTarget = dailyTarget
+    if (hourlyTarget > 0) draft.hourlyTarget = hourlyTarget
 
     // Process setiap sheet
     const processedSecs = new Set<string>()
@@ -243,15 +269,18 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     for (const sn of wb.SheetNames) {
       const nameLower = sn.toLowerCase().trim()
 
-      // Cari matching section (skip "summary" sheets dan (2) sheets jika sudah ada)
+      // Cari matching section (skip "summary", "all", dan duplicate sheets)
       if (nameLower.includes('summary')) continue
+      if (nameLower.startsWith('all ')) continue
       if (nameLower.includes('(2)') || nameLower.includes('trial 2')) continue
 
       const secName = sheetSecMap[nameLower] ??
         Object.entries(sheetSecMap).find(([k]) => nameLower.startsWith(k))?.[1] ??
         Object.entries(sheetSecMap).find(([k]) => nameLower.includes(k))?.[1]
 
-      if (!secName || processedSecs.has(secName)) continue
+      if (!secName) continue
+      // Allow merging: Degreeser + UV both map to 'UV', append ops instead of skip
+      const isMerging = processedSecs.has(secName)
 
       const ws = wb.Sheets[sn]
       const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
@@ -263,12 +292,19 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
 
       for (let i = 0; i < Math.min(data.length, 15); i++) {
         const r = data[i]
-        // Cari takt time
-        for (let c = 0; c < r.length - 1; c++) {
-          if (String(r[c] ?? '').toLowerCase().includes('takt')) {
+        // Cari takt time + Number of Operator (stdMP total)
+        for (let c = 0; c < Math.min(r.length - 1, 15); c++) {
+          const cellStr = String(r[c] ?? '').toLowerCase()
+          if (cellStr.includes('takt')) {
             for (let nc = c + 1; nc < Math.min(c + 4, r.length); nc++) {
               const v = parseFloat(r[nc])
               if (!isNaN(v) && v >= 5 && v <= 300) taktLocal = v
+            }
+          }
+          if ((cellStr.includes('number of operator') || cellStr.includes('jumlah operator')) && stdMP === 0) {
+            for (let nc = c + 1; nc < Math.min(c + 3, r.length); nc++) {
+              const v = parseFloat(r[nc])
+              if (!isNaN(v) && v >= 1 && v <= 500) { stdMP = Math.round(v); break }
             }
           }
         }
@@ -358,9 +394,15 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       if (ops.length > 0) {
         const secInDraft = draft.sections.find(s => s.name === secName)
         if (secInDraft) {
-          secInDraft.ops = ops
-          secInDraft.taktTime = taktLocal
-          if (stdMP > 0) secInDraft.stdMP = stdMP
+          // If merging (e.g. Degreeser ops into UV), append; otherwise replace
+          if (isMerging) {
+            secInDraft.ops = [...secInDraft.ops, ...ops]
+            if (stdMP > 0) secInDraft.stdMP += stdMP
+          } else {
+            secInDraft.ops = ops
+            secInDraft.taktTime = taktLocal
+            if (stdMP > 0) secInDraft.stdMP = stdMP
+          }
         }
         processedSecs.add(secName)
       }
@@ -527,8 +569,9 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       }
     } catch {}
 
-    // IE Data: ada sheet seperti "Assembly", "Stockfit", "Prep", "Stit"
-    if (sheetNames.some(s => s === 'assembly' || s === 'stockfit' || s === 'stit' || s === 'prep')) {
+    // IE Data: ada sheet seperti "Assembly", "Stockfit", "Prep", "Stit", "Buffing", "UV"
+    if (sheetNames.some(s => s === 'assembly' || s === 'stockfit' || s === 'stit' || s === 'prep'
+        || s === 'buffing' || s === 'uv' || s === 'degreeser' || s === 'degreaser')) {
       return parseIEData(ab)
     }
 
@@ -768,7 +811,8 @@ export default function ModelsPage() {
           const draft = detectAndParse(ab)
           const filledSecs = draft.sections.filter(s => s.ops.length > 0)
           const totalOps = filledSecs.reduce((sum, s) => sum + s.ops.length, 0)
-          setParseMsg(`Berhasil membaca ${filledSecs.length} section, ${totalOps} operasi${!draft.name ? ' — nama model tidak terbaca, isi manual' : ''}`)
+          const targetInfo = draft.dailyTarget ? ` · Target: ${draft.dailyTarget} prs/hari` : ''
+          setParseMsg(`Berhasil membaca ${filledSecs.length} section, ${totalOps} operasi${targetInfo}${!draft.name ? ' — nama model tidak terbaca, isi manual' : ''}`)
           setEditor(draft)
         }
       } catch (err: any) {
@@ -785,6 +829,8 @@ export default function ModelsPage() {
       name: draft.name, article: draft.article,
       stage: draft.stage, lineType: draft.lineType,
       uploadedFrom: existingId ? undefined : 'NB Standard + manual review',
+      dailyTarget: draft.dailyTarget,
+      hourlyTarget: draft.hourlyTarget,
       sections: draft.sections
         .filter(s => s.ops.length > 0)
         .map(s => ({
