@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
-import { LINE_TYPES } from '@/lib/utils'
+import { LINE_TYPES, SF_SECTIONS as UTIL_SF_SECTIONS } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
@@ -47,7 +47,7 @@ function detectShift(): 1 | 2 {
   return 1
 }
 const SECTIONS = ['Cutting', 'Treatment', 'Preparation', 'PC Sewing', 'Sewing', 'Assembly', 'Packing']
-const SF_SECTIONS = ['Stockfit']
+const SF_SECTIONS = UTIL_SF_SECTIONS
 
 interface Props { lines: any[]; userId: string; userName: string }
 
