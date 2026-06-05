@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
-import { LINE_TYPES, SF_SECTIONS as UTIL_SF_SECTIONS } from '@/lib/utils'
+import { SF_SECTIONS as UTIL_SF_SECTIONS } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { LINE_TYPES, SECTIONS, SF_SECTIONS } from '@/lib/utils'
+import { SECTIONS, SF_SECTIONS } from '@/lib/utils'
 import Link from 'next/link'
 
 // ─── TYPES ───────────────────────────────────────────────────
@@ -680,13 +680,12 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
                 {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <div>
-              <label className="label">Line type</label>
-              <select className="input text-sm" value={draft.lineType} onChange={e => updModel('lineType', e.target.value as any)}>
-                <option value="MINI">Mini Line (100 pairs/jam, TT 36s)</option>
-                <option value="BIG">Big Line (180 pairs/jam, TT 20s)</option>
-              </select>
-            </div>
+            {draft.dailyTarget ? (
+              <div>
+                <label className="label">Target Harian</label>
+                <div className="input text-sm bg-gray-50">{draft.dailyTarget} pairs/hari ({draft.hourlyTarget ?? Math.round(draft.dailyTarget / 8)} prs/jam)</div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -956,8 +955,8 @@ export default function ModelsPage() {
                   <div className="font-semibold text-gray-900">{m.name}</div>
                   <div className="text-xs text-gray-400">{m.article} · {m.stage}</div>
                 </div>
-                <span className={`badge ${m.lineType === 'BIG' ? 'badge-info' : 'badge-ok'}`}>
-                  {LINE_TYPES[m.lineType as 'MINI' | 'BIG'].label}
+                <span className="badge badge-info">
+                  Takt: {m.sections?.[0]?.taktTime ?? '—'}s
                 </span>
               </div>
               <div className="flex flex-wrap gap-1 mb-3">

@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       },
       actuals: {
         where: { date: today() },
-        include: { section: { select: { name: true } } },
+        include: { section: { select: { name: true, taktTime: true } } },
         orderBy: { hour: 'desc' },
       },
       alerts: { where: { resolved: false } },
@@ -70,7 +70,8 @@ export async function GET(req: NextRequest) {
 
   for (const line of lines) {
     const model = line.assignments[0]?.model ?? null
-    const tph   = model?.lineType === 'BIG' ? 180 : 100
+    const latestTakt = line.actuals[0]?.section?.taktTime ?? 0
+    const tph   = latestTakt > 0 ? Math.floor(3600 / latestTakt) : 0
     const actuals = line.actuals
 
     const totalOutput   = actuals.reduce((s, a) => s + a.output, 0)
@@ -129,7 +130,8 @@ export async function GET(req: NextRequest) {
     avgLler: allActives.length > 0
       ? Math.round(
           allActives.map(l => {
-            const tph = l.assignments[0]?.model?.lineType === 'BIG' ? 180 : 100
+            const takt = (l.actuals[0] as any)?.section?.taktTime ?? 0
+            const tph = takt > 0 ? Math.floor(3600 / takt) : 0
             const last = l.actuals[0]?.output ?? 0
             return tph > 0 ? last / tph * 100 : 0
           }).reduce((a, b) => a + b, 0) / allActives.length,

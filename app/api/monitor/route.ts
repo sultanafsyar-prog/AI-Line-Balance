@@ -32,7 +32,7 @@ export async function GET() {
       },
       actuals: {
         where: { date: today() },
-        include: { section: { select: { name: true } } },
+        include: { section: { select: { name: true, taktTime: true } } },
         orderBy: { hour: 'desc' },
       },
       alerts: { where: { resolved: false } },
@@ -44,7 +44,9 @@ export async function GET() {
     const model = line.assignments[0]?.model ?? null
     const actuals = line.actuals
     const latestActual = actuals[0] ?? null
-    const tph = model?.lineType === 'BIG' ? 180 : 100
+    // TPH dari taktTime section terakhir yang ada data
+    const latestTakt = latestActual?.section?.taktTime ?? 0
+    const tph = latestTakt > 0 ? Math.floor(3600 / latestTakt) : 0
 
     const totalOutput   = actuals.reduce((s, a) => s + a.output, 0)
     const totalDowntime = actuals.reduce((s, a) => s + a.downtime, 0)

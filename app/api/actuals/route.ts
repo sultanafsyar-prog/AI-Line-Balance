@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     include: { model: true },
   })
   if (section) {
-    const tph = section.model.lineType === 'BIG' ? 180 : 100
+    const tph = section.taktTime > 0 ? Math.floor(3600 / section.taktTime) : 0
 
     async function ensureAlert(type: 'OUTPUT_LOW' | 'DOWNTIME_HIGH' | 'DEFECT_HIGH', message: string) {
       const existing = await prisma.alert.findFirst({

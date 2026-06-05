@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
       ...(effectiveBuilding ? { line: { building: effectiveBuilding } } : {}),
     },
     include: {
+      section: { select: { taktTime: true } },
       line: {
         include: {
           assignments: {
@@ -50,8 +51,8 @@ export async function GET(req: NextRequest) {
   actuals.forEach(a => {
     const bucket = dayMap[a.date]
     if (!bucket) return
-    const model = a.line.assignments[0]?.model
-    const tph = model?.lineType === 'BIG' ? 180 : 100
+    const secTakt = a.section?.taktTime ?? 0
+    const tph = secTakt > 0 ? Math.floor(3600 / secTakt) : 0
     const ller = tph > 0 ? a.output / tph * 100 : 0
     bucket.outputs.push(ller)
     bucket.downtime += a.downtime
@@ -84,9 +85,10 @@ export async function GET(req: NextRequest) {
   }
   const lineMap: Record<string, LineBucket> = {}
   actuals.forEach(a => {
-    const model = a.line.assignments[0]?.model
-    const tph   = model?.lineType === 'BIG' ? 180 : 100
+    const secTakt2 = a.section?.taktTime ?? 0
+    const tph   = secTakt2 > 0 ? Math.floor(3600 / secTakt2) : 0
     const ller  = tph > 0 ? Math.round(a.output / tph * 100) : 0
+    const model = a.line.assignments[0]?.model
     const key   = a.lineId
     if (!lineMap[key]) {
       lineMap[key] = {

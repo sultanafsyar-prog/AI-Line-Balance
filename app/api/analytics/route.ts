@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
 
 DATA STANDAR IE (REFERENSI TEORITIS):
 - Line       : Gedung ${line.building} Line ${line.lineNo}
-- Model      : ${model.name} (${model.article}) | ${model.lineType === 'BIG' ? 'Big Line' : 'Mini Line'}
+- Model      : ${model.name} (${model.article})
 - Section    : ${sectionName}
 - Takt Time  : ${section.taktTime}s -> target ${targetPerHour} pairs/jam
 - Std MP     : ${section.stdMP} orang | Theor. MP: ${theorMP} orang | LBR: ${lbr}%

@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
-import { calcSectionMetrics, isIE, LINE_TYPES, getGWT } from '@/lib/utils'
+import { calcSectionMetrics, isIE, getGWT } from '@/lib/utils'
 import Link from 'next/link'
 import YamazumiAktual from '@/components/YamazumiAktual'
 import CloseShiftButton from '@/components/CloseShiftButton'
@@ -27,7 +27,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   const section = model?.sections.find((s: any) => s.name === selSec)
   const takt = section?.taktTime ?? 36
   const metrics = section ? calcSectionMetrics(section.operations, section.stdMP, takt) : null
-  const tph = model ? LINE_TYPES[model.lineType as 'MINI' | 'BIG'].tph : 100
+  const tph = takt > 0 ? Math.floor(3600 / takt) : 0
 
   const sectionActuals = line.actuals.filter((a: any) => a.section.name === selSec).sort((a: any, b: any) => a.hour - b.hour)
   const totOut = sectionActuals.reduce((s: number, a: any) => s + a.output, 0)
@@ -116,7 +116,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
           {model ? (
             <p className="text-sm text-gray-500">
               Model: <strong className="text-gray-800">{model.name}</strong> · {model.article} ·
-              <span className="text-teal"> {LINE_TYPES[model.lineType as 'MINI' | 'BIG'].label}</span> · Takt: {takt}s
+              <span className="text-teal"> Target: {tph} prs/jam</span> · Takt: {takt}s
             </p>
           ) : <p className="text-sm text-gray-400">Belum ada model</p>}
         </div>
@@ -504,7 +504,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                 <div key={m.id} onClick={() => assignModel(m.id)}
                   className={`px-3 py-2.5 border rounded-lg cursor-pointer text-sm ${model?.id === m.id ? 'border-teal bg-teal-light' : 'border-gray-200 hover:bg-gray-50'}`}>
                   <div className="font-medium">{m.name} · {m.article}</div>
-                  <div className="text-xs text-gray-400">{LINE_TYPES[m.lineType as 'MINI' | 'BIG'].label}</div>
+                  <div className="text-xs text-gray-400">Takt: {m.sections?.[0]?.taktTime ?? '—'}s</div>
                 </div>
               ))}
             </div>

@@ -196,7 +196,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
             <span style={{ fontSize: '24px', fontWeight: 500, color: 'var(--color-text-primary)' }}>{model.name}</span>
             <span style={{ background: 'var(--color-background-info)', color: 'var(--color-text-info)', fontSize: '11px', padding: '2px 8px', borderRadius: '99px', fontWeight: 500 }}>{model.article}</span>
-            <span style={{ background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', fontSize: '11px', padding: '2px 8px', borderRadius: '99px' }}>{model.lineType === 'BIG' ? 'Big Line' : 'Mini Line'}</span>
+            <span style={{ background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', fontSize: '11px', padding: '2px 8px', borderRadius: '99px' }}>Takt: {model.sections.find((s: any) => s.taktTime > 0)?.taktTime ?? '—'}s</span>
           </div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
             {model.sections.length} section · {model.sections.reduce((s, sec) => s + sec.operations.length, 0)} operasi · PPH target {pph(model.sections.find(s => s.taktTime > 0)?.taktTime ?? 36)} pairs/jam

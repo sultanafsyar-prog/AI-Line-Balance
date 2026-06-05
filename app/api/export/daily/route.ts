@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       },
       actuals: {
         where: { date },
-        include: { section: { select: { name: true } } },
+        include: { section: { select: { name: true, taktTime: true } } },
         orderBy: [{ section: { name: 'asc' } }, { hour: 'asc' }],
       },
     },
@@ -44,7 +44,9 @@ export async function GET(req: NextRequest) {
   const summaryRows = lines.map(line => {
     const model = line.assignments[0]?.model
     const actuals = line.actuals
-    const tph = model?.lineType === 'BIG' ? 180 : 100
+    // TPH dari taktTime section pertama yang ada data
+    const firstTakt = actuals[0]?.section?.taktTime ?? 0
+    const tph = firstTakt > 0 ? Math.floor(3600 / firstTakt) : 0
     const totalOut = actuals.reduce((s, a) => s + a.output, 0)
     const totalDT  = actuals.reduce((s, a) => s + a.downtime, 0)
     const totalDef = actuals.reduce((s, a) => s + a.defect, 0)
@@ -58,8 +60,8 @@ export async function GET(req: NextRequest) {
 
     return [
       line.building, `Line ${line.lineNo}`,
-      model?.name ?? '—', model ? (model.lineType === 'BIG' ? 'Big Line' : 'Mini Line') : '—',
-      model ? tph : '—',
+      model?.name ?? '—', '—',
+      tph > 0 ? tph : '—',
       totalOut, avgMP, totalDT, totalDef,
       actuals.length ? ller + '%' : '—',
       actuals.length, status,
@@ -84,13 +86,14 @@ export async function GET(req: NextRequest) {
   for (const line of lines) {
     if (line.actuals.length === 0) continue
     const model = line.assignments[0]?.model
-    const tph = model?.lineType === 'BIG' ? 180 : 100
     const sheetName = `Gdg${line.building}-L${line.lineNo}`
 
     const detailHeader = ['Jam', 'Section', 'Output', 'vs Target', 'MP Hadir', 'Efisiensi MP', 'Downtime (mnt)', 'Alasan DT', 'Defect', 'Defect %']
 
     const detailRows = line.actuals.map(a => {
-      const gap = a.output - tph
+      const secTakt = (a.section as any)?.taktTime ?? 0
+      const tphRow = secTakt > 0 ? Math.floor(3600 / secTakt) : 0
+      const gap = tphRow > 0 ? a.output - tphRow : 0
       const defPct = a.output > 0 ? parseFloat((a.defect / a.output * 100).toFixed(2)) : 0
       return [
         `${a.hour}:00`,
@@ -112,10 +115,12 @@ export async function GET(req: NextRequest) {
     const totDef  = line.actuals.reduce((s, a) => s + a.defect, 0)
     const avgMPr  = Math.round(line.actuals.reduce((s, a) => s + a.mpActual, 0) / line.actuals.length)
     const avgOut  = Math.round(totOut / line.actuals.length)
-    const ller    = tph > 0 ? Math.round(avgOut / tph * 100) : 0
+    const detailTakt = (line.actuals[0]?.section as any)?.taktTime ?? 0
+    const detailTph = detailTakt > 0 ? Math.floor(3600 / detailTakt) : 0
+    const ller    = detailTph > 0 ? Math.round(avgOut / detailTph * 100) : 0
 
     const wsDetail = XLSX.utils.aoa_to_sheet([
-      [`Gedung ${line.building} — Line ${line.lineNo} | Model: ${model?.name ?? '—'} | ${model?.lineType === 'BIG' ? 'Big Line' : 'Mini Line'} | Target: ${tph} pairs/jam`],
+      [`Gedung ${line.building} — Line ${line.lineNo} | Model: ${model?.name ?? '—'} | Target: ${detailTph} pairs/jam`],
       [`Tanggal: ${date} | LLER: ${ller}% | Total Output: ${totOut} pairs | Total Downtime: ${totDT} mnt | Total Defect: ${totDef} pairs`],
       [],
       detailHeader,

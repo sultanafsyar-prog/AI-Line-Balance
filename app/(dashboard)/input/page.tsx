@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { BUILDINGS, LINE_TYPES } from '@/lib/utils'
+import { BUILDINGS } from '@/lib/utils'
 
 type Line = { id: string; building: string; lineNo: number; model: { name: string; lineType: string } | null; sections: { id: string; name: string; stdMP: number; taktTime: number }[] }
 
@@ -40,7 +40,7 @@ export default function InputPage() {
   const filteredLines = lines.filter(l => l.building === selBuilding && l.model)
   const selLine  = lines.find(l => l.id === selLineId)
   const selSec   = selLine?.sections.find(s => s.id === selSecId)
-  const tph      = selLine?.model ? LINE_TYPES[selLine.model.lineType as 'MINI' | 'BIG'].tph : 0
+  const tph      = selSec?.taktTime && selSec.taktTime > 0 ? Math.floor(3600 / selSec.taktTime) : 0
 
   // Auto-select first building with lines that have model
   useEffect(() => {
