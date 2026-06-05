@@ -103,35 +103,86 @@ function calcYamSummaries(model: any, sections: string[]): YamSummary[] {
     }, 0)
     return {
       name: secName, taktTime: sec.taktTime, stdMP: sec.stdMP,
-      theorMP: parseFloat(theorMP.toFixed(2)),
-      maxEffCT: parseFloat(maxEffCT.toFixed(2)),
+      theorMP: parseFloat(theorMP.toFixed(1)),
+      maxEffCT: parseFloat(maxEffCT.toFixed(1)),
     }
   }).filter(Boolean) as YamSummary[]
 }
 
 // ── Hitung metrik aktual per line ───────────────────────────
-function calcLine(line: LineData, sections: string[]) {
+//
+// PENTING — KONSEP IE:
+// Di Building G (Stockfit area), setiap LINE fisik = SATU section
+// (Buffing line, UV line, Stockfit line — operatornya beda total: 12/5/43).
+// Maka untuk Building G, standard MP / theo MP / takt / PPH HARUS dari
+// section yang dijalankan line itu saja, BUKAN jumlah semua section.
+//
+// Di building lain (sewing/assembly), satu line menjalankan semua section
+// secara berurutan, jadi sum across sections = total line yang benar.
+//
+// Deteksi section aktif Building G: section dengan total output terbesar
+// dari actuals hari ini. Kalau belum ada actuals, fallback ke 'Stockfit'
+// (mayoritas line di gedung G adalah Stockfit).
+function calcLine(line: LineData, sections: string[], building: string) {
   const model   = line.assignments[0]?.model
   const actuals = line.actuals
   const daily   = line.dailyTargets?.[0] ?? null
   const yamSummaries = model ? calcYamSummaries(model, sections) : []
 
-  const primaryYam =
+  // ─── ACTIVE SECTION DETECTION (Building G only) ──────────
+  const isStockfitBuilding = building === 'G'
+  let activeSection: string | null = null
+  if (isStockfitBuilding && yamSummaries.length > 0) {
+    if (actuals.length > 0) {
+      const sumByName = new Map<string, number>()
+      for (const a of actuals) {
+        const sn = a.section?.name
+        if (!sn) continue
+        sumByName.set(sn, (sumByName.get(sn) ?? 0) + (a.output ?? 0) + (a.mpActual ?? 0))
+      }
+      let best = '', bestVal = -1
+      for (const [sn, val] of sumByName) {
+        if (val > bestVal) { best = sn; bestVal = val }
+      }
+      // Hanya pakai hasil deteksi kalau memang section itu ada di yamSummaries
+      if (best && yamSummaries.some(y => y.name === best)) activeSection = best
+    }
+    // Fallback: Stockfit kalau ada di yamSummaries, kalau tidak ambil yamSummaries pertama
+    if (!activeSection) {
+      activeSection = yamSummaries.find(y => y.name === 'Stockfit')?.name
+        ?? yamSummaries[0]?.name
+        ?? null
+    }
+  }
+
+  // ─── PILIH yamSummary REFERENSI ───────────────────────────
+  const activeYam = activeSection
+    ? yamSummaries.find(y => y.name === activeSection) ?? null
+    : null
+
+  const primaryYam = activeYam ?? (
        yamSummaries.find(y => y.name === 'Stockfit')
     ?? yamSummaries.find(y => y.name === 'Assembly')
     ?? yamSummaries.find(y => y.name === 'Sewing')
     ?? yamSummaries[0] ?? null
+  )
 
-  const theoPPH    = primaryYam ? Math.round(3600 / primaryYam.taktTime) : 0
-  const taktStd    = primaryYam ? primaryYam.taktTime : 0
-  const theoMPTotal = yamSummaries.reduce((s, y) => s + y.theorMP, 0)
-  const stdMPTotal  = parseFloat(yamSummaries.reduce((s, y) => s + y.stdMP, 0).toFixed(2))
+  const theoPPH = primaryYam ? Math.round(3600 / primaryYam.taktTime) : 0
+  const taktStd = primaryYam ? primaryYam.taktTime : 0
+
+  // STD MP / THEO MP — section-only kalau activeSection set
+  const theoMPTotal = activeYam
+    ? activeYam.theorMP
+    : yamSummaries.reduce((s, y) => s + y.theorMP, 0)
+  const stdMPTotal = activeYam
+    ? activeYam.stdMP
+    : parseFloat(yamSummaries.reduce((s, y) => s + y.stdMP, 0).toFixed(1))
 
   const baseEmpty = {
     model: model?.name ?? null, article: model?.article ?? null,
     imageUrl: model?.imageUrl ?? null, dailyTarget: daily,
     taktStd, theoPPH,
-    theoMPTotal: parseFloat(theoMPTotal.toFixed(2)),
+    theoMPTotal: parseFloat(theoMPTotal.toFixed(1)),
     stdMPTotal,
     ller: 0, lastHourOutput: 0, lastHour: null as number | null, totOut: 0,
     avgPPH: 0, actCT: 0, avgMPActual: 0, gap: 0, totDT: 0, totDef: 0,
@@ -140,22 +191,38 @@ function calcLine(line: LineData, sections: string[]) {
     yamSummaries, primaryYam,
     sectionActuals: {} as Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }>,
     targetPct: 0, hoursWithData: 0,
+    activeSection,
   }
 
   if (!model || actuals.length === 0) return baseEmpty
 
-  // Output line per jam = MAX di antara section pada jam itu (bukan dijumlah)
-  const hourMaxOut = new Map<number, number>()
-  for (const a of actuals) {
-    const cur = hourMaxOut.get(a.hour) ?? 0
-    if ((a.output ?? 0) > cur) hourMaxOut.set(a.hour, a.output ?? 0)
+  // ─── FILTER ACTUALS ke section aktif (untuk Building G) ───
+  const relevantActuals = activeSection
+    ? actuals.filter((a: any) => a.section?.name === activeSection)
+    : actuals
+
+  // Output per jam:
+  // - activeSection set: langsung ambil output section itu per jam
+  // - tidak: ambil MAX antar section per jam (bukan dijumlah, hindari double-count)
+  const hourOut = new Map<number, number>()
+  if (activeSection) {
+    for (const a of relevantActuals) {
+      hourOut.set(a.hour, (hourOut.get(a.hour) ?? 0) + (a.output ?? 0))
+    }
+  } else {
+    for (const a of relevantActuals) {
+      const cur = hourOut.get(a.hour) ?? 0
+      if ((a.output ?? 0) > cur) hourOut.set(a.hour, a.output ?? 0)
+    }
   }
-  const hourEntries  = Array.from(hourMaxOut.entries()).sort((a, b) => a[0] - b[0])
+  const hourEntries  = Array.from(hourOut.entries()).sort((a, b) => a[0] - b[0])
   const hourlyOutputs = hourEntries.map(([, v]) => v)
 
-  // MP per jam = total MP semua section yang aktif pada jam itu
+  // MP per jam:
+  // - activeSection set: MP section itu per jam (tidak dijumlah lintas section)
+  // - tidak: total MP semua section per jam (line yang menjalankan semua section sekaligus)
   const hourMP = new Map<number, number>()
-  for (const a of actuals) {
+  for (const a of relevantActuals) {
     hourMP.set(a.hour, (hourMP.get(a.hour) ?? 0) + (a.mpActual ?? 0))
   }
   const mpValues = Array.from(hourMP.values())
@@ -170,15 +237,16 @@ function calcLine(line: LineData, sections: string[]) {
   const avgPPH = hourlyOutputs.length > 0 ? Math.round(totOut / hourlyOutputs.length) : 0
   const actCT  = avgPPH > 0 ? parseFloat((3600 / avgPPH).toFixed(1)) : 0
 
-  // LLER MP-based
+  // LLER MP-based — pakai theoMPTotal & avgMPActual yang sudah section-aware
   const ller = avgMPActual > 0 && theoMPTotal > 0
     ? Math.round((theoMPTotal / avgMPActual) * 100) : 0
 
-  const gap = lastHourOutput - theoPPH
-  const totDT  = actuals.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
-  const totDef = actuals.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
+  const gap    = lastHourOutput - theoPPH
+  const totDT  = relevantActuals.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
+  const totDef = relevantActuals.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
 
-  // Per-section actuals dengan LLER per section
+  // Per-section actuals — selalu hitung semua untuk informasi tambahan;
+  // view yang memutuskan mana yang ditampilkan.
   const sectionActuals: Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }> = {}
   for (const ys of yamSummaries) {
     const sa = actuals.filter((a: any) => a.section?.name === ys.name)
@@ -266,7 +334,7 @@ export default function TVClient({ building, lines, sections }: Props) {
   const [autoRotate, setAutoRotate] = useState(true)
   const { t }                     = useI18n()
 
-  const lineMetrics = lines.map(l => ({ line: l, m: calcLine(l, sections) }))
+  const lineMetrics = lines.map(l => ({ line: l, m: calcLine(l, sections, building) }))
   const insights    = lineMetrics.map(({ line, m }) => genInsight(line.lineNo, m))
 
   // Clock — initialize only after mount to avoid hydration mismatch
@@ -623,10 +691,10 @@ export default function TVClient({ building, lines, sections }: Props) {
                     <div style={{ padding: '6px 8px', fontSize: '10px', color: C.dim, fontWeight: 600 }}>MP</div>
                     <div style={{ padding: '6px 8px', textAlign: 'center' }}>
                       <span style={{ fontSize: '16px', fontWeight: 700, color: C.teal }}>
-                        {m.stdMPTotal > 0 ? parseFloat(m.stdMPTotal.toFixed(2)) : '—'}
+                        {m.stdMPTotal > 0 ? parseFloat(m.stdMPTotal.toFixed(1)) : '—'}
                       </span>
                       {m.theoMPTotal > 0 && m.theoMPTotal !== m.stdMPTotal && (
-                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>({parseFloat(m.theoMPTotal.toFixed(2))})</span>
+                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>({parseFloat(m.theoMPTotal.toFixed(1))})</span>
                       )}
                     </div>
                     <div style={{ padding: '6px 8px', textAlign: 'center' }}>
@@ -647,17 +715,23 @@ export default function TVClient({ building, lines, sections }: Props) {
                   </div>
                 </div>
 
-                {/* Section breakdown */}
-                {m.yamSummaries.length > 0 && m.hasData && (
+                {/* Section breakdown — kalau activeSection set, hanya tampil section itu */}
+                {m.yamSummaries.length > 0 && m.hasData && (() => {
+                  const sectionsToShow = m.activeSection
+                    ? m.yamSummaries.filter(y => y.name === m.activeSection)
+                    : m.yamSummaries
+                  return (
                   <div style={{
                     background: la.stripe, borderRadius: '8px',
                     padding: '6px 8px', border: `1px solid ${la.accentBd}`,
                   }}>
                     <div style={{ fontSize: '9px', color: la.accent, fontWeight: 700, marginBottom: '4px', letterSpacing: '0.5px' }}>
-                      SECTION — STD MP / ACT MP / LLER
+                      {m.activeSection
+                        ? `SECTION AKTIF: ${m.activeSection} — STD MP / ACT MP / LLER`
+                        : 'SECTION — STD MP / ACT MP / LLER'}
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {m.yamSummaries.map(ys => {
+                      {sectionsToShow.map(ys => {
                         const act = m.sectionActuals[ys.name]
                         const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
                         return (
@@ -669,7 +743,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                             display: 'flex', gap: '4px', alignItems: 'center',
                           }}>
                             <span style={{ color: C.white, fontWeight: 600, fontSize: '9px' }}>{ys.name}</span>
-                            <span style={{ color: C.teal, fontWeight: 700 }}>{parseFloat(ys.stdMP.toFixed(2))}</span>
+                            <span style={{ color: C.teal, fontWeight: 700 }}>{parseFloat(ys.stdMP.toFixed(1))}</span>
                             <span style={{ color: C.gray }}>/</span>
                             <span style={{ color: act ? C.white : C.gray, fontWeight: 600 }}>{act ? act.avgMP : '—'}</span>
                             {act && (
@@ -683,7 +757,8 @@ export default function TVClient({ building, lines, sections }: Props) {
                       })}
                     </div>
                   </div>
-                )}
+                  )
+                })()}
 
                 {/* Daily target + downtime/defect row */}
                 <div style={{ display: 'grid', gridTemplateColumns: m.dailyTarget ? '1fr auto' : '1fr', gap: '8px', alignItems: 'end' }}>
@@ -1030,10 +1105,10 @@ export default function TVClient({ building, lines, sections }: Props) {
                     {m.taktStd > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.taktStd}<span style={{ fontSize: '10px', color: C.dim }}>s</span></div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    {m.stdMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.stdMPTotal.toFixed(2))}</div> : <span style={{ color: C.gray }}>—</span>}
+                    {m.stdMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.stdMPTotal.toFixed(1))}</div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    {m.theoMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.theoMPTotal.toFixed(2))}</div> : <span style={{ color: C.gray }}>—</span>}
+                    {m.theoMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.theoMPTotal.toFixed(1))}</div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     {m.theoPPH > 0 ? (<><div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.theoPPH}</div><div style={{ fontSize: '9px', color: C.gray }}>prs/jam</div></>) : <span style={{ color: C.gray }}>—</span>}
@@ -1097,13 +1172,23 @@ export default function TVClient({ building, lines, sections }: Props) {
                   </div>
                 </div>
 
-                {/* Section chips with LLER per section */}
-                {m.yamSummaries.length > 0 && (
+                {/* Section chips with LLER per section — kalau activeSection set, hanya tampil section itu */}
+                {m.yamSummaries.length > 0 && (() => {
+                  const sectionsToShow = m.activeSection
+                    ? m.yamSummaries.filter(y => y.name === m.activeSection)
+                    : m.yamSummaries
+                  return (
                   <div style={{
                     padding: '0 12px 8px',
-                    display: 'flex', gap: '5px', flexWrap: 'wrap',
+                    display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center',
                   }}>
-                    {m.yamSummaries.map(ys => {
+                    {m.activeSection && (
+                      <span style={{
+                        fontSize: '9px', color: C.teal, fontWeight: 700,
+                        letterSpacing: '0.5px', marginRight: '4px',
+                      }}>SECTION AKTIF:</span>
+                    )}
+                    {sectionsToShow.map(ys => {
                       const act = m.sectionActuals[ys.name]
                       const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
                       return (
@@ -1119,11 +1204,11 @@ export default function TVClient({ building, lines, sections }: Props) {
                           <span>MP <b style={{ color: C.teal }}>{ys.stdMP}</b>/<b style={{ color: act ? C.white : C.gray }}>{act ? act.avgMP : '—'}</b>
                             {act && Math.abs(act.mpGap) > 0.5 && (
                               <span style={{ color: act.mpGap < 0 ? C.red : C.amber, fontWeight: 600, marginLeft: '2px' }}>
-                                ({act.mpGap > 0 ? '+' : ''}{parseFloat(act.mpGap.toFixed(2))})
+                                ({act.mpGap > 0 ? '+' : ''}{parseFloat(act.mpGap.toFixed(1))})
                               </span>
                             )}
                           </span>
-                          <span>Theo <b style={{ color: C.amber }}>{parseFloat(ys.theorMP.toFixed(2))}</b></span>
+                          <span>Theo <b style={{ color: C.amber }}>{parseFloat(ys.theorMP.toFixed(1))}</b></span>
                           {act && (
                             <span>LLER <b style={{ color: secSc.text }}>{act.ller}%</b></span>
                           )}
@@ -1131,7 +1216,8 @@ export default function TVClient({ building, lines, sections }: Props) {
                       )
                     })}
                   </div>
-                )}
+                  )
+                })()}
               </div>
             )
           })}

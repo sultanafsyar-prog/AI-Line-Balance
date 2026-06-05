@@ -23,7 +23,7 @@ export function calcSectionMetrics(ops: any[], stdMP: number, takt: number) {
     return { ...op, gwt, mpNeeded, effectiveCT }
   })
   const totalGWT  = parseFloat(rows.reduce((s, r) => s + r.gwt, 0).toFixed(2))
-  const theorMP   = takt > 0 ? parseFloat((totalGWT / takt).toFixed(2)) : 0
+  const theorMP   = takt > 0 ? parseFloat((totalGWT / takt).toFixed(1)) : 0
   const lbr       = stdMP > 0 ? parseFloat((theorMP / stdMP * 100).toFixed(1)) : 0
   // maxGwtOp = operasi dengan GWT tertinggi (untuk info, BUKAN "bottleneck")
   const maxGwtOp  = rows.reduce((m, r) => r.gwt > m.gwt ? r : m, rows[0] ?? { gwt: 0, name: '-', mpNeeded: 1, effectiveCT: 0 })

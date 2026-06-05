@@ -304,7 +304,7 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
           if ((cellStr.includes('number of operator') || cellStr.includes('jumlah operator')) && stdMP === 0) {
             for (let nc = c + 1; nc < Math.min(c + 3, r.length); nc++) {
               const v = parseFloat(r[nc])
-              if (!isNaN(v) && v >= 1 && v <= 500) { stdMP = Math.round(v); break }
+              if (!isNaN(v) && v >= 1 && v <= 500) { stdMP = Math.round(v * 10) / 10; break }
             }
           }
         }
@@ -314,6 +314,11 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       }
 
       if (headerRowIdx === -1) continue
+
+      // Flag: kalau stdMP sudah didapat dari "Number of Operator" header section,
+      // JANGAN ditimpa nilai per-operasi (yang biasanya jauh lebih kecil — itu MP per-step,
+      // bukan total MP section).
+      const stdMPFromHeader = stdMP > 0
 
       // Baca header untuk mapping kolom
       const headerRow = data[headerRowIdx]
@@ -363,16 +368,16 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
         }
         if (gwt <= 0) continue
 
-        // Ambil stdMP dari baris pertama yang punya nilai (setiap group)
-        if (!firstStdMPFound && colStdMP >= 0) {
+        // Ambil stdMP dari baris pertama yang punya nilai (HANYA kalau header tidak punya value)
+        if (!stdMPFromHeader && !firstStdMPFound && colStdMP >= 0) {
           const mp = parseFloat(r[colStdMP])
           if (!isNaN(mp) && mp >= 0.5 && mp <= 200) {
             stdMP = mp
             firstStdMPFound = true
           }
         }
-        // Akumulasi stdMP dari semua group
-        if (colStdMP >= 0) {
+        // Akumulasi stdMP dari semua group (juga skip kalau dari header)
+        if (!stdMPFromHeader && colStdMP >= 0) {
           const mp = parseFloat(r[colStdMP])
           if (!isNaN(mp) && mp >= 0.5 && mp <= 200 && mp > stdMP) stdMP = mp
         }
@@ -529,7 +534,7 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     // ── Assign ops + stdMP ke draft sections ──
     for (const sec of draft.sections) {
       sec.ops = sectionOps[sec.name] ?? []
-      sec.stdMP = Math.round(sectionMP[sec.name] ?? 0)
+      sec.stdMP = Math.round((sectionMP[sec.name] ?? 0) * 10) / 10
     }
 
     const filledSecs = draft.sections.filter(s => s.ops.length > 0)
@@ -549,6 +554,19 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     if (sheetNames.some(s => s.includes('line balancing resume')) &&
         sheetNames.some(s => s.startsWith('lb '))) {
       return parseNBStandard(ab)
+    }
+
+    // Stockfit Area (multi-sheet) — DETEKSI DULU sebelum format single-sheet
+    // Ciri: ada minimal 2 sheet section terpisah (Buffing/UV/Degreeser/Stockfit)
+    // Tiap sheet section punya header sendiri dengan "Number of Operator"
+    const sectionSheetNames = ['buffing', 'uv', 'degreeser', 'degreaser', 'stockfit', 'stockfitting']
+    const realSectionSheets = sheetNames.filter(s => {
+      if (s.includes('summary')) return false
+      if (s.startsWith('all ')) return false
+      return sectionSheetNames.includes(s)
+    }).length
+    if (realSectionSheets >= 2) {
+      return parseIEData(ab)
     }
 
     // Stockfit NB Standard: sheet pertama row 4 berisi "Stockfitting"/"Stockfit"
@@ -709,9 +727,9 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
           {/* Operations */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Section header */}
-            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-4">
+            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-4 flex-wrap">
               <span className="text-sm font-medium text-gray-700">{selSec}</span>
-              <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-3 text-xs flex-wrap">
                 <label className="flex items-center gap-1 text-gray-500">
                   Std MP:
                   <input type="number" step="0.25" min="0" className="w-16 px-1 py-0.5 border border-gray-200 rounded text-center text-xs" value={section.stdMP || ''} onChange={e => updSection('stdMP', parseFloat(e.target.value) || 0)} />
@@ -722,6 +740,40 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
                   <input type="number" step="0.1" min="1" className="w-16 px-1 py-0.5 border border-gray-200 rounded text-center text-xs" value={section.taktTime} onChange={e => updSection('taktTime', parseFloat(e.target.value) || 36)} />
                   <span>detik</span>
                 </label>
+                {/* ─── VALIDATION WARNING (stdMP vs theoMP) ─── */}
+                {(() => {
+                  if (section.ops.length === 0 || section.taktTime <= 0) return null
+                  const totalGWT = section.ops.reduce((sum, op) =>
+                    sum + (op.va + op.nvan + op.nva) * (1 + (op.allowance > 1 ? op.allowance / 100 : op.allowance)), 0)
+                  const theoMP = totalGWT / section.taktTime
+                  const theoMPCeil = Math.ceil(theoMP)
+                  if (section.stdMP > 0 && section.stdMP < theoMP * 0.7) {
+                    return (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 border border-red-200 text-red-700" title="Standard MP terlalu kecil — line akan tidak cukup orang untuk capai takt time">
+                        ⚠ Std MP terlalu kecil — Theo MP ≈ {theoMP.toFixed(1)} (saran: {theoMPCeil})
+                      </span>
+                    )
+                  }
+                  if (section.stdMP === 0) {
+                    return (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700" title="Std MP belum diisi">
+                        ⚠ Std MP belum diisi — Theo MP ≈ {theoMP.toFixed(1)} (saran: {theoMPCeil})
+                      </span>
+                    )
+                  }
+                  if (section.stdMP > theoMP * 1.5) {
+                    return (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700" title="Standard MP jauh lebih besar dari theoretical — kemungkinan overstaffed">
+                        ℹ Std MP &gt; Theo MP ({theoMP.toFixed(1)}) — overstaffed?
+                      </span>
+                    )
+                  }
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-50 border border-green-200 text-green-700">
+                      ✓ Theo MP {theoMP.toFixed(1)}
+                    </span>
+                  )
+                })()}
               </div>
             </div>
 
