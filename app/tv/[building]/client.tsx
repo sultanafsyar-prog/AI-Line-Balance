@@ -626,7 +626,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                         {m.stdMPTotal > 0 ? m.stdMPTotal : '—'}
                       </span>
                       {m.theoMPTotal > 0 && m.theoMPTotal !== m.stdMPTotal && (
-                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>({m.theoMPTotal})</span>
+                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>({parseFloat(m.theoMPTotal.toFixed(2))})</span>
                       )}
                     </div>
                     <div style={{ padding: '6px 8px', textAlign: 'center' }}>
@@ -1033,7 +1033,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                     {m.stdMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.stdMPTotal}</div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    {m.theoMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.theoMPTotal}</div> : <span style={{ color: C.gray }}>—</span>}
+                    {m.theoMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.theoMPTotal.toFixed(2))}</div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     {m.theoPPH > 0 ? (<><div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.theoPPH}</div><div style={{ fontSize: '9px', color: C.gray }}>prs/jam</div></>) : <span style={{ color: C.gray }}>—</span>}
@@ -1119,11 +1119,11 @@ export default function TVClient({ building, lines, sections }: Props) {
                           <span>MP <b style={{ color: C.teal }}>{ys.stdMP}</b>/<b style={{ color: act ? C.white : C.gray }}>{act ? act.avgMP : '—'}</b>
                             {act && Math.abs(act.mpGap) > 0.5 && (
                               <span style={{ color: act.mpGap < 0 ? C.red : C.amber, fontWeight: 600, marginLeft: '2px' }}>
-                                ({act.mpGap > 0 ? '+' : ''}{act.mpGap})
+                                ({act.mpGap > 0 ? '+' : ''}{parseFloat(act.mpGap.toFixed(2))})
                               </span>
                             )}
                           </span>
-                          <span>Theo <b style={{ color: C.amber }}>{ys.theorMP}</b></span>
+                          <span>Theo <b style={{ color: C.amber }}>{parseFloat(ys.theorMP.toFixed(2))}</b></span>
                           {act && (
                             <span>LLER <b style={{ color: secSc.text }}>{act.ller}%</b></span>
                           )}

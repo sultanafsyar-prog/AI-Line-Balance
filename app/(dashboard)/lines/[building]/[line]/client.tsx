@@ -213,7 +213,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 {[
                   { l: 'Standard MP', v: section.stdMP + ' orang', c: '' },
-                  { l: 'Theoretical MP', v: metrics.theorMP + ' orang', c: '' },
+                  { l: 'Theoretical MP', v: parseFloat(metrics.theorMP.toFixed(2)) + ' orang', c: '' },
                   { l: 'LBR', v: metrics.lbr + '%', c: metrics.lbr >= 85 ? 'text-teal' : metrics.lbr >= 70 ? 'text-amber-600' : 'text-red-600' },
                   { l: 'Operasi Terberat', v: metrics.maxGwtOp.name, c: 'text-gray-900 text-sm' },
                 ].map(m => (
