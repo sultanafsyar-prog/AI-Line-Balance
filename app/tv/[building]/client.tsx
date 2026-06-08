@@ -738,8 +738,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                       {m.hasData && m.actCT > 0 ? (
                         <span style={{
                           fontSize: '16px', fontWeight: 700,
-                          color: m.taktStd > 0 && m.actCT <= m.taktStd * 1.1 ? C.green
-                               : m.taktStd > 0 && m.actCT <= m.taktStd * 1.3 ? C.amber : C.red,
+                          color: m.taktStd > 0 && m.actCT <= m.taktStd ? C.green : C.red,
                         }}>{m.actCT}s</span>
                       ) : <span style={{ color: C.gray }}>—</span>}
                     </div>
@@ -747,7 +746,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                       {m.hasData && m.actCT > 0 && m.taktStd > 0 ? (
                         <span style={{
                           fontSize: '13px', fontWeight: 600,
-                          color: m.actCT <= m.taktStd * 1.1 ? C.green : m.actCT <= m.taktStd * 1.3 ? C.amber : C.red,
+                          color: m.actCT <= m.taktStd ? C.green : C.red,
                         }}>
                           {m.actCT <= m.taktStd ? '✓' : `+${(m.actCT - m.taktStd).toFixed(1)}s`}
                         </span>
@@ -1210,8 +1209,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                     {m.hasData && m.actCT > 0 ? (
                       <div style={{
                         fontSize: '17px', fontWeight: 700,
-                        color: m.taktStd > 0 && m.actCT <= m.taktStd * 1.1 ? C.green
-                             : m.taktStd > 0 && m.actCT <= m.taktStd * 1.3 ? C.amber : C.red,
+                        color: m.taktStd > 0 && m.actCT <= m.taktStd ? C.green : C.red,
                       }}>{m.actCT}<span style={{ fontSize: '10px', color: C.dim }}>s</span></div>
                     ) : <span style={{ color: C.gray }}>—</span>}
                   </div>
