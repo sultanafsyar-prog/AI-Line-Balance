@@ -310,7 +310,7 @@ export default function DashboardClient({ lines, totalModels, userName, userRole
       <div className="rounded-xl border border-gray-100 bg-white mb-4 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: '#1D9E75' }}>
-            🤖 AI
+            <img src="/claude-logo.svg" alt="AI" style={{ width: 14, height: 14 }} /> AI
           </span>
           <span className="text-sm font-semibold text-gray-800">Factory Digest</span>
           <span className="text-xs text-gray-400 ml-auto">Auto-generated insights</span>

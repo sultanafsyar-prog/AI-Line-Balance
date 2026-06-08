@@ -485,7 +485,7 @@ export default function TVClient({ building, lines, sections }: Props) {
           borderRadius: '8px', padding: '3px', gap: '2px',
         }}>
           {(['floor', 'manager', 'ie', 'ai'] as ViewMode[]).map(vm => {
-            const labels: Record<ViewMode, string> = { floor: 'Floor', manager: 'Manager', ie: 'IE', ai: '🤖 AI' }
+            const labels: Record<ViewMode, string> = { floor: 'Floor', manager: 'Manager', ie: 'IE', ai: 'AI' }
             const active = mode === vm
             return (
               <button key={vm}
@@ -497,7 +497,9 @@ export default function TVClient({ building, lines, sections }: Props) {
                   padding: '5px 10px', borderRadius: '5px',
                   fontSize: '11px', fontWeight: 600,
                   transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center', gap: '4px',
                 }}>
+                {vm === 'ai' && <img src="/claude-logo.svg" alt="AI" width="16" height="16" style={{ display: 'block' }} />}
                 {labels[vm]}
               </button>
             )
@@ -1330,7 +1332,7 @@ export default function TVClient({ building, lines, sections }: Props) {
             border: `4px solid ${C.border}`, borderTopColor: C.teal,
             borderRadius: '50%', animation: 'spin 1s linear infinite',
           }} />
-          <div style={{ fontSize: '14px', color: C.dim }}>🤖 AI sedang menganalisis data line...</div>
+          <div style={{ fontSize: '14px', color: C.dim }}><img src="/claude-logo.svg" alt="AI" width="16" height="16" /> AI sedang menganalisis data line...</div>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )

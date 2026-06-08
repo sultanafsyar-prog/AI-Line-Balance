@@ -671,7 +671,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               <div>
                 <div style={{ background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <span style={{ fontSize: 24 }}>🤖</span>
+                    <img src="/claude-logo.svg" alt="AI" style={{ width: 24, height: 24 }} />
                     <div>
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>AI Rekomendasi</div>
                       <div style={{ fontSize: 13, color: '#9CA3AF' }}>Analisis {effectiveSec} berdasarkan data hari ini</div>
@@ -748,7 +748,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                 { key: 'status', icon: '◉', label: t('leader.tabStatus') },
                 { key: 'input', icon: '✎', label: t('leader.tabInput') },
                 { key: 'std', icon: '📋', label: t('leader.tabStandard') },
-                { key: 'ai', icon: '🤖', label: t('leader.tabAI') },
+                { key: 'ai', icon: null, label: t('leader.tabAI') },
               ].map(navItem => (
                 <button key={navItem.key} onClick={() => setTab(navItem.key as 'status' | 'input' | 'std' | 'ai')}
                   style={{
@@ -756,7 +756,11 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                     borderTop: tab === navItem.key ? '3px solid #1D9E75' : '3px solid transparent',
                   }}>
-                  <span style={{ fontSize: 18 }}>{navItem.icon}</span>
+                  {navItem.key === 'ai' ? (
+                    <img src="/claude-logo.svg" alt="AI" style={{ width: 18, height: 18 }} />
+                  ) : (
+                    <span style={{ fontSize: 18 }}>{navItem.icon}</span>
+                  )}
                   <span style={{ fontSize: 11, fontWeight: 600, color: tab === navItem.key ? '#1D9E75' : '#9CA3AF' }}>{navItem.label}</span>
                 </button>
               ))}
