@@ -695,10 +695,10 @@ export default function TVClient({ building, lines, sections }: Props) {
                     <div style={{ padding: '6px 8px', fontSize: '10px', color: C.dim, fontWeight: 600 }}>MP</div>
                     <div style={{ padding: '6px 8px', textAlign: 'center' }}>
                       <span style={{ fontSize: '16px', fontWeight: 700, color: C.teal }}>
-                        {m.stdMPTotal > 0 ? parseFloat(m.stdMPTotal.toFixed(1)) : '—'}
+                        {m.theoMPTotal > 0 ? parseFloat(m.theoMPTotal.toFixed(1)) : '—'}
                       </span>
-                      {m.theoMPTotal > 0 && m.theoMPTotal !== m.stdMPTotal && (
-                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>({parseFloat(m.theoMPTotal.toFixed(1))})</span>
+                      {m.stdMPTotal > 0 && m.stdMPTotal !== m.theoMPTotal && (
+                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>std {parseFloat(m.stdMPTotal.toFixed(1))}</span>
                       )}
                     </div>
                     <div style={{ padding: '6px 8px', textAlign: 'center' }}>
@@ -731,8 +731,8 @@ export default function TVClient({ building, lines, sections }: Props) {
                   }}>
                     <div style={{ fontSize: '9px', color: la.accent, fontWeight: 700, marginBottom: '4px', letterSpacing: '0.5px' }}>
                       {m.activeSection
-                        ? `SECTION AKTIF: ${m.activeSection} — STD MP / ACT MP / LLER`
-                        : 'SECTION — STD MP / ACT MP / LLER'}
+                        ? `SECTION AKTIF: ${m.activeSection} — THEO MP / ACT MP / LLER`
+                        : 'SECTION — THEO MP / ACT MP / LLER'}
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       {sectionsToShow.map(ys => {
@@ -747,7 +747,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                             display: 'flex', gap: '4px', alignItems: 'center',
                           }}>
                             <span style={{ color: C.white, fontWeight: 600, fontSize: '9px' }}>{ys.name}</span>
-                            <span style={{ color: C.teal, fontWeight: 700 }}>{parseFloat(ys.stdMP.toFixed(1))}</span>
+                            <span style={{ color: C.teal, fontWeight: 700 }}>{parseFloat(ys.theorMP.toFixed(1))}</span>
                             <span style={{ color: C.gray }}>/</span>
                             <span style={{ color: act ? C.white : C.gray, fontWeight: 600 }}>{act ? act.avgMP : '—'}</span>
                             {act && (
