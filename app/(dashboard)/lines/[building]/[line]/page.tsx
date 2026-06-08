@@ -22,7 +22,7 @@ export default async function LineDetailPage({ params }: Props) {
         }}}
       },
       actuals: { where: { date: today() }, include: { section: true }, orderBy: { hour: 'asc' } },
-      alerts: { where: { resolved: false }, orderBy: { triggeredAt: 'desc' } },
+      alerts: { where: { resolved: false, triggeredAt: { gte: new Date(today() + 'T00:00:00+07:00') } }, orderBy: { triggeredAt: 'desc' } },
     }
   })
 

@@ -35,7 +35,7 @@ export async function GET() {
         include: { section: { select: { name: true, taktTime: true, stdMP: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
         orderBy: { hour: 'desc' },
       },
-      alerts: { where: { resolved: false } },
+      alerts: { where: { resolved: false, triggeredAt: { gte: new Date(today() + 'T00:00:00+07:00') } } },
     },
     orderBy: [{ building: 'asc' }, { lineNo: 'asc' }],
   })

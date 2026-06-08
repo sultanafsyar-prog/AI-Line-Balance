@@ -33,7 +33,7 @@ export default async function DashboardPage() {
         include: { section: { select: { name: true, taktTime: true } } },
         orderBy: { hour: 'asc' },
       },
-      alerts: { where: { resolved: false } },
+      alerts: { where: { resolved: false, triggeredAt: { gte: new Date(today() + 'T00:00:00+07:00') } } },
       dailyTargets: { where: { date: today() }, take: 1 },
     },
     orderBy: [{ building: 'asc' }, { lineNo: 'asc' }],

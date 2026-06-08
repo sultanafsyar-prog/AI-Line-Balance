@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
-import { calcSectionMetrics, isIE, getGWT, today } from '@/lib/utils'
+import { calcSectionMetrics, isIE, getGWT, today, getShift1Hours, displayHourLabel } from '@/lib/utils'
 import Link from 'next/link'
 import YamazumiAktual from '@/components/YamazumiAktual'
 import CloseShiftButton from '@/components/CloseShiftButton'
@@ -17,7 +17,12 @@ interface Props {
 export default function LineDetailClient({ line, allModels, user, sections }: Props) {
   const [selSec, setSelSec] = useState(sections.includes('Assembly') ? 'Assembly' : sections[0] ?? '')
   const [feat, setFeat] = useState< 'style' | 'yamazumi' | 'yamazumi-aktual' | 'input' | 'monitor' | 'ai'>('style')
-  const [inputF, setInputF] = useState({ output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0', hour: String(new Date().getHours()) })
+  const [inputF, setInputF] = useState(() => {
+    const curH = new Date().getHours()
+    const slots = getShift1Hours()
+    const nearest = slots.find(h => h >= curH) ?? slots[0] ?? 7
+    return { output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0', hour: String(nearest) }
+  })
   const [saving, setSaving] = useState(false)
   const [aiText, setAiText] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
@@ -372,8 +377,8 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                   <div>
                     <label className="label">Jam ke-</label>
                     <select className="input" value={inputF.hour} onChange={e => setInputF(f => ({ ...f, hour: e.target.value }))}>
-                      {Array.from({ length: 12 }, (_, i) => i + 7).map(h =>
-                        <option key={h} value={h}>{h}:00 – {h + 1}:00</option>
+                      {getShift1Hours().map(h =>
+                        <option key={h} value={h}>{displayHourLabel(h)}</option>
                       )}
                     </select>
                   </div>
@@ -426,7 +431,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                         const gap = a.output - tph
                         return (
                           <tr key={a.id} className="border-t border-gray-50">
-                            <td className="px-3 py-2">{a.hour}:00</td>
+                            <td className="px-3 py-2">{displayHourLabel(a.hour)}</td>
                             <td className="px-3 py-2 font-medium">{a.output}</td>
                             <td className={`px-3 py-2 font-medium text-xs ${gap >= 0 ? 'text-teal' : 'text-red-600'}`}>{gap >= 0 ? '+' : ''}{gap}</td>
                             <td className="px-3 py-2">{a.mpActual}</td>
@@ -477,7 +482,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                         const mpEff = section && a.mpActual > 0 ? parseFloat((a.output / a.mpActual / (tph / section.stdMP) * 100).toFixed(0)) : 0
                         return (
                           <tr key={a.id} className="border-t border-gray-50">
-                            <td className="px-3 py-2">{a.hour}:00</td>
+                            <td className="px-3 py-2">{displayHourLabel(a.hour)}</td>
                             <td className="px-3 py-2 font-medium">{a.output}</td>
                             <td className={`px-3 py-2 font-medium text-xs ${gap >= 0 ? 'text-teal' : 'text-red-600'}`}>{gap >= 0 ? '+' : ''}{gap}</td>
                             <td className="px-3 py-2">{a.mpActual}</td>

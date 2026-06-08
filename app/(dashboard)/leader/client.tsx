@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
-import { SF_SECTIONS as UTIL_SF_SECTIONS } from '@/lib/utils'
+import { SF_SECTIONS as UTIL_SF_SECTIONS, getShift1Hours, getShift1OTHours, displayHourLabel, isFridayWIB } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
@@ -13,17 +13,14 @@ const DT_REASONS_I18N: Record<string, { id: string; en: string; 'zh-TW': string 
   operator: { id: 'Operator kurang',   en: 'Operator shortage',  'zh-TW': '人員不足' },
   other:    { id: 'Lainnya',           en: 'Others',             'zh-TW': '其他' },
 }
-// Shift 1: 07:30-16:30 | OT s/d 19:30
-const SHIFT1_HOURS    = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-const SHIFT1_OT_HOURS = [17, 18, 19]
 // Shift 2: 20:00-06:00 | OT s/d 09:00
-// Virtual hours: 24=00:00*, 25=01:00*, ..., 29=05:00*, 30=06:00*, 31=07:00*
 const SHIFT2_HOURS    = [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
 const SHIFT2_OT_HOURS = [30, 31, 32]
 
 function displayHour(h: number): string {
+  if (h <= 19) return displayHourLabel(h)
   if (h <= 23) return `${h}:00`
-  return `${String(h - 24).padStart(2,'0')}:00*` // * = hari berikutnya
+  return `${String(h - 24).padStart(2,'0')}:00*`
 }
 
 // Work date — timezone Asia/Jakarta (UTC+7)
@@ -56,6 +53,9 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const [selLineId, setSelLineId] = useState(lines[0]?.id ?? '')
   const [showOT, setShowOT]   = useState(false)
   const [shift, setShift]     = useState<1|2>(detectShift())
+  const friday = isFridayWIB()
+  const SHIFT1_HOURS = getShift1Hours(friday)
+  const SHIFT1_OT_HOURS = getShift1OTHours(friday)
   const activeHours = shift === 1
     ? (showOT ? [...SHIFT1_HOURS, ...SHIFT1_OT_HOURS] : SHIFT1_HOURS)
     : (showOT ? [...SHIFT2_HOURS, ...SHIFT2_OT_HOURS] : SHIFT2_HOURS)
@@ -583,7 +583,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       return (
                         <div key={a.id} style={{ padding: '14px 16px', borderBottom: i < todayActs.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{displayHour(a.hour)} — {displayHour(a.hour + 1)}</span>
+                            <span style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{displayHour(a.hour)}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <span style={{ fontSize: 22, fontWeight: 800, color: '#111827' }}>{a.output}</span>
                               <span style={{ fontSize: 14, fontWeight: 700, color: g >= 0 ? '#1D9E75' : '#EF4444' }}>
