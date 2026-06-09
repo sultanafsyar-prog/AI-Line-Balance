@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { today } from '@/lib/utils'
 import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
 import { ModelCreateSchema } from '@/lib/validation'
 import { saveSectionsPreservingActuals } from '@/lib/save-sections'
+
+// Helper: set daily target untuk semua line yang assign model ini
+async function setDailyTargetForModel(modelId: string, targetPairs: number, setBy: string) {
+  const todayDate = today()
+  const activeAssignments = await prisma.lineAssignment.findMany({
+    where: { modelId, active: true },
+    select: { lineId: true },
+  })
+  for (const { lineId } of activeAssignments) {
+    await prisma.dailyTarget.upsert({
+      where: { lineId_date: { lineId, date: todayDate } },
+      update: { targetPairs, setBy, note: 'Auto-set dari upload model' },
+      create: { lineId, date: todayDate, targetPairs, setBy, note: 'Auto-set dari upload model' },
+    })
+  }
+}
 
 export async function GET() {
   const auth = await requireSession()
@@ -28,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = await parseBody(req, ModelCreateSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { name, article, stage, lineType, uploadedFrom, sections } = parsed
+  const { name, article, stage, lineType, uploadedFrom, dailyTarget, sections } = parsed
 
   // Saring section yang punya ops (skema sudah validasi minimal 1 section,
   // tapi belum tentu semua section punya ops)
@@ -55,6 +72,11 @@ export async function POST(req: NextRequest) {
         }
       })
       await saveSectionsPreservingActuals(existing.id, validSections)
+
+      // Auto-set daily target jika ada di upload
+      if (dailyTarget && dailyTarget > 0) {
+        await setDailyTargetForModel(existing.id, dailyTarget, auth.user.id)
+      }
 
       const updated = await prisma.shoeModel.findUnique({
         where: { id: existing.id },

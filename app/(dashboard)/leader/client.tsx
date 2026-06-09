@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
-import { LINE_TYPES, SF_SECTIONS as UTIL_SF_SECTIONS } from '@/lib/utils'
+import { SF_SECTIONS as UTIL_SF_SECTIONS, getShift1Hours, getShift1OTHours, displayHourLabel, isFridayWIB } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
@@ -13,17 +13,14 @@ const DT_REASONS_I18N: Record<string, { id: string; en: string; 'zh-TW': string 
   operator: { id: 'Operator kurang',   en: 'Operator shortage',  'zh-TW': '人員不足' },
   other:    { id: 'Lainnya',           en: 'Others',             'zh-TW': '其他' },
 }
-// Shift 1: 07:30-16:30 | OT s/d 19:30
-const SHIFT1_HOURS    = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-const SHIFT1_OT_HOURS = [17, 18, 19]
 // Shift 2: 20:00-06:00 | OT s/d 09:00
-// Virtual hours: 24=00:00*, 25=01:00*, ..., 29=05:00*, 30=06:00*, 31=07:00*
 const SHIFT2_HOURS    = [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
 const SHIFT2_OT_HOURS = [30, 31, 32]
 
 function displayHour(h: number): string {
+  if (h <= 19) return displayHourLabel(h)
   if (h <= 23) return `${h}:00`
-  return `${String(h - 24).padStart(2,'0')}:00*` // * = hari berikutnya
+  return `${String(h - 24).padStart(2,'0')}:00*`
 }
 
 // Work date — timezone Asia/Jakarta (UTC+7)
@@ -56,6 +53,9 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const [selLineId, setSelLineId] = useState(lines[0]?.id ?? '')
   const [showOT, setShowOT]   = useState(false)
   const [shift, setShift]     = useState<1|2>(detectShift())
+  const friday = isFridayWIB()
+  const SHIFT1_HOURS = getShift1Hours(friday)
+  const SHIFT1_OT_HOURS = getShift1OTHours(friday)
   const activeHours = shift === 1
     ? (showOT ? [...SHIFT1_HOURS, ...SHIFT1_OT_HOURS] : SHIFT1_HOURS)
     : (showOT ? [...SHIFT2_HOURS, ...SHIFT2_OT_HOURS] : SHIFT2_HOURS)
@@ -68,19 +68,22 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const [aiResult, setAiResult]   = useState('')
   const [aiLoading, setAiLoading] = useState(false)
 
-  const nowH = new Date().getHours()
-  const defaultHour = (() => {
-    const detected = detectShift()
-    if (detected === 1) return (nowH >= 7 && nowH <= 19) ? nowH : 7
-    // Shift 2: jam 20-23 pakai langsung, jam 0-7 pakai virtual (24+)
-    if (nowH >= 20) return nowH
-    if (nowH < 8) return nowH + 24  // virtual: 0→24, 1→25, ..., 7→31
-    return 20 // fallback
-  })()
   const [form, setForm] = useState({
-    hour: String(defaultHour),
+    hour: '7',
     output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0',
   })
+
+  // Set default hour after mount to avoid hydration mismatch
+  useEffect(() => {
+    const nowH = new Date().getHours()
+    const detected = detectShift()
+    let h = 7
+    if (detected === 1) h = (nowH >= 7 && nowH <= 19) ? nowH : 7
+    else if (nowH >= 20) h = nowH
+    else if (nowH < 8) h = nowH + 24
+    else h = 20
+    setForm(f => ({ ...f, hour: String(h) }))
+  }, [])
 
   const line    = lines.find(l => l.id === selLineId)
   const model   = line?.assignments?.[0]?.model
@@ -90,9 +93,24 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const availableSecs = secs.filter(s => model?.sections?.some((ms: any) => ms.name === s && ms.operations?.length > 0))
   const effectiveSec  = availableSecs.includes(selSec) ? selSec : (availableSecs[0] ?? selSec)
   const section = model?.sections?.find((s: any) => s.name === effectiveSec)
+
+  // ── MP auto-fill ───────────────────────────────────────────
+  // MP biasanya tidak berubah tiap jam (orang yang sama bekerja), jadi prefill
+  // dari input terakhir untuk hemat ketik. Tetap editable kalau ada perubahan.
+  useEffect(() => {
+    if (!selLineId || !line) return
+    const acts = (line.actuals ?? [])
+      .filter((a: any) => a.section?.name === effectiveSec)
+      .sort((a: any, b: any) => b.hour - a.hour)
+    const lastMP = acts[0]?.mpActual
+    if (lastMP && lastMP > 0) {
+      // Hanya prefill kalau field MP saat ini kosong — jangan overwrite ketikan user
+      setForm(f => f.mpActual === '' ? { ...f, mpActual: String(lastMP) } : f)
+    }
+  }, [selLineId, effectiveSec, line])
   // TPH dari section taktTime (untuk target output per jam)
   const sectionTakt = section?.taktTime ?? 0
-  const tph = sectionTakt > 0 ? Math.floor(3600 / sectionTakt) : 0
+  const tph = sectionTakt > 0 ? Math.round(3600 / sectionTakt) : 0
 
   // TheorMP per section: sum(GWT semua ops) / taktTime
   const getGWT = (op: any) => (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15))
@@ -104,10 +122,11 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   }
 
   // Auto-update selSec kalau section yang dipilih tidak ada di model ini
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  if (availableSecs.length > 0 && !availableSecs.includes(selSec)) {
-    setTimeout(() => setSelSec(availableSecs[0]), 0)
-  }
+  useEffect(() => {
+    if (availableSecs.length > 0 && !availableSecs.includes(selSec)) {
+      setSelSec(availableSecs[0])
+    }
+  }, [availableSecs.join(','), selSec])
 
   // Actuals untuk section yang sedang dipilih
   const todayActs = (line?.actuals ?? [])
@@ -116,30 +135,43 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
 
   const totalOut = todayActs.reduce((s: number, a: any) => s + a.output, 0)
 
-  // Section LLER = Theoretical MP / Avg Actual MP × 100%
+  // Section LLER produktivitas: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
   const secTheo = sectionTheoMP[effectiveSec] ?? 0
   const secAvgMP = todayActs.length > 0
     ? todayActs.reduce((s: number, a: any) => s + a.mpActual, 0) / todayActs.length : 0
-  const sectionLler = secAvgMP > 0 && secTheo > 0
-    ? Math.round((secTheo / secAvgMP) * 100) : 0
+  const secAvgOut = todayActs.length > 0
+    ? todayActs.reduce((s: number, a: any) => s + a.output, 0) / todayActs.length : 0
+  const sectionLler = (secAvgOut > 0 && secAvgMP > 0 && tph > 0 && secTheo > 0)
+    ? Math.round((secAvgOut * secAvgMP) / (tph * secTheo) * 100) : 0
 
-  // Line LLER = Total TheoMP / Total Avg Actual MP × 100% (semua section)
+  // Line LLER produktivitas — agregat semua section
   const allActs = line?.actuals ?? []
-  const secMPMap = new Map<string, { mpSum: number; hours: number }>()
+  const secMPMap = new Map<string, { mpSum: number; outSum: number; hours: number }>()
   for (const a of allActs) {
     const sName = a.section?.name ?? ''
-    const prev = secMPMap.get(sName) ?? { mpSum: 0, hours: 0 }
-    secMPMap.set(sName, { mpSum: prev.mpSum + a.mpActual, hours: prev.hours + 1 })
+    const prev = secMPMap.get(sName) ?? { mpSum: 0, outSum: 0, hours: 0 }
+    secMPMap.set(sName, {
+      mpSum: prev.mpSum + a.mpActual,
+      outSum: prev.outSum + a.output,
+      hours: prev.hours + 1,
+    })
   }
-  let lineTotalTheo = 0, lineTotalActMP = 0
+  // Numerator: Σ (sec_avgOut × sec_avgMP)
+  // Denominator: Σ (sec_theoPPH × sec_theoMP)
+  let lineNum = 0, lineDen = 0
   for (const [sName, data] of secMPMap.entries()) {
     const theo = sectionTheoMP[sName]
     if (theo && theo > 0 && data.hours > 0) {
-      lineTotalTheo += theo
-      lineTotalActMP += data.mpSum / data.hours
+      const sec = model?.sections?.find((s: any) => s.name === sName)
+      const secTakt = sec?.taktTime ?? 0
+      const secPPHTheo = secTakt > 0 ? 3600 / secTakt : 0
+      const secAvgMPVal = data.mpSum / data.hours
+      const secAvgOutVal = data.outSum / data.hours
+      lineNum += secAvgOutVal * secAvgMPVal
+      lineDen += secPPHTheo * theo
     }
   }
-  const lineLler = lineTotalActMP > 0 ? Math.round((lineTotalTheo / lineTotalActMP) * 100) : 0
+  const lineLler = lineDen > 0 ? Math.round(lineNum / lineDen * 100) : 0
 
   // LLER yang ditampilkan di header = LINE level
   const ller = lineLler
@@ -196,13 +228,14 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
           }
         }
       } catch {}
-      // Pindah ke jam berikutnya yang belum diisi
+      // Pindah ke jam berikutnya yang belum diisi — PERTAHANKAN mpActual supaya carry over
+      // (MP biasanya sama orang dari jam ke jam; tetap editable kalau ada perubahan)
       const currentH = parseInt(form.hour)
       const nextEmpty = activeHours.find((h: number) => h > currentH && !filledHours.has(h))
       if (nextEmpty !== undefined) {
-        setForm({ hour: String(nextEmpty), output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' })
+        setForm(f => ({ ...f, hour: String(nextEmpty), output: '', downtime: '0', dtReason: '', defect: '0' }))
       } else {
-        setForm(f => ({ ...f, output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
+        setForm(f => ({ ...f, output: '', downtime: '0', dtReason: '', defect: '0' }))
       }
       setTimeout(() => setSaved(false), 3000)
     } else {
@@ -550,7 +583,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       return (
                         <div key={a.id} style={{ padding: '14px 16px', borderBottom: i < todayActs.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{displayHour(a.hour)} — {displayHour(a.hour + 1)}</span>
+                            <span style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{displayHour(a.hour)}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <span style={{ fontSize: 22, fontWeight: 800, color: '#111827' }}>{a.output}</span>
                               <span style={{ fontSize: 14, fontWeight: 700, color: g >= 0 ? '#1D9E75' : '#EF4444' }}>
@@ -638,7 +671,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               <div>
                 <div style={{ background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <span style={{ fontSize: 24 }}>🤖</span>
+                    <img src="/claude-logo.svg" alt="AI" style={{ width: 24, height: 24 }} />
                     <div>
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>AI Rekomendasi</div>
                       <div style={{ fontSize: 13, color: '#9CA3AF' }}>Analisis {effectiveSec} berdasarkan data hari ini</div>
@@ -715,16 +748,20 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                 { key: 'status', icon: '◉', label: t('leader.tabStatus') },
                 { key: 'input', icon: '✎', label: t('leader.tabInput') },
                 { key: 'std', icon: '📋', label: t('leader.tabStandard') },
-                { key: 'ai', icon: '<img src="/claude-logo.svg" alt="AI" />', label: t('leader.tabAI') },
-              ].map(t => (
-                <button key={t.key} onClick={() => setTab(t.key as 'status' | 'input' | 'std' | 'ai')}
+                { key: 'ai', icon: null, label: t('leader.tabAI') },
+              ].map(navItem => (
+                <button key={navItem.key} onClick={() => setTab(navItem.key as 'status' | 'input' | 'std' | 'ai')}
                   style={{
                     flex: 1, padding: '10px 4px 14px', border: 'none', cursor: 'pointer',
                     background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                    borderTop: tab === t.key ? '3px solid #1D9E75' : '3px solid transparent',
+                    borderTop: tab === navItem.key ? '3px solid #1D9E75' : '3px solid transparent',
                   }}>
-                  <span style={{ fontSize: 18 }}>{t.icon}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: tab === t.key ? '#1D9E75' : '#9CA3AF' }}>{t.label}</span>
+                  {navItem.key === 'ai' ? (
+                    <img src="/claude-logo.svg" alt="AI" style={{ width: 18, height: 18 }} />
+                  ) : (
+                    <span style={{ fontSize: 18 }}>{navItem.icon}</span>
+                  )}
+                  <span style={{ fontSize: 11, fontWeight: 600, color: tab === navItem.key ? '#1D9E75' : '#9CA3AF' }}>{navItem.label}</span>
                 </button>
               ))}
             </div>

@@ -35,8 +35,8 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
       })
       const data = await res.json()
       if (res.ok) {
-        setResult({ ok: true, msg: data.message ?? 'Shift berhasil ditutup.' })
-        if (data.warning) setResult({ ok: true, msg: data.warning })
+        const msg = (data.message ?? 'Shift berhasil ditutup.') + (data.warning ? ' ⚠ ' + data.warning : '')
+        setResult({ ok: true, msg })
         onClosed?.()
       } else {
         setResult({ ok: false, msg: data.error ?? 'Gagal menutup shift.' })

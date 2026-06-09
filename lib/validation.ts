@@ -57,6 +57,8 @@ export const ModelCreateSchema = z.object({
   stage:        z.string().max(100).optional().nullable(),
   lineType:     LineTypeSchema.optional(),
   uploadedFrom: z.string().max(200).optional().nullable(),
+  dailyTarget:  z.number().int().min(0).max(100000).optional(),
+  hourlyTarget: z.number().int().min(0).max(10000).optional(),
   sections:     z.array(SectionSchema).min(1, 'Minimal 1 section'),
 })
 export type ModelCreateInput = z.infer<typeof ModelCreateSchema>

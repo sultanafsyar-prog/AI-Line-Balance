@@ -71,7 +71,7 @@ export async function saveSectionsPreservingActuals(
       nvan:      Number(op.nvan)      || 0,
       nva:       Number(op.nva)       || 0,
       mcCT:      Number(op.mcCT)      || 0,
-      allowance: Number(op.allowance) ?? 0.15,
+      allowance: Number(op.allowance) || 0.15,
     }))
 
     // Batch insert (Prisma createMany has size limits on some DBs)

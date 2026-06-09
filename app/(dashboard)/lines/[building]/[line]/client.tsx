@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
-import { calcSectionMetrics, isIE, LINE_TYPES, getGWT } from '@/lib/utils'
+import { calcSectionMetrics, isIE, getGWT, today, getShift1Hours, displayHourLabel } from '@/lib/utils'
 import Link from 'next/link'
 import YamazumiAktual from '@/components/YamazumiAktual'
 import CloseShiftButton from '@/components/CloseShiftButton'
@@ -15,9 +15,14 @@ interface Props {
 }
 
 export default function LineDetailClient({ line, allModels, user, sections }: Props) {
-  const [selSec, setSelSec] = useState(sections[sections.length > 1 ? sections.indexOf('Assembly') !== -1 ? sections.indexOf('Assembly') : 0 : 0])
+  const [selSec, setSelSec] = useState(sections.includes('Assembly') ? 'Assembly' : sections[0] ?? '')
   const [feat, setFeat] = useState< 'style' | 'yamazumi' | 'yamazumi-aktual' | 'input' | 'monitor' | 'ai'>('style')
-  const [inputF, setInputF] = useState({ output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0', hour: String(new Date().getHours()) })
+  const [inputF, setInputF] = useState(() => {
+    const curH = new Date().getHours()
+    const slots = getShift1Hours()
+    const nearest = slots.find(h => h >= curH) ?? slots[0] ?? 7
+    return { output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0', hour: String(nearest) }
+  })
   const [saving, setSaving] = useState(false)
   const [aiText, setAiText] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
@@ -27,54 +32,80 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   const section = model?.sections.find((s: any) => s.name === selSec)
   const takt = section?.taktTime ?? 36
   const metrics = section ? calcSectionMetrics(section.operations, section.stdMP, takt) : null
-  const tph = model ? LINE_TYPES[model.lineType as 'MINI' | 'BIG'].tph : 100
+  const tph = takt > 0 ? Math.round(3600 / takt) : 0
 
-  const sectionActuals = line.actuals.filter((a: any) => a.section.name === selSec).sort((a: any, b: any) => a.hour - b.hour)
+  const sectionActuals = line.actuals.filter((a: any) => a.section?.name === selSec).sort((a: any, b: any) => a.hour - b.hour)
   const totOut = sectionActuals.reduce((s: number, a: any) => s + a.output, 0)
   const totDT  = sectionActuals.reduce((s: number, a: any) => s + a.downtime, 0)
   const totDef = sectionActuals.reduce((s: number, a: any) => s + a.defect, 0)
   const avgMP  = sectionActuals.length ? Math.round(sectionActuals.reduce((s: number, a: any) => s + a.mpActual, 0) / sectionActuals.length) : 0
   const avgOut = sectionActuals.length ? Math.round(totOut / sectionActuals.length) : 0
-  const ller   = tph > 0 && sectionActuals.length ? parseFloat((avgOut / tph * 100).toFixed(1)) : 0
+  // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
+  const theoMP = metrics?.theorMP ?? 0
+  const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
+    ? parseFloat(((avgOut * avgMP) / (tph * theoMP) * 100).toFixed(1)) : 0
+
+  // ── MP auto-fill: prefill MP dari input terakhir section ini ──
+  // MP biasanya tidak berubah tiap jam, jadi prefill untuk hemat ketik
+  useEffect(() => {
+    const sortedActs = [...sectionActuals].sort((a: any, b: any) => b.hour - a.hour)
+    const lastMP = sortedActs[0]?.mpActual
+    if (lastMP && lastMP > 0) {
+      setInputF(f => f.mpActual === '' ? { ...f, mpActual: String(lastMP) } : f)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selSec, line.id])
 
   async function saveActual() {
     if (!section || !inputF.output || !inputF.mpActual) return
     setSaving(true)
-    await fetch('/api/actuals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        lineId: line.id, sectionId: section.id,
-        date: new Date().toISOString().slice(0, 10),
-        hour: parseInt(inputF.hour),
-        output: parseInt(inputF.output), mpActual: parseInt(inputF.mpActual),
-        downtime: parseInt(inputF.downtime) || 0, dtReason: inputF.dtReason,
-        defect: parseInt(inputF.defect) || 0,
+    try {
+      const res = await fetch('/api/actuals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lineId: line.id, sectionId: section.id,
+          date: today(),
+          hour: parseInt(inputF.hour),
+          output: parseInt(inputF.output), mpActual: parseInt(inputF.mpActual),
+          downtime: parseInt(inputF.downtime) || 0, dtReason: inputF.dtReason,
+          defect: parseInt(inputF.defect) || 0,
+        })
       })
-    })
+      if (res.ok) {
+        setInputF(f => ({ ...f, output: '', downtime: '0', dtReason: '', defect: '0' }))
+        window.location.reload()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error ?? 'Gagal menyimpan data')
+      }
+    } catch { alert('Gagal menyimpan — periksa koneksi') }
     setSaving(false)
-    setInputF(f => ({ ...f, output: '', mpActual: '', downtime: '0', dtReason: '', defect: '0' }))
-    window.location.reload()
   }
 
   async function runAI() {
     setAiLoading(true); setAiText('')
-    const res = await fetch('/api/analytics', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lineId: line.id, sectionName: selSec })
-    })
-    const data = await res.json()
-    setAiText(data.analysis ?? 'Tidak ada hasil.')
+    try {
+      const res = await fetch('/api/analytics', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineId: line.id, sectionName: selSec })
+      })
+      const data = await res.json()
+      setAiText(res.ok ? (data.analysis ?? 'Tidak ada hasil.') : (data.error ?? 'Gagal menganalisis.'))
+    } catch { setAiText('Gagal menghubungi server.') }
     setAiLoading(false)
   }
 
   async function assignModel(modelId: string | null) {
-    await fetch('/api/lines', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lineId: line.id, modelId })
-    })
-    setAssigning(false)
-    window.location.reload()
+    setAssigning(true)
+    try {
+      const res = await fetch('/api/lines', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineId: line.id, modelId })
+      })
+      if (res.ok) { window.location.reload() }
+      else { alert('Gagal assign model'); setAssigning(false) }
+    } catch { alert('Gagal — periksa koneksi'); setAssigning(false) }
   }
 
   // Yamazumi chart standar IE: tampilkan Effective CT (GWT ÷ MP) per operasi.
@@ -116,7 +147,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
           {model ? (
             <p className="text-sm text-gray-500">
               Model: <strong className="text-gray-800">{model.name}</strong> · {model.article} ·
-              <span className="text-teal"> {LINE_TYPES[model.lineType as 'MINI' | 'BIG'].label}</span> · Takt: {takt}s
+              <span className="text-teal"> Target: {tph} prs/jam</span> · Takt: {takt}s
             </p>
           ) : <p className="text-sm text-gray-400">Belum ada model</p>}
         </div>
@@ -201,7 +232,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 {[
                   { l: 'Standard MP', v: section.stdMP + ' orang', c: '' },
-                  { l: 'Theoretical MP', v: metrics.theorMP + ' orang', c: '' },
+                  { l: 'Theoretical MP', v: parseFloat(metrics.theorMP.toFixed(2)) + ' orang', c: '' },
                   { l: 'LBR', v: metrics.lbr + '%', c: metrics.lbr >= 85 ? 'text-teal' : metrics.lbr >= 70 ? 'text-amber-600' : 'text-red-600' },
                   { l: 'Operasi Terberat', v: metrics.maxGwtOp.name, c: 'text-gray-900 text-sm' },
                 ].map(m => (
@@ -307,12 +338,18 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                 const out = sa.reduce((s: number, a: any) => s + (a.output ?? 0), 0)
                 const dt  = sa.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
                 const def = sa.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
+                // LLER produktivitas gabungan: (avgOut × avgMP) / (theoPPH × theoMP) × 100
                 const sec = model?.sections?.find((s: any) => s.name === secName)
-                const tph = sec?.taktTime > 0 ? Math.floor(3600 / sec.taktTime) : 0
-                const tgt = tph * sa.length
+                const secMetrics = sec ? calcSectionMetrics(sec.operations, sec.stdMP, sec.taktTime) : null
+                const secTheoMP = secMetrics?.theorMP ?? 0
+                const theoPPH = sec?.taktTime > 0 ? 3600 / sec.taktTime : 0
+                const secAvgOut = sa.length > 0 ? out / sa.length : 0
+                const secAvgMP = sa.length > 0 ? sa.reduce((s: number, a: any) => s + (a.mpActual ?? 0), 0) / sa.length : 0
+                const secLler = (secAvgOut > 0 && secAvgMP > 0 && theoPPH > 0 && secTheoMP > 0)
+                  ? Math.round((secAvgOut * secAvgMP) / (theoPPH * secTheoMP) * 100) : null
                 return {
                   name:   secName,
-                  ller:   tgt > 0 ? Math.round((out / tgt) * 100) : null,
+                  ller:   secLler,
                   totOut: out,
                   totDT:  dt,
                   totDef: def,
@@ -346,8 +383,8 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                   <div>
                     <label className="label">Jam ke-</label>
                     <select className="input" value={inputF.hour} onChange={e => setInputF(f => ({ ...f, hour: e.target.value }))}>
-                      {Array.from({ length: 12 }, (_, i) => i + 7).map(h =>
-                        <option key={h} value={h}>{h}:00 – {h + 1}:00</option>
+                      {getShift1Hours().map(h =>
+                        <option key={h} value={h}>{displayHourLabel(h)}</option>
                       )}
                     </select>
                   </div>
@@ -400,7 +437,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                         const gap = a.output - tph
                         return (
                           <tr key={a.id} className="border-t border-gray-50">
-                            <td className="px-3 py-2">{a.hour}:00</td>
+                            <td className="px-3 py-2">{displayHourLabel(a.hour)}</td>
                             <td className="px-3 py-2 font-medium">{a.output}</td>
                             <td className={`px-3 py-2 font-medium text-xs ${gap >= 0 ? 'text-teal' : 'text-red-600'}`}>{gap >= 0 ? '+' : ''}{gap}</td>
                             <td className="px-3 py-2">{a.mpActual}</td>
@@ -451,7 +488,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                         const mpEff = section && a.mpActual > 0 ? parseFloat((a.output / a.mpActual / (tph / section.stdMP) * 100).toFixed(0)) : 0
                         return (
                           <tr key={a.id} className="border-t border-gray-50">
-                            <td className="px-3 py-2">{a.hour}:00</td>
+                            <td className="px-3 py-2">{displayHourLabel(a.hour)}</td>
                             <td className="px-3 py-2 font-medium">{a.output}</td>
                             <td className={`px-3 py-2 font-medium text-xs ${gap >= 0 ? 'text-teal' : 'text-red-600'}`}>{gap >= 0 ? '+' : ''}{gap}</td>
                             <td className="px-3 py-2">{a.mpActual}</td>
@@ -504,7 +541,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                 <div key={m.id} onClick={() => assignModel(m.id)}
                   className={`px-3 py-2.5 border rounded-lg cursor-pointer text-sm ${model?.id === m.id ? 'border-teal bg-teal-light' : 'border-gray-200 hover:bg-gray-50'}`}>
                   <div className="font-medium">{m.name} · {m.article}</div>
-                  <div className="text-xs text-gray-400">{LINE_TYPES[m.lineType as 'MINI' | 'BIG'].label}</div>
+                  <div className="text-xs text-gray-400">Takt: {m.sections?.[0]?.taktTime ?? '—'}s</div>
                 </div>
               ))}
             </div>

@@ -1,13 +1,13 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { LINE_TYPES, SECTIONS, SF_SECTIONS } from '@/lib/utils'
+import { SECTIONS, SF_SECTIONS } from '@/lib/utils'
 import Link from 'next/link'
 
 // ─── TYPES ───────────────────────────────────────────────────
 type Op = { id: string; name: string; va: number; nvan: number; nva: number; mcCT: number; allowance: number }
 type Sec = { name: string; stdMP: number; taktTime: number; ops: Op[] }
-type ModelDraft = { name: string; article: string; stage: string; lineType: 'MINI' | 'BIG'; sections: Sec[] }
+type ModelDraft = { name: string; article: string; stage: string; lineType: 'MINI' | 'BIG'; sections: Sec[]; dailyTarget?: number; hourlyTarget?: number }
 
 const ALL_SECTIONS = [...SECTIONS, ...SF_SECTIONS]
 const STAGES = ['PTR', 'Pre-Production', 'Production CFM']
@@ -198,21 +198,27 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       'assembly': 'Assembly',
       'stockfit': 'Stockfit',
       'stockfitting': 'Stockfit',
+      // Stockfit area sections (Degreaser merged into UV)
+      'buffing': 'Buffing',
+      'uv': 'UV',
+      'degreeser': 'UV',
+      'degreaser': 'UV',
     }
 
-    // Cari model name dari sheet manapun, baris "Style:"
+    // Cari model name, takt time, daily/hourly target dari sheet manapun
     let modelName = ''
     let mainTakt = 36
+    let dailyTarget = 0
+    let hourlyTarget = 0
 
     for (const sn of wb.SheetNames) {
       const ws = wb.Sheets[sn]
       const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
       for (const row of data.slice(0, 10)) {
-        const r0 = String(row[0] ?? '').trim().toLowerCase()
-        const r1 = String(row[1] ?? '').trim().toLowerCase()
         // Cari "Style:" di kolom mana saja
-        for (let c = 0; c < Math.min(row.length, 6); c++) {
-          if (String(row[c] ?? '').toLowerCase().includes('style')) {
+        for (let c = 0; c < Math.min(row.length, 8); c++) {
+          const cellStr = String(row[c] ?? '').toLowerCase()
+          if (cellStr.includes('style')) {
             // Cari nilai di kolom berikutnya
             for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
               const v = String(row[nc] ?? '').trim()
@@ -221,10 +227,28 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
               }
             }
           }
-          if (String(row[c] ?? '').toLowerCase().includes('takt')) {
+          // Also check col[1] or col[3] for model name in "LINE BALANCING - ..." format
+          if (cellStr.includes('line balancing') && !modelName) {
+            // Model name usually in col[3] for stockfit area format
+            const v3 = String(row[3] ?? '').trim()
+            if (v3 && v3.length > 2) modelName = v3.split('/')[0].trim()
+          }
+          if (cellStr.includes('takt')) {
             for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
               const v = parseFloat(row[nc])
               if (!isNaN(v) && v >= 5 && v <= 300) mainTakt = v
+            }
+          }
+          if (cellStr.includes('daily target') && dailyTarget === 0) {
+            for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
+              const v = parseFloat(row[nc])
+              if (!isNaN(v) && v >= 10) { dailyTarget = v; break }
+            }
+          }
+          if (cellStr.includes('hourly target') && hourlyTarget === 0) {
+            for (let nc = c + 1; nc < Math.min(c + 5, row.length); nc++) {
+              const v = parseFloat(row[nc])
+              if (!isNaN(v) && v >= 1) { hourlyTarget = v; break }
             }
           }
         }
@@ -236,6 +260,8 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     draft.name = modelName
     draft.article = modelName
     draft.lineType = mainTakt <= 22 ? 'BIG' : 'MINI'
+    if (dailyTarget > 0) draft.dailyTarget = dailyTarget
+    if (hourlyTarget > 0) draft.hourlyTarget = hourlyTarget
 
     // Process setiap sheet
     const processedSecs = new Set<string>()
@@ -243,15 +269,18 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     for (const sn of wb.SheetNames) {
       const nameLower = sn.toLowerCase().trim()
 
-      // Cari matching section (skip "summary" sheets dan (2) sheets jika sudah ada)
+      // Cari matching section (skip "summary", "all", dan duplicate sheets)
       if (nameLower.includes('summary')) continue
+      if (nameLower.startsWith('all ')) continue
       if (nameLower.includes('(2)') || nameLower.includes('trial 2')) continue
 
       const secName = sheetSecMap[nameLower] ??
         Object.entries(sheetSecMap).find(([k]) => nameLower.startsWith(k))?.[1] ??
         Object.entries(sheetSecMap).find(([k]) => nameLower.includes(k))?.[1]
 
-      if (!secName || processedSecs.has(secName)) continue
+      if (!secName) continue
+      // Allow merging: Degreeser + UV both map to 'UV', append ops instead of skip
+      const isMerging = processedSecs.has(secName)
 
       const ws = wb.Sheets[sn]
       const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
@@ -263,12 +292,19 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
 
       for (let i = 0; i < Math.min(data.length, 15); i++) {
         const r = data[i]
-        // Cari takt time
-        for (let c = 0; c < r.length - 1; c++) {
-          if (String(r[c] ?? '').toLowerCase().includes('takt')) {
+        // Cari takt time + Number of Operator (stdMP total)
+        for (let c = 0; c < Math.min(r.length - 1, 15); c++) {
+          const cellStr = String(r[c] ?? '').toLowerCase()
+          if (cellStr.includes('takt')) {
             for (let nc = c + 1; nc < Math.min(c + 4, r.length); nc++) {
               const v = parseFloat(r[nc])
               if (!isNaN(v) && v >= 5 && v <= 300) taktLocal = v
+            }
+          }
+          if ((cellStr.includes('number of operator') || cellStr.includes('jumlah operator')) && stdMP === 0) {
+            for (let nc = c + 1; nc < Math.min(c + 3, r.length); nc++) {
+              const v = parseFloat(r[nc])
+              if (!isNaN(v) && v >= 1 && v <= 500) { stdMP = Math.round(v * 10) / 10; break }
             }
           }
         }
@@ -278,6 +314,11 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       }
 
       if (headerRowIdx === -1) continue
+
+      // Flag: kalau stdMP sudah didapat dari "Number of Operator" header section,
+      // JANGAN ditimpa nilai per-operasi (yang biasanya jauh lebih kecil — itu MP per-step,
+      // bukan total MP section).
+      const stdMPFromHeader = stdMP > 0
 
       // Baca header untuk mapping kolom
       const headerRow = data[headerRowIdx]
@@ -327,16 +368,16 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
         }
         if (gwt <= 0) continue
 
-        // Ambil stdMP dari baris pertama yang punya nilai (setiap group)
-        if (!firstStdMPFound && colStdMP >= 0) {
+        // Ambil stdMP dari baris pertama yang punya nilai (HANYA kalau header tidak punya value)
+        if (!stdMPFromHeader && !firstStdMPFound && colStdMP >= 0) {
           const mp = parseFloat(r[colStdMP])
           if (!isNaN(mp) && mp >= 0.5 && mp <= 200) {
             stdMP = mp
             firstStdMPFound = true
           }
         }
-        // Akumulasi stdMP dari semua group
-        if (colStdMP >= 0) {
+        // Akumulasi stdMP dari semua group (juga skip kalau dari header)
+        if (!stdMPFromHeader && colStdMP >= 0) {
           const mp = parseFloat(r[colStdMP])
           if (!isNaN(mp) && mp >= 0.5 && mp <= 200 && mp > stdMP) stdMP = mp
         }
@@ -358,9 +399,15 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       if (ops.length > 0) {
         const secInDraft = draft.sections.find(s => s.name === secName)
         if (secInDraft) {
-          secInDraft.ops = ops
-          secInDraft.taktTime = taktLocal
-          if (stdMP > 0) secInDraft.stdMP = stdMP
+          // If merging (e.g. Degreeser ops into UV), append; otherwise replace
+          if (isMerging) {
+            secInDraft.ops = [...secInDraft.ops, ...ops]
+            if (stdMP > 0) secInDraft.stdMP += stdMP
+          } else {
+            secInDraft.ops = ops
+            secInDraft.taktTime = taktLocal
+            if (stdMP > 0) secInDraft.stdMP = stdMP
+          }
         }
         processedSecs.add(secName)
       }
@@ -487,7 +534,7 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     // ── Assign ops + stdMP ke draft sections ──
     for (const sec of draft.sections) {
       sec.ops = sectionOps[sec.name] ?? []
-      sec.stdMP = Math.round(sectionMP[sec.name] ?? 0)
+      sec.stdMP = Math.round((sectionMP[sec.name] ?? 0) * 10) / 10
     }
 
     const filledSecs = draft.sections.filter(s => s.ops.length > 0)
@@ -509,6 +556,19 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       return parseNBStandard(ab)
     }
 
+    // Stockfit Area (multi-sheet) — DETEKSI DULU sebelum format single-sheet
+    // Ciri: ada minimal 2 sheet section terpisah (Buffing/UV/Degreeser/Stockfit)
+    // Tiap sheet section punya header sendiri dengan "Number of Operator"
+    const sectionSheetNames = ['buffing', 'uv', 'degreeser', 'degreaser', 'stockfit', 'stockfitting']
+    const realSectionSheets = sheetNames.filter(s => {
+      if (s.includes('summary')) return false
+      if (s.startsWith('all ')) return false
+      return sectionSheetNames.includes(s)
+    }).length
+    if (realSectionSheets >= 2) {
+      return parseIEData(ab)
+    }
+
     // Stockfit NB Standard: sheet pertama row 4 berisi "Stockfitting"/"Stockfit"
     try {
       const firstSheet = wb.Sheets[wb.SheetNames[0]]
@@ -527,8 +587,9 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       }
     } catch {}
 
-    // IE Data: ada sheet seperti "Assembly", "Stockfit", "Prep", "Stit"
-    if (sheetNames.some(s => s === 'assembly' || s === 'stockfit' || s === 'stit' || s === 'prep')) {
+    // IE Data: ada sheet seperti "Assembly", "Stockfit", "Prep", "Stit", "Buffing", "UV"
+    if (sheetNames.some(s => s === 'assembly' || s === 'stockfit' || s === 'stit' || s === 'prep'
+        || s === 'buffing' || s === 'uv' || s === 'degreeser' || s === 'degreaser')) {
       return parseIEData(ab)
     }
 
@@ -637,13 +698,12 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
                 {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <div>
-              <label className="label">Line type</label>
-              <select className="input text-sm" value={draft.lineType} onChange={e => updModel('lineType', e.target.value as any)}>
-                <option value="MINI">Mini Line (100 pairs/jam, TT 36s)</option>
-                <option value="BIG">Big Line (180 pairs/jam, TT 20s)</option>
-              </select>
-            </div>
+            {draft.dailyTarget ? (
+              <div>
+                <label className="label">Target Harian</label>
+                <div className="input text-sm bg-gray-50">{draft.dailyTarget} pairs/hari ({draft.hourlyTarget ?? Math.round(draft.dailyTarget / 8)} prs/jam)</div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -667,9 +727,9 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
           {/* Operations */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Section header */}
-            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-4">
+            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-4 flex-wrap">
               <span className="text-sm font-medium text-gray-700">{selSec}</span>
-              <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-3 text-xs flex-wrap">
                 <label className="flex items-center gap-1 text-gray-500">
                   Std MP:
                   <input type="number" step="0.25" min="0" className="w-16 px-1 py-0.5 border border-gray-200 rounded text-center text-xs" value={section.stdMP || ''} onChange={e => updSection('stdMP', parseFloat(e.target.value) || 0)} />
@@ -680,6 +740,40 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
                   <input type="number" step="0.1" min="1" className="w-16 px-1 py-0.5 border border-gray-200 rounded text-center text-xs" value={section.taktTime} onChange={e => updSection('taktTime', parseFloat(e.target.value) || 36)} />
                   <span>detik</span>
                 </label>
+                {/* ─── VALIDATION WARNING (stdMP vs theoMP) ─── */}
+                {(() => {
+                  if (section.ops.length === 0 || section.taktTime <= 0) return null
+                  const totalGWT = section.ops.reduce((sum, op) =>
+                    sum + (op.va + op.nvan + op.nva) * (1 + (op.allowance > 1 ? op.allowance / 100 : op.allowance)), 0)
+                  const theoMP = totalGWT / section.taktTime
+                  const theoMPCeil = Math.ceil(theoMP)
+                  if (section.stdMP > 0 && section.stdMP < theoMP * 0.7) {
+                    return (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 border border-red-200 text-red-700" title="Standard MP terlalu kecil — line akan tidak cukup orang untuk capai takt time">
+                        ⚠ Std MP terlalu kecil — Theo MP ≈ {theoMP.toFixed(1)} (saran: {theoMPCeil})
+                      </span>
+                    )
+                  }
+                  if (section.stdMP === 0) {
+                    return (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700" title="Std MP belum diisi">
+                        ⚠ Std MP belum diisi — Theo MP ≈ {theoMP.toFixed(1)} (saran: {theoMPCeil})
+                      </span>
+                    )
+                  }
+                  if (section.stdMP > theoMP * 1.5) {
+                    return (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700" title="Standard MP jauh lebih besar dari theoretical — kemungkinan overstaffed">
+                        ℹ Std MP &gt; Theo MP ({theoMP.toFixed(1)}) — overstaffed?
+                      </span>
+                    )
+                  }
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-50 border border-green-200 text-green-700">
+                      ✓ Theo MP {theoMP.toFixed(1)}
+                    </span>
+                  )
+                })()}
               </div>
             </div>
 
@@ -731,7 +825,7 @@ export default function ModelsPage() {
   const [parseError, setParseError] = useState('')
 
   useEffect(() => {
-    fetch('/api/models').then(r => r.json()).then(d => { setModels(d); setLoading(false) })
+    fetch('/api/models').then(r => r.json()).then(d => { setModels(d); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -768,7 +862,8 @@ export default function ModelsPage() {
           const draft = detectAndParse(ab)
           const filledSecs = draft.sections.filter(s => s.ops.length > 0)
           const totalOps = filledSecs.reduce((sum, s) => sum + s.ops.length, 0)
-          setParseMsg(`Berhasil membaca ${filledSecs.length} section, ${totalOps} operasi${!draft.name ? ' — nama model tidak terbaca, isi manual' : ''}`)
+          const targetInfo = draft.dailyTarget ? ` · Target: ${draft.dailyTarget} prs/hari` : ''
+          setParseMsg(`Berhasil membaca ${filledSecs.length} section, ${totalOps} operasi${targetInfo}${!draft.name ? ' — nama model tidak terbaca, isi manual' : ''}`)
           setEditor(draft)
         }
       } catch (err: any) {
@@ -785,6 +880,8 @@ export default function ModelsPage() {
       name: draft.name, article: draft.article,
       stage: draft.stage, lineType: draft.lineType,
       uploadedFrom: existingId ? undefined : 'NB Standard + manual review',
+      dailyTarget: draft.dailyTarget,
+      hourlyTarget: draft.hourlyTarget,
       sections: draft.sections
         .filter(s => s.ops.length > 0)
         .map(s => ({
@@ -910,8 +1007,8 @@ export default function ModelsPage() {
                   <div className="font-semibold text-gray-900">{m.name}</div>
                   <div className="text-xs text-gray-400">{m.article} · {m.stage}</div>
                 </div>
-                <span className={`badge ${m.lineType === 'BIG' ? 'badge-info' : 'badge-ok'}`}>
-                  {LINE_TYPES[m.lineType as 'MINI' | 'BIG'].label}
+                <span className="badge badge-info">
+                  Takt: {m.sections?.[0]?.taktTime ?? '—'}s
                 </span>
               </div>
               <div className="flex flex-wrap gap-1 mb-3">

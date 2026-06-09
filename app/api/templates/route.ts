@@ -16,7 +16,7 @@ export async function GET() {
     ['Model Name', 'U740', 'Nama model sepatu (wajib, unik)'],
     ['Article', 'U-740', 'Kode artikel'],
     ['Stage', 'Production CFM', 'PTR / Production CFM / Pre-Production'],
-    ['Line Type', 'MINI', 'MINI (100 pairs/jam) atau BIG (180 pairs/jam)'],
+    ['Daily Target', '2000', 'Target harian (pairs) — otomatis dari IE data jika upload Excel'],
   ]
   const wsInfo = XLSX.utils.aoa_to_sheet(infoData)
   wsInfo['!cols'] = [{ wch: 16 }, { wch: 24 }, { wch: 40 }]
@@ -72,7 +72,7 @@ export async function GET() {
     ['  Model Name    :', 'Nama model, contoh: U740, U509, dsb. Harus unik.'],
     ['  Article       :', 'Kode artikel lengkap, contoh: U-740'],
     ['  Stage         :', 'PTR / Production CFM / Pre-Production'],
-    ['  Line Type     :', 'MINI = 100 pairs/jam (Takt 36s) | BIG = 180 pairs/jam (Takt 20s)'],
+    ['  Target        :', 'Target PPH otomatis dari takt time IE data (3600 / taktTime)'],
     [''],
     ['SHEET: Operations'],
     ['  Section       :', 'Nama section: Cutting / Treatment / Preparation / PC Sewing / Sewing / Assembly / Packing / Stockfit'],

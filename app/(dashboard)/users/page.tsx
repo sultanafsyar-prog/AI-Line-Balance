@@ -44,7 +44,7 @@ export default function UsersPage() {
       setUsers(u)
       setLines(l.map((line: any) => ({ id: line.id, building: line.building, lineNo: line.lineNo })))
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [])
 
   function openCreate() { setForm(emptyForm()); setError(''); setModal('create') }

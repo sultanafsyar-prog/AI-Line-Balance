@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { BUILDINGS, LINE_TYPES } from '@/lib/utils'
+import { BUILDINGS } from '@/lib/utils'
 
 type LineStatus = {
   id: string; building: string; lineNo: number; lineType: string
@@ -28,12 +28,14 @@ export default function MonitorPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)
 
   const fetchData = useCallback(async () => {
-    const res = await fetch('/api/monitor')
-    if (res.ok) {
-      const data = await res.json()
-      setLines(data)
-      setLastUpdate(new Date())
-    }
+    try {
+      const res = await fetch('/api/monitor')
+      if (res.ok) {
+        const data = await res.json()
+        setLines(data)
+        setLastUpdate(new Date())
+      }
+    } catch {}
     setLoading(false)
   }, [])
 
@@ -150,7 +152,7 @@ export default function MonitorPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
             {bLines.sort((a, b) => a.lineNo - b.lineNo).map(line => {
               const st = statusColor(line.ller, !!line.model, !!line.latestActual)
-              const tph = line.model ? LINE_TYPES[line.model.lineType as 'MINI' | 'BIG'].tph : 100
+              const tph = line.targetPPH ?? 0
               return (
                 <Link key={line.id} href={`/lines/${line.building}/${line.lineNo}`}
                   className={`card border ${st.border} ${st.bg} p-3 hover:shadow-md transition-shadow`}>

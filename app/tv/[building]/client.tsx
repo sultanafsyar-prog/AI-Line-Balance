@@ -21,7 +21,7 @@ interface Props {
   sections: string[]
 }
 
-type ViewMode = 'floor' | 'manager' | 'ie'
+type ViewMode = 'floor' | 'manager' | 'ie' | 'ai'
 
 // ── Warna ────────────────────────────────────────────────────
 const C = {
@@ -103,35 +103,86 @@ function calcYamSummaries(model: any, sections: string[]): YamSummary[] {
     }, 0)
     return {
       name: secName, taktTime: sec.taktTime, stdMP: sec.stdMP,
-      theorMP: parseFloat(theorMP.toFixed(2)),
-      maxEffCT: parseFloat(maxEffCT.toFixed(2)),
+      theorMP: parseFloat(theorMP.toFixed(1)),
+      maxEffCT: parseFloat(maxEffCT.toFixed(1)),
     }
   }).filter(Boolean) as YamSummary[]
 }
 
 // ── Hitung metrik aktual per line ───────────────────────────
-function calcLine(line: LineData, sections: string[]) {
+//
+// PENTING — KONSEP IE:
+// Di Building G (Stockfit area), setiap LINE fisik = SATU section
+// (Buffing line, UV line, Stockfit line — operatornya beda total: 12/5/43).
+// Maka untuk Building G, standard MP / theo MP / takt / PPH HARUS dari
+// section yang dijalankan line itu saja, BUKAN jumlah semua section.
+//
+// Di building lain (sewing/assembly), satu line menjalankan semua section
+// secara berurutan, jadi sum across sections = total line yang benar.
+//
+// Deteksi section aktif Building G: section dengan total output terbesar
+// dari actuals hari ini. Kalau belum ada actuals, fallback ke 'Stockfit'
+// (mayoritas line di gedung G adalah Stockfit).
+function calcLine(line: LineData, sections: string[], building: string) {
   const model   = line.assignments[0]?.model
   const actuals = line.actuals
   const daily   = line.dailyTargets?.[0] ?? null
   const yamSummaries = model ? calcYamSummaries(model, sections) : []
 
-  const primaryYam =
+  // ─── ACTIVE SECTION DETECTION (Building G only) ──────────
+  const isStockfitBuilding = building === 'G'
+  let activeSection: string | null = null
+  if (isStockfitBuilding && yamSummaries.length > 0) {
+    if (actuals.length > 0) {
+      const sumByName = new Map<string, number>()
+      for (const a of actuals) {
+        const sn = a.section?.name
+        if (!sn) continue
+        sumByName.set(sn, (sumByName.get(sn) ?? 0) + (a.output ?? 0) + (a.mpActual ?? 0))
+      }
+      let best = '', bestVal = -1
+      for (const [sn, val] of sumByName) {
+        if (val > bestVal) { best = sn; bestVal = val }
+      }
+      // Hanya pakai hasil deteksi kalau memang section itu ada di yamSummaries
+      if (best && yamSummaries.some(y => y.name === best)) activeSection = best
+    }
+    // Fallback: Stockfit kalau ada di yamSummaries, kalau tidak ambil yamSummaries pertama
+    if (!activeSection) {
+      activeSection = yamSummaries.find(y => y.name === 'Stockfit')?.name
+        ?? yamSummaries[0]?.name
+        ?? null
+    }
+  }
+
+  // ─── PILIH yamSummary REFERENSI ───────────────────────────
+  const activeYam = activeSection
+    ? yamSummaries.find(y => y.name === activeSection) ?? null
+    : null
+
+  const primaryYam = activeYam ?? (
        yamSummaries.find(y => y.name === 'Stockfit')
     ?? yamSummaries.find(y => y.name === 'Assembly')
     ?? yamSummaries.find(y => y.name === 'Sewing')
     ?? yamSummaries[0] ?? null
+  )
 
-  const theoPPH    = primaryYam ? Math.round(3600 / primaryYam.taktTime) : 0
-  const taktStd    = primaryYam ? primaryYam.taktTime : 0
-  const theoMPTotal = yamSummaries.reduce((s, y) => s + y.theorMP, 0)
-  const stdMPTotal  = yamSummaries.reduce((s, y) => s + y.stdMP, 0)
+  const theoPPH = primaryYam ? Math.round(3600 / primaryYam.taktTime) : 0
+  const taktStd = primaryYam ? primaryYam.taktTime : 0
+
+  // STD MP / THEO MP — section-only kalau activeSection set
+  const theoMPTotal = activeYam
+    ? activeYam.theorMP
+    : yamSummaries.reduce((s, y) => s + y.theorMP, 0)
+  const stdMPTotal = activeYam
+    ? activeYam.stdMP
+    : parseFloat(yamSummaries.reduce((s, y) => s + y.stdMP, 0).toFixed(1))
 
   const baseEmpty = {
     model: model?.name ?? null, article: model?.article ?? null,
     imageUrl: model?.imageUrl ?? null, dailyTarget: daily,
     taktStd, theoPPH,
-    theoMPTotal: parseFloat(theoMPTotal.toFixed(2)),
+    theoMPTotal: parseFloat(theoMPTotal.toFixed(1)),
     stdMPTotal,
     ller: 0, lastHourOutput: 0, lastHour: null as number | null, totOut: 0,
     avgPPH: 0, actCT: 0, avgMPActual: 0, gap: 0, totDT: 0, totDef: 0,
@@ -140,22 +191,38 @@ function calcLine(line: LineData, sections: string[]) {
     yamSummaries, primaryYam,
     sectionActuals: {} as Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }>,
     targetPct: 0, hoursWithData: 0,
+    activeSection,
   }
 
   if (!model || actuals.length === 0) return baseEmpty
 
-  // Output line per jam = MAX di antara section pada jam itu (bukan dijumlah)
-  const hourMaxOut = new Map<number, number>()
-  for (const a of actuals) {
-    const cur = hourMaxOut.get(a.hour) ?? 0
-    if ((a.output ?? 0) > cur) hourMaxOut.set(a.hour, a.output ?? 0)
+  // ─── FILTER ACTUALS ke section aktif (untuk Building G) ───
+  const relevantActuals = activeSection
+    ? actuals.filter((a: any) => a.section?.name === activeSection)
+    : actuals
+
+  // Output per jam:
+  // - activeSection set: langsung ambil output section itu per jam
+  // - tidak: ambil MAX antar section per jam (bukan dijumlah, hindari double-count)
+  const hourOut = new Map<number, number>()
+  if (activeSection) {
+    for (const a of relevantActuals) {
+      hourOut.set(a.hour, (hourOut.get(a.hour) ?? 0) + (a.output ?? 0))
+    }
+  } else {
+    for (const a of relevantActuals) {
+      const cur = hourOut.get(a.hour) ?? 0
+      if ((a.output ?? 0) > cur) hourOut.set(a.hour, a.output ?? 0)
+    }
   }
-  const hourEntries  = Array.from(hourMaxOut.entries()).sort((a, b) => a[0] - b[0])
+  const hourEntries  = Array.from(hourOut.entries()).sort((a, b) => a[0] - b[0])
   const hourlyOutputs = hourEntries.map(([, v]) => v)
 
-  // MP per jam = total MP semua section yang aktif pada jam itu
+  // MP per jam:
+  // - activeSection set: MP section itu per jam (tidak dijumlah lintas section)
+  // - tidak: total MP semua section per jam (line yang menjalankan semua section sekaligus)
   const hourMP = new Map<number, number>()
-  for (const a of actuals) {
+  for (const a of relevantActuals) {
     hourMP.set(a.hour, (hourMP.get(a.hour) ?? 0) + (a.mpActual ?? 0))
   }
   const mpValues = Array.from(hourMP.values())
@@ -170,15 +237,17 @@ function calcLine(line: LineData, sections: string[]) {
   const avgPPH = hourlyOutputs.length > 0 ? Math.round(totOut / hourlyOutputs.length) : 0
   const actCT  = avgPPH > 0 ? parseFloat((3600 / avgPPH).toFixed(1)) : 0
 
-  // LLER MP-based
-  const ller = avgMPActual > 0 && theoMPTotal > 0
-    ? Math.round((theoMPTotal / avgMPActual) * 100) : 0
+  // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
+  // Pakai avgPPH (rata-rata output/jam) sebagai actualPPH supaya stabil terhadap fluktuasi 1 jam.
+  const ller = (avgPPH > 0 && avgMPActual > 0 && theoPPH > 0 && theoMPTotal > 0)
+    ? Math.round((avgPPH * avgMPActual) / (theoPPH * theoMPTotal) * 100) : 0
 
-  const gap = lastHourOutput - theoPPH
-  const totDT  = actuals.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
-  const totDef = actuals.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
+  const gap    = lastHourOutput - theoPPH
+  const totDT  = relevantActuals.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
+  const totDef = relevantActuals.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
 
-  // Per-section actuals dengan LLER per section
+  // Per-section actuals — selalu hitung semua untuk informasi tambahan;
+  // view yang memutuskan mana yang ditampilkan.
   const sectionActuals: Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }> = {}
   for (const ys of yamSummaries) {
     const sa = actuals.filter((a: any) => a.section?.name === ys.name)
@@ -186,7 +255,10 @@ function calcLine(line: LineData, sections: string[]) {
     const avgMP   = sa.reduce((s: number, a: any) => s + (a.mpActual ?? 0), 0) / sa.length
     const avgOut  = sa.reduce((s: number, a: any) => s + (a.output ?? 0), 0) / sa.length
     const lastOut = sa.sort((a: any, b: any) => b.hour - a.hour)[0]?.output ?? 0
-    const secLler = avgMP > 0 && ys.theorMP > 0 ? Math.round((ys.theorMP / avgMP) * 100) : 0
+    // LLER per section pakai formula produktivitas yang sama
+    const secTheoPPH = ys.taktTime > 0 ? 3600 / ys.taktTime : 0
+    const secLler = (avgOut > 0 && avgMP > 0 && secTheoPPH > 0 && ys.theorMP > 0)
+      ? Math.round((avgOut * avgMP) / (secTheoPPH * ys.theorMP) * 100) : 0
     sectionActuals[ys.name] = {
       avgMP: parseFloat(avgMP.toFixed(1)),
       avgOut: Math.round(avgOut),
@@ -264,9 +336,52 @@ export default function TVClient({ building, lines, sections }: Props) {
   const [fadeIn, setFadeIn]       = useState(true)
   const [mode, setMode]           = useState<ViewMode>('floor')
   const [autoRotate, setAutoRotate] = useState(true)
-  const { t }                     = useI18n()
+  const { t, locale }             = useI18n()
 
-  const lineMetrics = lines.map(l => ({ line: l, m: calcLine(l, sections) }))
+  // ── AI Insight state ──────────────────────────────────────
+  type AIInsight = {
+    status: 'ok' | 'warning' | 'critical'
+    generatedAt: string
+    locale: string
+    building: string
+    linesAnalyzed: number
+    fromCache?: boolean
+    issues: Array<{ line: string; severity: 'high' | 'medium'; title: string; detail: string }>
+    patterns: Array<{ icon: string; title: string; detail: string }>
+    mpAnalysis: { summary: string; items: Array<{ line: string; status: 'good' | 'over' | 'under'; detail: string }> }
+    recommendations: Array<{ priority: 'high' | 'medium' | 'low'; text: string }>
+  }
+  const [aiData, setAiData]     = useState<AIInsight | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError]   = useState<string | null>(null)
+
+  // Fetch AI insight ketika mode AI aktif, atau locale/building berubah
+  const fetchAI = async (force = false) => {
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      const url = `/api/tv-insights?building=${building}&locale=${locale}${force ? '&refresh=true' : ''}`
+      const res = await fetch(url)
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.error ?? `HTTP ${res.status}`)
+      }
+      const data = await res.json()
+      setAiData(data)
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Gagal mengambil insight AI')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // Auto-fetch ketika mode = ai, atau locale berubah saat di mode ai
+  useEffect(() => {
+    if (mode === 'ai') fetchAI(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, locale, building])
+
+  const lineMetrics = lines.map(l => ({ line: l, m: calcLine(l, sections, building) }))
   const insights    = lineMetrics.map(({ line, m }) => genInsight(line.lineNo, m))
 
   // Clock — initialize only after mount to avoid hydration mismatch
@@ -286,25 +401,29 @@ export default function TVClient({ building, lines, sections }: Props) {
     return () => clearInterval(id)
   }, [insights.length])
 
-  // Auto-rotate mode every 20s (staggered from reload)
+  // Auto-rotate mode every 20s (45s untuk AI mode karena butuh waktu baca)
   useEffect(() => {
     if (!autoRotate) return
-    const id = setInterval(() => {
+    let id: ReturnType<typeof setTimeout>
+    const tick = () => {
       setMode(m => {
-        const next = m === 'floor' ? 'manager' : m === 'manager' ? 'ie' : 'floor'
-        // Persist mode to survive page reload
+        const next: ViewMode = m === 'floor' ? 'manager' : m === 'manager' ? 'ie' : m === 'ie' ? 'ai' : 'floor'
         try { sessionStorage.setItem('tv-mode', next) } catch {}
+        // AI mode dapat waktu lebih lama (45s vs 20s)
+        const nextDelay = next === 'ai' ? 45000 : 20000
+        id = setTimeout(tick, nextDelay)
         return next
       })
-    }, 20000)
-    return () => clearInterval(id)
+    }
+    id = setTimeout(tick, 20000)
+    return () => clearTimeout(id)
   }, [autoRotate])
 
   // Restore mode from sessionStorage on mount
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem('tv-mode') as ViewMode | null
-      if (saved && ['floor', 'manager', 'ie'].includes(saved)) setMode(saved)
+      if (saved && ['floor', 'manager', 'ie', 'ai'].includes(saved)) setMode(saved)
     } catch {}
   }, [])
 
@@ -365,8 +484,8 @@ export default function TVClient({ building, lines, sections }: Props) {
           display: 'flex', background: C.card, border: `1px solid ${C.border}`,
           borderRadius: '8px', padding: '3px', gap: '2px',
         }}>
-          {(['floor', 'manager', 'ie'] as ViewMode[]).map(vm => {
-            const labels = { floor: 'Floor', manager: 'Manager', ie: 'IE' }
+          {(['floor', 'manager', 'ie', 'ai'] as ViewMode[]).map(vm => {
+            const labels: Record<ViewMode, string> = { floor: 'Floor', manager: 'Manager', ie: 'IE', ai: 'AI' }
             const active = mode === vm
             return (
               <button key={vm}
@@ -378,7 +497,9 @@ export default function TVClient({ building, lines, sections }: Props) {
                   padding: '5px 10px', borderRadius: '5px',
                   fontSize: '11px', fontWeight: 600,
                   transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center', gap: '4px',
                 }}>
+                {vm === 'ai' && <img src="/claude-logo.svg" alt="AI" width="16" height="16" style={{ display: 'block' }} />}
                 {labels[vm]}
               </button>
             )
@@ -559,29 +680,48 @@ export default function TVClient({ building, lines, sections }: Props) {
                     <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.gray, textAlign: 'center', letterSpacing: '0.5px' }}>GAP</div>
                   </div>
 
-                  {/* PPH row */}
-                  <div style={{
-                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
-                    borderTop: `1px solid rgba(255,255,255,0.06)`, alignItems: 'center',
-                  }}>
-                    <div style={{ padding: '6px 8px', fontSize: '10px', color: C.dim, fontWeight: 600 }}>PPH</div>
-                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '20px', fontWeight: 800, color: C.teal }}>{m.theoPPH || '—'}</span>
-                    </div>
-                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '20px', fontWeight: 800, color: m.hasData ? C.white : C.gray }}>
-                        {m.hasData ? m.lastHourOutput : '—'}
-                      </span>
-                      {m.lastHour !== null && <div style={{ fontSize: '8px', color: C.gray }}>jam {m.lastHour}</div>}
-                    </div>
-                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
-                      {m.hasData ? (
-                        <span style={{ fontSize: '16px', fontWeight: 700, color: gapColor(m.gap) }}>
-                          {m.gap >= 0 ? '+' : ''}{m.gap}
-                        </span>
-                      ) : <span style={{ color: C.gray }}>—</span>}
-                    </div>
-                  </div>
+                  {/* PPH/MP row — Produktivitas per orang per jam */}
+                  {(() => {
+                    const stdPPHperMP = m.theoMPTotal > 0 ? m.theoPPH / m.theoMPTotal : 0
+                    const actPPHperMP = m.avgMPActual > 0 && m.lastHourOutput > 0
+                      ? m.lastHourOutput / m.avgMPActual : 0
+                    const ppMpGap = actPPHperMP - stdPPHperMP
+                    const ppMpGapColor = ppMpGap >= -0.3 ? C.green : ppMpGap >= -0.8 ? C.amber : C.red
+                    return (
+                      <div style={{
+                        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                        borderTop: `1px solid rgba(255,255,255,0.06)`, alignItems: 'center',
+                      }}>
+                        <div style={{ padding: '6px 8px' }}>
+                          <div style={{ fontSize: '10px', color: C.dim, fontWeight: 600 }}>PPH/MP</div>
+                          <div style={{ fontSize: '8px', color: C.gray }}>prs/jam/orang</div>
+                        </div>
+                        <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 800, color: C.teal, lineHeight: 1 }}>
+                            {stdPPHperMP > 0 ? stdPPHperMP.toFixed(1) : '—'}
+                          </div>
+                          <div style={{ fontSize: '8px', color: C.gray, marginTop: '2px' }}>
+                            {m.theoPPH > 0 ? `(${m.theoPPH} prs/jam)` : ''}
+                          </div>
+                        </div>
+                        <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 800, color: m.hasData ? C.white : C.gray, lineHeight: 1 }}>
+                            {m.hasData && actPPHperMP > 0 ? actPPHperMP.toFixed(1) : '—'}
+                          </div>
+                          <div style={{ fontSize: '8px', color: C.gray, marginTop: '2px' }}>
+                            {m.hasData ? `(${m.lastHourOutput} prs · jam ${m.lastHour})` : ''}
+                          </div>
+                        </div>
+                        <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          {m.hasData && actPPHperMP > 0 ? (
+                            <span style={{ fontSize: '15px', fontWeight: 700, color: ppMpGapColor }}>
+                              {ppMpGap >= 0 ? '+' : ''}{ppMpGap.toFixed(1)}
+                            </span>
+                          ) : <span style={{ color: C.gray }}>—</span>}
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {/* Cycle Time row */}
                   <div style={{
@@ -598,8 +738,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                       {m.hasData && m.actCT > 0 ? (
                         <span style={{
                           fontSize: '16px', fontWeight: 700,
-                          color: m.taktStd > 0 && m.actCT <= m.taktStd * 1.1 ? C.green
-                               : m.taktStd > 0 && m.actCT <= m.taktStd * 1.3 ? C.amber : C.red,
+                          color: m.taktStd > 0 && m.actCT <= m.taktStd ? C.green : C.red,
                         }}>{m.actCT}s</span>
                       ) : <span style={{ color: C.gray }}>—</span>}
                     </div>
@@ -607,7 +746,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                       {m.hasData && m.actCT > 0 && m.taktStd > 0 ? (
                         <span style={{
                           fontSize: '13px', fontWeight: 600,
-                          color: m.actCT <= m.taktStd * 1.1 ? C.green : m.actCT <= m.taktStd * 1.3 ? C.amber : C.red,
+                          color: m.actCT <= m.taktStd ? C.green : C.red,
                         }}>
                           {m.actCT <= m.taktStd ? '✓' : `+${(m.actCT - m.taktStd).toFixed(1)}s`}
                         </span>
@@ -623,10 +762,10 @@ export default function TVClient({ building, lines, sections }: Props) {
                     <div style={{ padding: '6px 8px', fontSize: '10px', color: C.dim, fontWeight: 600 }}>MP</div>
                     <div style={{ padding: '6px 8px', textAlign: 'center' }}>
                       <span style={{ fontSize: '16px', fontWeight: 700, color: C.teal }}>
-                        {m.stdMPTotal > 0 ? m.stdMPTotal : '—'}
+                        {m.theoMPTotal > 0 ? parseFloat(m.theoMPTotal.toFixed(1)) : '—'}
                       </span>
-                      {m.theoMPTotal > 0 && m.theoMPTotal !== m.stdMPTotal && (
-                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>({m.theoMPTotal})</span>
+                      {m.stdMPTotal > 0 && m.stdMPTotal !== m.theoMPTotal && (
+                        <span style={{ fontSize: '9px', color: C.gray, marginLeft: '3px' }}>std {parseFloat(m.stdMPTotal.toFixed(1))}</span>
                       )}
                     </div>
                     <div style={{ padding: '6px 8px', textAlign: 'center' }}>
@@ -647,17 +786,23 @@ export default function TVClient({ building, lines, sections }: Props) {
                   </div>
                 </div>
 
-                {/* Section breakdown */}
-                {m.yamSummaries.length > 0 && m.hasData && (
+                {/* Section breakdown — kalau activeSection set, hanya tampil section itu */}
+                {m.yamSummaries.length > 0 && m.hasData && (() => {
+                  const sectionsToShow = m.activeSection
+                    ? m.yamSummaries.filter(y => y.name === m.activeSection)
+                    : m.yamSummaries
+                  return (
                   <div style={{
                     background: la.stripe, borderRadius: '8px',
                     padding: '6px 8px', border: `1px solid ${la.accentBd}`,
                   }}>
                     <div style={{ fontSize: '9px', color: la.accent, fontWeight: 700, marginBottom: '4px', letterSpacing: '0.5px' }}>
-                      SECTION — STD MP / ACT MP / LLER
+                      {m.activeSection
+                        ? `SECTION AKTIF: ${m.activeSection} — THEO MP / ACT MP / LLER`
+                        : 'SECTION — THEO MP / ACT MP / LLER'}
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {m.yamSummaries.map(ys => {
+                      {sectionsToShow.map(ys => {
                         const act = m.sectionActuals[ys.name]
                         const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
                         return (
@@ -669,7 +814,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                             display: 'flex', gap: '4px', alignItems: 'center',
                           }}>
                             <span style={{ color: C.white, fontWeight: 600, fontSize: '9px' }}>{ys.name}</span>
-                            <span style={{ color: C.teal, fontWeight: 700 }}>{ys.stdMP}</span>
+                            <span style={{ color: C.teal, fontWeight: 700 }}>{parseFloat(ys.theorMP.toFixed(1))}</span>
                             <span style={{ color: C.gray }}>/</span>
                             <span style={{ color: act ? C.white : C.gray, fontWeight: 600 }}>{act ? act.avgMP : '—'}</span>
                             {act && (
@@ -683,7 +828,8 @@ export default function TVClient({ building, lines, sections }: Props) {
                       })}
                     </div>
                   </div>
-                )}
+                  )
+                })()}
 
                 {/* Daily target + downtime/defect row */}
                 <div style={{ display: 'grid', gridTemplateColumns: m.dailyTarget ? '1fr auto' : '1fr', gap: '8px', alignItems: 'end' }}>
@@ -958,10 +1104,10 @@ export default function TVClient({ building, lines, sections }: Props) {
             { label: 'Takt',    align: 'center', color: C.teal },
             { label: 'Std MP',  align: 'center', color: C.teal },
             { label: 'Theo MP', align: 'center', color: C.teal },
-            { label: 'PPH',     align: 'center', color: C.teal },
+            { label: 'PPH/MP',  align: 'center', color: C.teal },
             { label: 'MP',      align: 'center', color: C.blue },
             { label: 'CT',      align: 'center', color: C.blue },
-            { label: 'PPH',     align: 'center', color: C.blue },
+            { label: 'PPH/MP',  align: 'center', color: C.blue },
             { label: 'Total',   align: 'center', color: C.blue },
             { label: 'LLER',    align: 'center', color: C.gray },
             { label: 'Status',  align: 'center', color: C.gray },
@@ -1030,13 +1176,20 @@ export default function TVClient({ building, lines, sections }: Props) {
                     {m.taktStd > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.taktStd}<span style={{ fontSize: '10px', color: C.dim }}>s</span></div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    {m.stdMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.stdMPTotal}</div> : <span style={{ color: C.gray }}>—</span>}
+                    {m.stdMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.stdMPTotal.toFixed(1))}</div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    {m.theoMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.theoMPTotal}</div> : <span style={{ color: C.gray }}>—</span>}
+                    {m.theoMPTotal > 0 ? <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{parseFloat(m.theoMPTotal.toFixed(1))}</div> : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    {m.theoPPH > 0 ? (<><div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>{m.theoPPH}</div><div style={{ fontSize: '9px', color: C.gray }}>prs/jam</div></>) : <span style={{ color: C.gray }}>—</span>}
+                    {m.theoPPH > 0 && m.theoMPTotal > 0 ? (
+                      <>
+                        <div style={{ fontSize: '17px', fontWeight: 700, color: C.teal }}>
+                          {(m.theoPPH / m.theoMPTotal).toFixed(1)}
+                        </div>
+                        <div style={{ fontSize: '9px', color: C.gray }}>{m.theoPPH} prs/jam</div>
+                      </>
+                    ) : <span style={{ color: C.gray }}>—</span>}
                   </div>
 
                   {/* AKTUAL */}
@@ -1056,17 +1209,18 @@ export default function TVClient({ building, lines, sections }: Props) {
                     {m.hasData && m.actCT > 0 ? (
                       <div style={{
                         fontSize: '17px', fontWeight: 700,
-                        color: m.taktStd > 0 && m.actCT <= m.taktStd * 1.1 ? C.green
-                             : m.taktStd > 0 && m.actCT <= m.taktStd * 1.3 ? C.amber : C.red,
+                        color: m.taktStd > 0 && m.actCT <= m.taktStd ? C.green : C.red,
                       }}>{m.actCT}<span style={{ fontSize: '10px', color: C.dim }}>s</span></div>
                     ) : <span style={{ color: C.gray }}>—</span>}
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    {m.hasData ? (
+                    {m.hasData && m.avgMPActual > 0 && m.lastHourOutput > 0 ? (
                       <>
-                        <div style={{ fontSize: '17px', fontWeight: 700, color: sc.text }}>{m.lastHourOutput}</div>
+                        <div style={{ fontSize: '17px', fontWeight: 700, color: sc.text }}>
+                          {(m.lastHourOutput / m.avgMPActual).toFixed(1)}
+                        </div>
                         <div style={{ fontSize: '9px', color: C.gray }}>
-                          gap <span style={{ color: gapColor(m.gap), fontWeight: 600 }}>{m.gap >= 0 ? '+' : ''}{m.gap}</span>
+                          {m.lastHourOutput} prs · <span style={{ color: gapColor(m.gap), fontWeight: 600 }}>{m.gap >= 0 ? '+' : ''}{m.gap}</span>
                         </div>
                       </>
                     ) : <span style={{ color: C.gray }}>—</span>}
@@ -1097,13 +1251,23 @@ export default function TVClient({ building, lines, sections }: Props) {
                   </div>
                 </div>
 
-                {/* Section chips with LLER per section */}
-                {m.yamSummaries.length > 0 && (
+                {/* Section chips with LLER per section — kalau activeSection set, hanya tampil section itu */}
+                {m.yamSummaries.length > 0 && (() => {
+                  const sectionsToShow = m.activeSection
+                    ? m.yamSummaries.filter(y => y.name === m.activeSection)
+                    : m.yamSummaries
+                  return (
                   <div style={{
                     padding: '0 12px 8px',
-                    display: 'flex', gap: '5px', flexWrap: 'wrap',
+                    display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center',
                   }}>
-                    {m.yamSummaries.map(ys => {
+                    {m.activeSection && (
+                      <span style={{
+                        fontSize: '9px', color: C.teal, fontWeight: 700,
+                        letterSpacing: '0.5px', marginRight: '4px',
+                      }}>SECTION AKTIF:</span>
+                    )}
+                    {sectionsToShow.map(ys => {
                       const act = m.sectionActuals[ys.name]
                       const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
                       return (
@@ -1119,11 +1283,11 @@ export default function TVClient({ building, lines, sections }: Props) {
                           <span>MP <b style={{ color: C.teal }}>{ys.stdMP}</b>/<b style={{ color: act ? C.white : C.gray }}>{act ? act.avgMP : '—'}</b>
                             {act && Math.abs(act.mpGap) > 0.5 && (
                               <span style={{ color: act.mpGap < 0 ? C.red : C.amber, fontWeight: 600, marginLeft: '2px' }}>
-                                ({act.mpGap > 0 ? '+' : ''}{act.mpGap})
+                                ({act.mpGap > 0 ? '+' : ''}{parseFloat(act.mpGap.toFixed(1))})
                               </span>
                             )}
                           </span>
-                          <span>Theo <b style={{ color: C.amber }}>{ys.theorMP}</b></span>
+                          <span>Theo <b style={{ color: C.amber }}>{parseFloat(ys.theorMP.toFixed(1))}</b></span>
                           {act && (
                             <span>LLER <b style={{ color: secSc.text }}>{act.ller}%</b></span>
                           )}
@@ -1131,10 +1295,283 @@ export default function TVClient({ building, lines, sections }: Props) {
                       )
                     })}
                   </div>
-                )}
+                  )
+                })()}
               </div>
             )
           })}
+        </div>
+      </div>
+    )
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // MODE: AI — Strukturisasi analisis AI dalam 4 kartu
+  // ════════════════════════════════════════════════════════════
+  const AIView = () => {
+    // Status banner color
+    const statusConfig = {
+      ok:       { color: C.green, bg: C.greenBg, bd: C.greenBd, label: 'SEHAT',   icon: '✓' },
+      warning:  { color: C.amber, bg: C.amberBg, bd: C.amberBd, label: 'WARNING', icon: '⚠' },
+      critical: { color: C.red,   bg: C.redBg,   bd: C.redBd,   label: 'KRITIS',  icon: '⛔' },
+    }
+    const sc = aiData ? statusConfig[aiData.status] : statusConfig.ok
+
+    // Loading state
+    if (aiLoading && !aiData) {
+      return (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: '14px',
+          background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px',
+        }}>
+          <div style={{
+            width: '52px', height: '52px',
+            border: `4px solid ${C.border}`, borderTopColor: C.teal,
+            borderRadius: '50%', animation: 'spin 1s linear infinite',
+          }} />
+          <div style={{ fontSize: '14px', color: C.dim }}><img src="/claude-logo.svg" alt="AI" width="16" height="16" /> AI sedang menganalisis data line...</div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )
+    }
+
+    // Error state
+    if (aiError) {
+      return (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: '12px',
+          background: C.surface, border: `1px solid ${C.redBd}`, borderRadius: '10px',
+          padding: '20px',
+        }}>
+          <div style={{ fontSize: '40px' }}>⚠</div>
+          <div style={{ fontSize: '14px', color: C.red, fontWeight: 600 }}>AI Insight tidak tersedia</div>
+          <div style={{ fontSize: '11px', color: C.dim, textAlign: 'center', maxWidth: '400px' }}>{aiError}</div>
+          <button onClick={() => fetchAI(true)} style={{
+            background: C.teal, color: '#fff', border: 'none',
+            padding: '8px 18px', borderRadius: '6px',
+            fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+          }}>🔄 Coba Lagi</button>
+        </div>
+      )
+    }
+
+    // Empty/no data state
+    if (!aiData || aiData.linesAnalyzed === 0) {
+      return (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: '12px',
+          background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px',
+        }}>
+          <div style={{ fontSize: '40px' }}>⏳</div>
+          <div style={{ fontSize: '15px', color: C.white, fontWeight: 600 }}>
+            {aiData?.patterns[0]?.title ?? 'Belum ada data input hari ini'}
+          </div>
+          <div style={{ fontSize: '12px', color: C.dim }}>
+            {aiData?.patterns[0]?.detail ?? 'Menunggu input dari Team Leader untuk analisis AI'}
+          </div>
+        </div>
+      )
+    }
+
+    // Format generated time
+    const genTime = new Date(aiData.generatedAt).toLocaleTimeString('id-ID', {
+      hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
+    })
+
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden' }}>
+
+        {/* ── Status Banner + Controls ── */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: sc.bg, border: `1px solid ${sc.bd}`, borderRadius: '10px',
+          padding: '10px 16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ fontSize: '24px' }}>{sc.icon}</div>
+            <div>
+              <div style={{ fontSize: '11px', color: C.dim, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Status Gedung {building}
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: sc.color, lineHeight: 1.1 }}>
+                {sc.label}
+              </div>
+            </div>
+            <div style={{ width: '1px', background: C.border, height: '36px', margin: '0 6px' }} />
+            <div>
+              <div style={{ fontSize: '11px', color: C.dim }}>Lines dianalisis</div>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: C.white }}>{aiData.linesAnalyzed}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '10px', color: C.gray }}>
+                {aiData.fromCache ? '📦 Cache' : '🆕 Fresh'}
+              </div>
+              <div style={{ fontSize: '11px', color: C.dim }}>{genTime} WIB</div>
+            </div>
+            <button onClick={() => fetchAI(true)}
+              disabled={aiLoading}
+              style={{
+                background: aiLoading ? C.border : C.teal, color: '#fff',
+                border: 'none', padding: '6px 12px', borderRadius: '6px',
+                fontSize: '11px', fontWeight: 600,
+                cursor: aiLoading ? 'wait' : 'pointer',
+              }}>
+              {aiLoading ? '⏳' : '🔄'} Regenerate
+            </button>
+          </div>
+        </div>
+
+        {/* ── 4 KARTU AI ── */}
+        <div style={{
+          flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr',
+          gap: '8px', overflow: 'hidden',
+        }}>
+
+          {/* Kartu 1: Masalah Kritis (atau Sehat) */}
+          <div style={{
+            background: aiData.issues.length === 0 ? C.greenBg : C.redBg,
+            border: `1px solid ${aiData.issues.length === 0 ? C.greenBd : C.redBd}`,
+            borderRadius: '10px', padding: '12px',
+            display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>{aiData.issues.length === 0 ? '🟢' : '🔴'}</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: C.white }}>
+                {aiData.issues.length === 0 ? 'Semua Line Sehat' : `Masalah Kritis (${aiData.issues.length})`}
+              </span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {aiData.issues.length === 0 ? (
+                <div style={{ fontSize: '12px', color: C.dim, padding: '6px 0' }}>
+                  Tidak ditemukan masalah signifikan pada line yang aktif saat ini.
+                </div>
+              ) : aiData.issues.map((issue, i) => (
+                <div key={i} style={{
+                  background: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '6px 9px',
+                  borderLeft: `3px solid ${issue.severity === 'high' ? C.red : C.amber}`,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.white }}>
+                      {issue.line} · {issue.title}
+                    </span>
+                    <span style={{ fontSize: '9px', color: issue.severity === 'high' ? C.red : C.amber, fontWeight: 700, flexShrink: 0 }}>
+                      {issue.severity === 'high' ? 'HIGH' : 'MED'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: C.dim, marginTop: '2px', lineHeight: 1.4 }}>
+                    {issue.detail}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Kartu 2: Pattern & Tren */}
+          <div style={{
+            background: C.card, border: `1px solid ${C.border}`,
+            borderRadius: '10px', padding: '12px',
+            display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>📈</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: C.white }}>Pattern & Tren</span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {aiData.patterns.length === 0 ? (
+                <div style={{ fontSize: '12px', color: C.dim }}>Belum ada pattern signifikan terdeteksi.</div>
+              ) : aiData.patterns.map((p, i) => (
+                <div key={i} style={{
+                  background: 'rgba(255,255,255,0.04)', borderRadius: '6px', padding: '6px 9px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '14px' }}>{p.icon}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: C.white }}>{p.title}</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: C.dim, marginTop: '2px', lineHeight: 1.4 }}>
+                    {p.detail}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Kartu 3: MP Analysis */}
+          <div style={{
+            background: C.card, border: `1px solid ${C.border}`,
+            borderRadius: '10px', padding: '12px',
+            display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>👥</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: C.white }}>Analisis MP</span>
+            </div>
+            <div style={{ fontSize: '11px', color: C.dim, lineHeight: 1.4, padding: '4px 0' }}>
+              {aiData.mpAnalysis.summary}
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {aiData.mpAnalysis.items.map((item, i) => {
+                const sColor = item.status === 'good' ? C.green
+                  : item.status === 'over' ? C.amber : C.red
+                const sLabel = item.status === 'good' ? '✓' : item.status === 'over' ? '↑' : '↓'
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '6px',
+                    background: 'rgba(255,255,255,0.04)', borderRadius: '5px', padding: '4px 8px',
+                  }}>
+                    <span style={{
+                      flexShrink: 0, width: '20px', textAlign: 'center',
+                      fontSize: '13px', fontWeight: 700, color: sColor,
+                    }}>{sLabel}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: C.white, minWidth: '28px' }}>{item.line}</span>
+                    <span style={{ fontSize: '11px', color: C.dim, flex: 1, lineHeight: 1.4 }}>{item.detail}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Kartu 4: Rekomendasi */}
+          <div style={{
+            background: `linear-gradient(135deg, ${C.tealBg}, ${C.card})`,
+            border: `1px solid ${C.tealBd}`,
+            borderRadius: '10px', padding: '12px',
+            display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>💡</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: C.white }}>Rekomendasi Tindakan</span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {aiData.recommendations.length === 0 ? (
+                <div style={{ fontSize: '12px', color: C.dim }}>Tidak ada rekomendasi spesifik — pertahankan kinerja saat ini.</div>
+              ) : aiData.recommendations.map((rec, i) => {
+                const pColor = rec.priority === 'high' ? C.red
+                  : rec.priority === 'medium' ? C.amber : C.teal
+                return (
+                  <div key={i} style={{
+                    background: 'rgba(0,0,0,0.2)', borderRadius: '6px',
+                    padding: '6px 9px',
+                    borderLeft: `3px solid ${pColor}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '2px' }}>
+                      <span style={{
+                        fontSize: '9px', fontWeight: 700, color: pColor,
+                        textTransform: 'uppercase', letterSpacing: '0.5px',
+                      }}>
+                        {rec.priority === 'high' ? '⚡ TINGGI' : rec.priority === 'medium' ? '◆ SEDANG' : '○ RENDAH'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: C.white, lineHeight: 1.4 }}>{rec.text}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -1153,6 +1590,7 @@ export default function TVClient({ building, lines, sections }: Props) {
       {mode === 'floor' && <FloorView />}
       {mode === 'manager' && <ManagerView />}
       {mode === 'ie' && <IEView />}
+      {mode === 'ai' && <AIView />}
       {Insight}
       {Footer}
     </div>

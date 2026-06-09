@@ -70,7 +70,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
     const waktuEfektif = Math.max(3600 - dtDetik, 0)
     const output    = a.output ?? 0
     const ct = output > 0 ? Math.round(3600 / output) : null
-    const targetOut = taktTime > 0 ? Math.floor(3600 / taktTime) : 0
+    const targetOut = taktTime > 0 ? Math.round(3600 / taktTime) : 0
     const gap       = output - targetOut
     const color     = ct !== null ? barColor(ct, taktTime) : null
     return { ...a, ct, waktuEfektif, targetOut, gap, color }
@@ -119,7 +119,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
           {
             label: 'Takt Time',
             value: `${taktTime}s`,
-            sub:   `target ${Math.floor(3600 / taktTime)} pairs/jam`,
+            sub:   `target ${Math.round(3600 / taktTime)} pairs/jam`,
             color: '#185FA5',
             bg:    '#E6F1FB',
           },

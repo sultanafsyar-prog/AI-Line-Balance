@@ -36,7 +36,7 @@ export default async function LeaderPage() {
             include: { section: true },
             orderBy: { hour: 'desc' },
           },
-          alerts: { where: { resolved: false } },
+          alerts: { where: { resolved: false, triggeredAt: { gte: new Date(today() + 'T00:00:00+07:00') } } },
         }
       }
     }

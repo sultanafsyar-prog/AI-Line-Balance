@@ -60,12 +60,13 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Cek apakah Actual untuk jam ini sudah di-close — kalau iya, tolak edit
-  const existing = await prisma.actual.findUnique({
-    where: { lineId_sectionId_date_hour: { lineId, sectionId, date: date ?? today(), hour } },
-    select: { shiftClosed: true },
+  // Cek apakah shift sudah di-close untuk line+date ini — kalau iya, tolak semua edit/create
+  const workDate = date ?? today()
+  const closedRecord = await prisma.actual.findFirst({
+    where: { lineId, date: workDate, shiftClosed: true },
+    select: { id: true },
   })
-  if (existing?.shiftClosed) {
+  if (closedRecord) {
     return NextResponse.json(
       { error: 'Data ini sudah dikunci karena shift sudah ditutup. Hubungi IE Admin jika perlu koreksi.' },
       { status: 409 }
@@ -73,10 +74,10 @@ export async function POST(req: NextRequest) {
   }
 
   const actual = await prisma.actual.upsert({
-    where: { lineId_sectionId_date_hour: { lineId, sectionId, date: date ?? today(), hour } },
+    where: { lineId_sectionId_date_hour: { lineId, sectionId, date: workDate, hour } },
     update: { output, mpActual, downtime, dtReason: dtReason ?? null, defect },
     create: {
-      lineId, sectionId, date: date ?? today(), hour, output, mpActual,
+      lineId, sectionId, date: workDate, hour, output, mpActual,
       downtime, dtReason: dtReason ?? null, defect,
       inputBy: auth.user.id,
     },
@@ -88,28 +89,31 @@ export async function POST(req: NextRequest) {
     include: { model: true },
   })
   if (section) {
-    const tph = section.model.lineType === 'BIG' ? 180 : 100
+    const tph = section.taktTime > 0 ? Math.round(3600 / section.taktTime) : 0
+    const secName = section.name
 
     async function ensureAlert(type: 'OUTPUT_LOW' | 'DOWNTIME_HIGH' | 'DEFECT_HIGH', message: string) {
+      // Dedup: cari alert aktif per line+type yang sudah mengandung section name
       const existing = await prisma.alert.findFirst({
         where: { lineId, type, resolved: false },
       })
       if (existing) {
-        // Update pesan saja, jangan bikin duplikat
         await prisma.alert.update({
           where: { id: existing.id },
-          data: { message, triggeredAt: new Date() },
+          data: { message: `[${secName}] ${message}`, triggeredAt: new Date() },
         })
       } else {
-        await prisma.alert.create({ data: { lineId, type, message } })
+        await prisma.alert.create({ data: { lineId, type, message: `[${secName}] ${message}` } })
       }
     }
 
-    if (output < tph * 0.8) {
+    if (tph > 0 && output < tph * 0.8) {
       await ensureAlert(
         'OUTPUT_LOW',
         `Output ${output} pairs (${Math.round((output / tph) * 100)}% dari target ${tph})`
       )
+    } else if (tph === 0 && output === 0) {
+      await ensureAlert('OUTPUT_LOW', `Output 0 — tidak ada produksi`)
     }
     if (downtime > 15) {
       await ensureAlert(

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
-import { jsonError, parseBody, requireSession } from '@/lib/api-helpers'
+import { jsonError, parseBody, requireRole, hasLineAccess } from '@/lib/api-helpers'
 import { ShiftCloseSchema } from '@/lib/validation'
 
 export const maxDuration = 60
@@ -29,24 +29,25 @@ type SectionSummary = {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireSession()
+  const auth = await requireRole(['IE_ADMIN', 'IE_OPERATOR'])
   if (auth instanceof NextResponse) return auth
   const session = auth
-
-  if (!['IE_ADMIN', 'IE_OPERATOR'].includes(session.user.role)) {
-    return jsonError('Hanya IE Admin yang bisa tutup shift.', 403)
-  }
 
   const data = await parseBody(req, ShiftCloseSchema)
   if (data instanceof NextResponse) return data
   const { lineId, shiftLabel, managerEmail } = data
+
+  // Cek akses line
+  if (!(await hasLineAccess(auth, lineId))) {
+    return jsonError('Anda tidak punya akses ke line ini.', 403)
+  }
 
   const line = await prisma.line.findUnique({
     where: { id: lineId },
     include: {
       assignments: {
         where: { active: true }, take: 1, orderBy: { assignedAt: 'desc' },
-        include: { model: { include: { sections: true } } },
+        include: { model: { include: { sections: { include: { operations: true } } } } },
       },
       actuals: {
         where: { date: today() },
@@ -71,16 +72,24 @@ export async function POST(req: NextRequest) {
   }
 
   const sectionSummaries: SectionSummary[] = sections.flatMap(sec => {
-    const secActuals = actuals.filter(a => a.section?.name === sec.name)
+    const secActuals = actuals.filter(a => a.sectionId === sec.id)
     if (secActuals.length === 0) return []
 
     const totOut    = secActuals.reduce((s, a) => s + a.output, 0)
     const totDT     = secActuals.reduce((s, a) => s + a.downtime, 0)
     const totDef    = secActuals.reduce((s, a) => s + a.defect, 0)
     const avgMP     = Math.round(secActuals.reduce((s, a) => s + a.mpActual, 0) / secActuals.length)
-    const targetPH  = sec.taktTime > 0 ? Math.floor(3600 / sec.taktTime) : 0
+    const avgOut    = Math.round(totOut / secActuals.length)
+    const targetPH  = sec.taktTime > 0 ? Math.round(3600 / sec.taktTime) : 0
     const totalTgt  = targetPH * secActuals.length
-    const ller      = totalTgt > 0 ? Math.round((totOut / totalTgt) * 100) : 0
+    // theoMP dari operations
+    const ops = (sec as any).operations ?? []
+    const totalGWT = ops.reduce((s: number, op: any) =>
+      s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
+    const theoMP = sec.taktTime > 0 ? totalGWT / sec.taktTime : 0
+    // LLER produktivitas gabungan
+    const ller = (targetPH > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
+      ? Math.round((avgOut * avgMP) / (targetPH * theoMP) * 100) : 0
     const defRate   = totOut > 0 ? ((totDef / totOut) * 100).toFixed(1) : '0'
 
     return [{ name: sec.name, totOut, totDT, totDef, avgMP, totalTgt, ller, defRate, jamCount: secActuals.length }]
