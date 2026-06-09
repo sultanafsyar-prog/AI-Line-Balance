@@ -32,7 +32,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   const section = model?.sections.find((s: any) => s.name === selSec)
   const takt = section?.taktTime ?? 36
   const metrics = section ? calcSectionMetrics(section.operations, section.stdMP, takt) : null
-  const tph = takt > 0 ? Math.floor(3600 / takt) : 0
+  const tph = takt > 0 ? Math.round(3600 / takt) : 0
 
   const sectionActuals = line.actuals.filter((a: any) => a.section?.name === selSec).sort((a: any, b: any) => a.hour - b.hour)
   const totOut = sectionActuals.reduce((s: number, a: any) => s + a.output, 0)
@@ -338,12 +338,18 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                 const out = sa.reduce((s: number, a: any) => s + (a.output ?? 0), 0)
                 const dt  = sa.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
                 const def = sa.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
+                // LLER produktivitas gabungan: (avgOut × avgMP) / (theoPPH × theoMP) × 100
                 const sec = model?.sections?.find((s: any) => s.name === secName)
-                const tph = sec?.taktTime > 0 ? Math.floor(3600 / sec.taktTime) : 0
-                const tgt = tph * sa.length
+                const secMetrics = sec ? calcSectionMetrics(sec.operations, sec.stdMP, sec.taktTime) : null
+                const secTheoMP = secMetrics?.theorMP ?? 0
+                const theoPPH = sec?.taktTime > 0 ? 3600 / sec.taktTime : 0
+                const secAvgOut = sa.length > 0 ? out / sa.length : 0
+                const secAvgMP = sa.length > 0 ? sa.reduce((s: number, a: any) => s + (a.mpActual ?? 0), 0) / sa.length : 0
+                const secLler = (secAvgOut > 0 && secAvgMP > 0 && theoPPH > 0 && secTheoMP > 0)
+                  ? Math.round((secAvgOut * secAvgMP) / (theoPPH * secTheoMP) * 100) : null
                 return {
                   name:   secName,
-                  ller:   tgt > 0 ? Math.round((out / tgt) * 100) : null,
+                  ller:   secLler,
                   totOut: out,
                   totDT:  dt,
                   totDef: def,

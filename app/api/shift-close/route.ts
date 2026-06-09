@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     const totDef    = secActuals.reduce((s, a) => s + a.defect, 0)
     const avgMP     = Math.round(secActuals.reduce((s, a) => s + a.mpActual, 0) / secActuals.length)
     const avgOut    = Math.round(totOut / secActuals.length)
-    const targetPH  = sec.taktTime > 0 ? Math.floor(3600 / sec.taktTime) : 0
+    const targetPH  = sec.taktTime > 0 ? Math.round(3600 / sec.taktTime) : 0
     const totalTgt  = targetPH * secActuals.length
     // theoMP dari operations
     const ops = (sec as any).operations ?? []

@@ -110,7 +110,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   }, [selLineId, effectiveSec, line])
   // TPH dari section taktTime (untuk target output per jam)
   const sectionTakt = section?.taktTime ?? 0
-  const tph = sectionTakt > 0 ? Math.floor(3600 / sectionTakt) : 0
+  const tph = sectionTakt > 0 ? Math.round(3600 / sectionTakt) : 0
 
   // TheorMP per section: sum(GWT semua ops) / taktTime
   const getGWT = (op: any) => (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15))

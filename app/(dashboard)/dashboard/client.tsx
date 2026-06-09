@@ -40,20 +40,29 @@ interface Props {
  */
 function calcLineLler(line: DashLine): number {
   if (line.actuals.length === 0) return 0
-  const secMap = new Map<string, { mpSum: number; hours: number }>()
+  // LLER produktivitas gabungan: Σ(avgOut × avgMP) / Σ(theoPPH × theoMP) × 100
+  const secMap = new Map<string, { mpSum: number; outSum: number; hours: number }>()
   for (const a of line.actuals) {
-    const prev = secMap.get(a.sectionName) ?? { mpSum: 0, hours: 0 }
-    secMap.set(a.sectionName, { mpSum: prev.mpSum + a.mpActual, hours: prev.hours + 1 })
+    const prev = secMap.get(a.sectionName) ?? { mpSum: 0, outSum: 0, hours: 0 }
+    secMap.set(a.sectionName, { mpSum: prev.mpSum + a.mpActual, outSum: prev.outSum + a.output, hours: prev.hours + 1 })
   }
-  let totalTheo = 0, totalActualMP = 0
+  let num = 0, den = 0
   for (const [secName, data] of secMap.entries()) {
     const theo = line.sectionTheoMP[secName]
     if (theo && theo > 0 && data.hours > 0) {
-      totalTheo += theo
-      totalActualMP += data.mpSum / data.hours
+      const avgMP = data.mpSum / data.hours
+      const avgOut = data.outSum / data.hours
+      // tph dari actual taktTime di section tsb
+      const secActs = line.actuals.filter(a => a.sectionName === secName)
+      const takt = secActs[0]?.taktTime ?? 0
+      const theoPPH = takt > 0 ? 3600 / takt : 0
+      if (theoPPH > 0 && avgMP > 0 && avgOut > 0) {
+        num += avgOut * avgMP
+        den += theoPPH * theo
+      }
     }
   }
-  return totalActualMP > 0 ? Math.round((totalTheo / totalActualMP) * 100) : 0
+  return den > 0 ? Math.round((num / den) * 100) : 0
 }
 
 function llerColor(v: number): string {
@@ -70,19 +79,22 @@ function llerBg(v: number): string {
   return '#F9FAFB'
 }
 
-/** Hitung LLER per section: theorMP / avg actual MP */
+/** Hitung LLER per section: (avgOut × avgMP) / (theoPPH × theoMP) × 100 */
 function calcSectionLlers(line: DashLine): { name: string; ller: number; theorMP: number; avgMP: number; output: number }[] {
   if (line.actuals.length === 0) return []
-  const secMap = new Map<string, { mpSum: number; outSum: number; hours: number }>()
+  const secMap = new Map<string, { mpSum: number; outSum: number; hours: number; taktTime: number }>()
   for (const a of line.actuals) {
-    const prev = secMap.get(a.sectionName) ?? { mpSum: 0, outSum: 0, hours: 0 }
-    secMap.set(a.sectionName, { mpSum: prev.mpSum + a.mpActual, outSum: prev.outSum + a.output, hours: prev.hours + 1 })
+    const prev = secMap.get(a.sectionName) ?? { mpSum: 0, outSum: 0, hours: 0, taktTime: a.taktTime }
+    secMap.set(a.sectionName, { mpSum: prev.mpSum + a.mpActual, outSum: prev.outSum + a.output, hours: prev.hours + 1, taktTime: a.taktTime })
   }
   return Array.from(secMap.entries())
     .map(([name, s]) => {
       const theo = line.sectionTheoMP[name] ?? 0
       const avgMP = s.hours > 0 ? parseFloat((s.mpSum / s.hours).toFixed(1)) : 0
-      const ller = avgMP > 0 && theo > 0 ? Math.round((theo / avgMP) * 100) : 0
+      const avgOut = s.hours > 0 ? s.outSum / s.hours : 0
+      const theoPPH = s.taktTime > 0 ? 3600 / s.taktTime : 0
+      const ller = (avgOut > 0 && avgMP > 0 && theoPPH > 0 && theo > 0)
+        ? Math.round((avgOut * avgMP) / (theoPPH * theo) * 100) : 0
       return { name, ller, theorMP: theo, avgMP, output: s.outSum }
     })
     .filter(s => s.theorMP > 0)
@@ -182,7 +194,7 @@ function generateDigest(lines: DashLine[], buildings: Record<string, number>): s
     if (l.actuals.length < 2) continue
     const secMap = new Map<string, { out: number; tgt: number }>()
     for (const a of l.actuals) {
-      const tph = a.taktTime > 0 ? Math.floor(3600 / a.taktTime) : 0
+      const tph = a.taktTime > 0 ? Math.round(3600 / a.taktTime) : 0
       if (tph === 0) continue
       const prev = secMap.get(a.sectionName) ?? { out: 0, tgt: 0 }
       secMap.set(a.sectionName, { out: prev.out + a.output, tgt: prev.tgt + tph })

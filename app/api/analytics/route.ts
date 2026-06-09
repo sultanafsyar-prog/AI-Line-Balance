@@ -80,10 +80,10 @@ export async function POST(req: NextRequest) {
     ? Math.round(sectionActuals.reduce((s, a) => s + a.mpActual, 0) / sectionActuals.length)
     : 0
 
-  const targetPerHour  = section.taktTime > 0 ? Math.floor(3600 / section.taktTime) : 0
+  const targetPerHour  = section.taktTime > 0 ? Math.round(3600 / section.taktTime) : 0
   const totalTargetOut = targetPerHour * sectionActuals.length
-  // LLER = Theoretical MP / Actual MP × 100% (formula IE)
-  // Output Achievement terpisah dari LLER
+  // Output Achievement (pencapaian target output)
+  // LLER terpisah — dihitung di bawah
   const outputAchieve  = totalTargetOut > 0 ? Math.round((totOut / totalTargetOut) * 100) : 0
   const mpGap          = avgMP - section.stdMP
   const mpGapText      = mpGap >= 0
@@ -100,8 +100,11 @@ export async function POST(req: NextRequest) {
   const theorMP = ops.length > 0 && section.taktTime > 0
     ? parseFloat((sumGwt / section.taktTime).toFixed(2))
     : 0
-  // LLER = Theoretical MP / Actual MP × 100%
-  const llerPct = avgMP > 0 && theorMP > 0 ? Math.round((theorMP / avgMP) * 100) : 0
+  // LLER produktivitas gabungan: (avgOut × avgMP) / (theoPPH × theoMP) × 100
+  const avgOut = sectionActuals.length > 0
+    ? sectionActuals.reduce((s, a) => s + a.output, 0) / sectionActuals.length : 0
+  const llerPct = (avgOut > 0 && avgMP > 0 && targetPerHour > 0 && theorMP > 0)
+    ? Math.round((avgOut * avgMP) / (targetPerHour * theorMP) * 100) : 0
   const lbr = ops.length > 0 && section.taktTime > 0
     ? Math.round((sumGwt / (ops.length * section.taktTime)) * 100)
     : 0
@@ -167,7 +170,7 @@ Analisis data aktual di bawah untuk temukan masalah NYATA.
 
 DATA AKTUAL LAPANGAN HARI INI (${sectionActuals.length} jam ter-input):
 - Total output     : ${totOut} pairs dari target ${totalTargetOut} pairs
-- LLER (labor eff) : ${llerPct}% (TheoMP ${theorMP} / ActMP ${avgMP}) ${llerPct >= 90 ? '(BAIK)' : llerPct >= 75 ? '(PERLU PERHATIAN)' : '(KRITIS)'}
+- LLER (labor eff) : ${llerPct}% (avgOut ${Math.round(avgOut)} × avgMP ${avgMP}) / (PPH ${targetPerHour} × theoMP ${theorMP}) ${llerPct >= 90 ? '(BAIK)' : llerPct >= 75 ? '(PERLU PERHATIAN)' : '(KRITIS)'}
 - Rata-rata MP     : ${avgMP} orang vs std ${section.stdMP} | Gap: ${mpGapText}
 - Total downtime   : ${totDT} menit ${totDT > 30 ? '(TINGGI - investigasi penyebab)' : ''}
 - Total defect     : ${totDef} pairs${totOut > 0 ? ` (${((totDef / totOut) * 100).toFixed(1)}% defect rate)` : ''}

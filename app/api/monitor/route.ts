@@ -46,7 +46,7 @@ export async function GET() {
     const latestActual = actuals[0] ?? null
     // TPH dari taktTime section terakhir yang ada data
     const latestTakt = latestActual?.section?.taktTime ?? 0
-    const tph = latestTakt > 0 ? Math.floor(3600 / latestTakt) : 0
+    const tph = latestTakt > 0 ? Math.round(3600 / latestTakt) : 0
 
     const totalOutput   = actuals.reduce((s, a) => s + a.output, 0)
     const totalDowntime = actuals.reduce((s, a) => s + a.downtime, 0)

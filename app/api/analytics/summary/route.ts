@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       ...(effectiveBuilding ? { line: { building: effectiveBuilding } } : {}),
     },
     include: {
-      section: { select: { taktTime: true } },
+      section: { select: { name: true, taktTime: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } },
       line: {
         include: {
           assignments: {
@@ -42,28 +42,42 @@ export async function GET(req: NextRequest) {
     },
   })
 
+  // ── Pre-compute theoMP per sectionId ──
+  const theoMPCache = new Map<string, number>()
+  for (const a of actuals) {
+    if (theoMPCache.has(a.sectionId)) continue
+    const sec = a.section as any
+    if (!sec?.operations?.length || sec.taktTime <= 0) { theoMPCache.set(a.sectionId, 0); continue }
+    const totalGWT = sec.operations.reduce((s: number, op: any) =>
+      s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
+    theoMPCache.set(a.sectionId, totalGWT / sec.taktTime)
+  }
+
   // ─── PER DAY SUMMARY ────────────────────────────────────────
-  type DayBucket = { outputs: number[]; downtime: number; defect: number; lines: Set<string> }
+  // LLER produktivitas gabungan: (avgOut × avgMP) / (theoPPH × theoMP) × 100
+  type DayBucket = { num: number; den: number; downtime: number; defect: number; lines: Set<string>; count: number }
   const dayMap: Record<string, DayBucket> = {}
-  dateList.forEach(d => { dayMap[d] = { outputs: [], downtime: 0, defect: 0, lines: new Set() } })
+  dateList.forEach(d => { dayMap[d] = { num: 0, den: 0, downtime: 0, defect: 0, lines: new Set(), count: 0 } })
 
   actuals.forEach(a => {
     const bucket = dayMap[a.date]
     if (!bucket) return
     const secTakt = a.section?.taktTime ?? 0
-    const tph = secTakt > 0 ? Math.floor(3600 / secTakt) : 0
-    const ller = tph > 0 ? a.output / tph * 100 : 0
-    bucket.outputs.push(ller)
+    const theoPPH = secTakt > 0 ? 3600 / secTakt : 0
+    const theoMP = theoMPCache.get(a.sectionId) ?? 0
+    if (theoPPH > 0 && theoMP > 0 && a.mpActual > 0 && a.output > 0) {
+      bucket.num += a.output * a.mpActual
+      bucket.den += theoPPH * theoMP
+    }
     bucket.downtime += a.downtime
     bucket.defect   += a.defect
     bucket.lines.add(a.lineId)
+    bucket.count += 1
   })
 
   const daysSummary = dateList.map(date => {
     const d = dayMap[date]
-    const avgLler = d.outputs.length > 0
-      ? Math.round(d.outputs.reduce((s, v) => s + v, 0) / d.outputs.length)
-      : 0
+    const avgLler = d.den > 0 ? Math.round((d.num / d.den) * 100) : 0
     const totalOutput = actuals
       .filter(a => a.date === date)
       .reduce((s, a) => s + a.output, 0)
@@ -78,33 +92,35 @@ export async function GET(req: NextRequest) {
   })
 
   // ─── PER LINE PERFORMANCE ────────────────────────────────────
+  // LLER produktivitas gabungan per line: Σ(output×mp) / Σ(theoPPH×theoMP) × 100
   type LineBucket = {
     building: string; lineNo: number; modelName: string
-    llers: number[]; output: number; hours: number
+    num: number; den: number; output: number; hours: number
   }
   const lineMap: Record<string, LineBucket> = {}
   actuals.forEach(a => {
     const secTakt2 = a.section?.taktTime ?? 0
-    const tph   = secTakt2 > 0 ? Math.floor(3600 / secTakt2) : 0
-    const ller  = tph > 0 ? Math.round(a.output / tph * 100) : 0
+    const theoPPH = secTakt2 > 0 ? 3600 / secTakt2 : 0
+    const theoMP = theoMPCache.get(a.sectionId) ?? 0
     const model = a.line.assignments[0]?.model
     const key   = a.lineId
     if (!lineMap[key]) {
       lineMap[key] = {
         building: a.line.building, lineNo: a.line.lineNo,
-        modelName: model?.name ?? '—', llers: [], output: 0, hours: 0,
+        modelName: model?.name ?? '—', num: 0, den: 0, output: 0, hours: 0,
       }
     }
-    lineMap[key].llers.push(ller)
+    if (theoPPH > 0 && theoMP > 0 && a.mpActual > 0 && a.output > 0) {
+      lineMap[key].num += a.output * a.mpActual
+      lineMap[key].den += theoPPH * theoMP
+    }
     lineMap[key].output += a.output
     lineMap[key].hours  += 1
   })
 
   const linePerf = Object.values(lineMap).map(l => ({
     building: l.building, lineNo: l.lineNo, modelName: l.modelName,
-    avgLler: l.llers.length
-      ? Math.round(l.llers.reduce((s, v) => s + v, 0) / l.llers.length)
-      : 0,
+    avgLler: l.den > 0 ? Math.round((l.num / l.den) * 100) : 0,
     totalOutput: l.output, hours: l.hours,
   }))
 

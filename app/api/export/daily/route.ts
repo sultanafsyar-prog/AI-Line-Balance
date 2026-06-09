@@ -44,25 +44,40 @@ export async function GET(req: NextRequest) {
   const summaryRows = lines.map(line => {
     const model = line.assignments[0]?.model
     const actuals = line.actuals
-    // TPH dari taktTime section pertama yang ada data
-    const firstTakt = actuals[0]?.section?.taktTime ?? 0
-    const tph = firstTakt > 0 ? Math.floor(3600 / firstTakt) : 0
     const totalOut = actuals.reduce((s, a) => s + a.output, 0)
     const totalDT  = actuals.reduce((s, a) => s + a.downtime, 0)
     const totalDef = actuals.reduce((s, a) => s + a.defect, 0)
     const avgMP = actuals.length ? Math.round(actuals.reduce((s, a) => s + a.mpActual, 0) / actuals.length) : 0
-    const avgOut = actuals.length ? Math.round(totalOut / actuals.length) : 0
-    // theoMP dari section pertama yang ada data
-    const firstSec = actuals[0]?.section as any
-    let theoMP = 0
-    if (firstSec?.operations && firstSec.taktTime > 0) {
-      const totalGWT = firstSec.operations.reduce((s: number, op: any) =>
-        s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
-      theoMP = totalGWT / firstSec.taktTime
+    // TPH dari section pertama (untuk display)
+    const firstTakt = actuals[0]?.section?.taktTime ?? 0
+    const tph = firstTakt > 0 ? Math.round(3600 / firstTakt) : 0
+    // LLER produktivitas gabungan: Σ(avgOut × avgMP) / Σ(theoPPH × theoMP) × 100
+    // Agregat semua section, bukan hanya section pertama
+    let llerNum = 0, llerDen = 0
+    const secBuckets = new Map<string, { mpSum: number; outSum: number; hours: number; theoMP: number; takt: number }>()
+    for (const a of actuals) {
+      const sec = a.section as any
+      const secName = sec?.name ?? ''
+      if (!secBuckets.has(secName)) {
+        let tm = 0
+        if (sec?.operations && sec.taktTime > 0) {
+          tm = sec.operations.reduce((s: number, op: any) =>
+            s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0) / sec.taktTime
+        }
+        secBuckets.set(secName, { mpSum: 0, outSum: 0, hours: 0, theoMP: tm, takt: sec?.taktTime ?? 0 })
+      }
+      const b = secBuckets.get(secName)!
+      b.mpSum += a.mpActual; b.outSum += a.output; b.hours += 1
     }
-    // LLER produktivitas gabungan
-    const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
-      ? Math.round((avgOut * avgMP) / (tph * theoMP) * 100) : 0
+    for (const [, b] of secBuckets.entries()) {
+      if (b.theoMP > 0 && b.hours > 0 && b.takt > 0) {
+        const avgO = b.outSum / b.hours
+        const avgM = b.mpSum / b.hours
+        const theoPPH = 3600 / b.takt
+        if (avgO > 0 && avgM > 0) { llerNum += avgO * avgM; llerDen += theoPPH * b.theoMP }
+      }
+    }
+    const ller = llerDen > 0 ? Math.round((llerNum / llerDen) * 100) : 0
 
     let status = 'Tidak ada data'
     if (actuals.length > 0) status = ller >= 90 ? '✓ Baik' : ller >= 75 ? '⚠ Perlu perhatian' : '✗ Di bawah target'
@@ -102,7 +117,7 @@ export async function GET(req: NextRequest) {
 
     const detailRows = line.actuals.map(a => {
       const secTakt = (a.section as any)?.taktTime ?? 0
-      const tphRow = secTakt > 0 ? Math.floor(3600 / secTakt) : 0
+      const tphRow = secTakt > 0 ? Math.round(3600 / secTakt) : 0
       const gap = tphRow > 0 ? a.output - tphRow : 0
       const defPct = a.output > 0 ? parseFloat((a.defect / a.output * 100).toFixed(2)) : 0
       return [
@@ -125,18 +140,32 @@ export async function GET(req: NextRequest) {
     const totDef  = line.actuals.reduce((s, a) => s + a.defect, 0)
     const avgMPr  = Math.round(line.actuals.reduce((s, a) => s + a.mpActual, 0) / line.actuals.length)
     const avgOut  = Math.round(totOut / line.actuals.length)
-    const detailSec = line.actuals[0]?.section as any
-    const detailTakt = detailSec?.taktTime ?? 0
-    const detailTph = detailTakt > 0 ? Math.floor(3600 / detailTakt) : 0
-    let detailTheoMP = 0
-    if (detailSec?.operations && detailTakt > 0) {
-      const totalGWT = detailSec.operations.reduce((s: number, op: any) =>
-        s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
-      detailTheoMP = totalGWT / detailTakt
+    // LLER produktivitas gabungan — agregat semua section
+    const detailTph = (line.actuals[0]?.section as any)?.taktTime > 0
+      ? Math.round(3600 / (line.actuals[0]?.section as any).taktTime) : 0
+    let dNum = 0, dDen = 0
+    const dSecB = new Map<string, { mpS: number; outS: number; hrs: number; tm: number; tk: number }>()
+    for (const a of line.actuals) {
+      const sec = a.section as any
+      const sn = sec?.name ?? ''
+      if (!dSecB.has(sn)) {
+        let tm = 0
+        if (sec?.operations && sec.taktTime > 0) {
+          tm = sec.operations.reduce((s: number, op: any) =>
+            s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0) / sec.taktTime
+        }
+        dSecB.set(sn, { mpS: 0, outS: 0, hrs: 0, tm, tk: sec?.taktTime ?? 0 })
+      }
+      const b = dSecB.get(sn)!
+      b.mpS += a.mpActual; b.outS += a.output; b.hrs += 1
     }
-    // LLER produktivitas gabungan
-    const ller = (detailTph > 0 && avgOut > 0 && avgMPr > 0 && detailTheoMP > 0)
-      ? Math.round((avgOut * avgMPr) / (detailTph * detailTheoMP) * 100) : 0
+    for (const [, b] of dSecB.entries()) {
+      if (b.tm > 0 && b.hrs > 0 && b.tk > 0) {
+        const ao = b.outS / b.hrs, am = b.mpS / b.hrs, tp = 3600 / b.tk
+        if (ao > 0 && am > 0) { dNum += ao * am; dDen += tp * b.tm }
+      }
+    }
+    const ller = dDen > 0 ? Math.round((dNum / dDen) * 100) : 0
 
     const wsDetail = XLSX.utils.aoa_to_sheet([
       [`Gedung ${line.building} — Line ${line.lineNo} | Model: ${model?.name ?? '—'} | Target: ${detailTph} pairs/jam`],

@@ -38,7 +38,7 @@ interface Props {
 }
 
 function pph(taktTime: number) {
-  return taktTime > 0 ? Math.floor(3600 / taktTime) : 0
+  return taktTime > 0 ? Math.round(3600 / taktTime) : 0
 }
 
 function lbrCalc(ops: Operation[], taktTime: number) {
