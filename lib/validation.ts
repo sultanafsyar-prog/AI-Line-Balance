@@ -64,11 +64,13 @@ export const ModelCreateSchema = z.object({
 export type ModelCreateInput = z.infer<typeof ModelCreateSchema>
 
 export const ModelPatchSchema = z.object({
-  name:     z.string().min(1).max(100).optional(),
-  article:  z.string().max(100).optional().nullable(),
-  stage:    z.string().max(100).optional().nullable(),
-  lineType: LineTypeSchema.optional(),
-  sections: z.array(SectionSchema).optional(),
+  name:         z.string().min(1).max(100).optional(),
+  article:      z.string().max(100).optional().nullable(),
+  stage:        z.string().max(100).optional().nullable(),
+  lineType:     LineTypeSchema.optional(),
+  dailyTarget:  z.number().int().min(0).max(100000).optional(),
+  hourlyTarget: z.number().int().min(0).max(10000).optional(),
+  sections:     z.array(SectionSchema).optional(),
 })
 export type ModelPatchInput = z.infer<typeof ModelPatchSchema>
 

@@ -698,12 +698,30 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
                 {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            {draft.dailyTarget ? (
-              <div>
-                <label className="label">Target Harian</label>
-                <div className="input text-sm bg-gray-50">{draft.dailyTarget} pairs/hari ({draft.hourlyTarget ?? Math.round(draft.dailyTarget / 8)} prs/jam)</div>
-              </div>
-            ) : null}
+            <div>
+              <label className="label">
+                Target Harian (pairs/hari)
+                {draft.dailyTarget ? (
+                  <span className="ml-1 text-blue-600 font-normal">
+                    · {draft.hourlyTarget ?? Math.round(draft.dailyTarget / 8)} prs/jam
+                  </span>
+                ) : null}
+              </label>
+              <input
+                type="number" min={0} className="input text-sm"
+                value={draft.dailyTarget ?? ''}
+                placeholder="cth: 1680"
+                onChange={e => {
+                  const v = parseInt(e.target.value)
+                  const daily = !isNaN(v) && v > 0 ? v : undefined
+                  setDraft(d => ({
+                    ...d,
+                    dailyTarget: daily,
+                    hourlyTarget: daily ? Math.round(daily / 8) : undefined,
+                  }))
+                }}
+              />
+            </div>
           </div>
         </div>
 
@@ -926,6 +944,12 @@ export default function ModelsPage() {
           }))
         }
       })
+    }
+    // Muat daily target hari ini dari line yang assign model ini (jika ada)
+    const existingTarget = m.assignments?.[0]?.line?.dailyTargets?.[0]?.targetPairs
+    if (existingTarget > 0) {
+      draft.dailyTarget = existingTarget
+      draft.hourlyTarget = Math.round(existingTarget / 8)
     }
     // Store model id for update
     ;(draft as any)._id = id
