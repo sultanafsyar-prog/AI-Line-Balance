@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { BUILDINGS } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart } from 'recharts'
 
 type LineData = {
@@ -36,6 +37,7 @@ const STATUS_CONFIG = {
 interface Props { userBuilding: string | null; userName: string }
 
 export default function ManagerClient({ userBuilding, userName }: Props) {
+  const { t } = useI18n()
   const [data, setData]           = useState<DashData | null>(null)
   const [trend, setTrend]         = useState<TrendData | null>(null)
   const [loading, setLoading]     = useState(true)
@@ -70,9 +72,9 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Dashboard Manager</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('managerPage.title')}</h1>
           <p className="text-xs text-gray-400 mt-1 flex items-center gap-2">
-            {lastUpdate ? `Update: ${lastUpdate.toLocaleTimeString('id-ID')}` : 'Memuat...'}
+            {lastUpdate ? `Update: ${lastUpdate.toLocaleTimeString('id-ID')}` : t('common.loading')}
             <button onClick={() => setAutoRefresh(a => !a)}
               className={`px-2 py-0.5 rounded text-xs border ${autoRefresh ? 'bg-teal-light border-teal text-teal-dark' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
               {autoRefresh ? '● Auto' : '○ Manual'}
@@ -80,7 +82,7 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
             <button onClick={fetchData} className="px-2 py-0.5 rounded text-xs border border-gray-200 hover:bg-gray-50">↺</button>
           </p>
         </div>
-        <a href="/api/export/daily" className="btn btn-secondary text-sm">↓ Export hari ini</a>
+        <a href="/api/export/daily" className="btn btn-secondary text-sm">↓ {t('monitor.exportToday')}</a>
       </div>
 
       {/* Summary */}
@@ -97,12 +99,12 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5 animate-fade-in">
           {[
-            { label: 'Total line', value: `${overall?.activeLines ?? 0}/${overall?.totalLines ?? 0}`, sub: 'aktif', color: '' },
-            { label: 'Output hari ini', value: (overall?.totalOutput ?? 0).toLocaleString(), sub: 'pairs', color: 'text-teal' },
-            { label: 'Avg LLER', value: `${overall?.avgLler ?? 0}%`, sub: '', color: (overall?.avgLler ?? 0) >= 85 ? 'text-teal' : (overall?.avgLler ?? 0) >= 70 ? 'text-amber-600' : 'text-red-600' },
-            { label: 'Alert aktif', value: overall?.totalAlerts ?? 0, sub: '', color: (overall?.totalAlerts ?? 0) > 0 ? 'text-red-600' : '' },
-            { label: 'Line kritis', value: overall?.criticalLines ?? 0, sub: 'LLER < 75%', color: (overall?.criticalLines ?? 0) > 0 ? 'text-red-600' : '' },
-            { label: 'Gedung aktif', value: buildings.filter(b => b.summary.activeLines > 0).length, sub: `dari ${buildings.length}`, color: '' },
+            { label: t('dash.totalLines'), value: `${overall?.activeLines ?? 0}/${overall?.totalLines ?? 0}`, sub: t('managerPage.active'), color: '' },
+            { label: t('styleCard.outputToday'), value: (overall?.totalOutput ?? 0).toLocaleString(), sub: t('common.pairs'), color: 'text-teal' },
+            { label: t('monitor.avgLler'), value: `${overall?.avgLler ?? 0}%`, sub: '', color: (overall?.avgLler ?? 0) >= 85 ? 'text-teal' : (overall?.avgLler ?? 0) >= 70 ? 'text-amber-600' : 'text-red-600' },
+            { label: t('dash.totalAlerts'), value: overall?.totalAlerts ?? 0, sub: '', color: (overall?.totalAlerts ?? 0) > 0 ? 'text-red-600' : '' },
+            { label: t('managerPage.criticalLines'), value: overall?.criticalLines ?? 0, sub: 'LLER < 75%', color: (overall?.criticalLines ?? 0) > 0 ? 'text-red-600' : '' },
+            { label: t('managerPage.activeBuildings'), value: buildings.filter(b => b.summary.activeLines > 0).length, sub: t('monitor.ofTotal', { n: buildings.length }), color: '' },
           ].map(m => (
             <div key={m.label} className="card p-3">
               <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{m.label}</div>
@@ -120,8 +122,8 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-sm font-semibold text-gray-800">Tren LLER Hari Ini</div>
-                <div className="text-xs text-gray-400 mt-0.5">Per jam · {trend.hourly.length} titik data</div>
+                <div className="text-sm font-semibold text-gray-800">{t('managerPage.trendToday')}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{t('managerPage.perHourPoints', { n: trend.hourly.length })}</div>
               </div>
               <div className="text-xs text-gray-500">
                 {trend.hourly.length > 0
@@ -131,7 +133,7 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
             </div>
             {trend.hourly.length === 0 ? (
               <div className="h-48 flex items-center justify-center text-xs text-gray-400">
-                Belum ada data hari ini
+                {t('status.noDataYet')}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
@@ -164,8 +166,8 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-sm font-semibold text-gray-800">Tren LLER 14 Hari</div>
-                <div className="text-xs text-gray-400 mt-0.5">Per hari · agregat semua line</div>
+                <div className="text-sm font-semibold text-gray-800">{t('managerPage.trend14d')}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{t('managerPage.perDayAgg')}</div>
               </div>
               {(() => {
                 const lastN = trend.daily.filter(d => d.lller > 0).slice(-7)
@@ -175,14 +177,14 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
                 const diff = last - first
                 return (
                   <div className={`text-xs font-medium ${diff > 0 ? 'text-teal' : diff < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                    {diff > 0 ? '↑' : diff < 0 ? '↓' : '→'} {diff > 0 ? '+' : ''}{diff}% vs awal minggu
+                    {diff > 0 ? '↑' : diff < 0 ? '↓' : '→'} {diff > 0 ? '+' : ''}{diff}% {t('managerPage.vsWeekStart')}
                   </div>
                 )
               })()}
             </div>
             {trend.daily.filter(d => d.lller > 0).length === 0 ? (
               <div className="h-48 flex items-center justify-center text-xs text-gray-400">
-                Belum ada data historis
+                {t('analytics.noHistory')}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
@@ -232,7 +234,7 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
           {['ALL', ...Object.keys(BUILDINGS)].map(b => (
             <button key={b} onClick={() => setSelBuilding(b)}
               className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${selBuilding === b ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {b === 'ALL' ? 'Semua' : `Gdg ${b}`}
+              {b === 'ALL' ? t('common.all') : t('monitor.bldg', { b })}
             </button>
           ))}
         </div>
@@ -241,7 +243,7 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
       {/* Critical banner */}
       {!loading && (overall?.criticalLines ?? 0) > 0 && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl animate-fade-in">
-          <div className="text-sm font-medium text-red-700 mb-2">⚠ {overall?.criticalLines} line perlu perhatian segera</div>
+          <div className="text-sm font-medium text-red-700 mb-2">⚠ {t('managerPage.criticalBanner', { n: overall?.criticalLines ?? 0 })}</div>
           <div className="flex flex-wrap gap-2">
             {buildings.flatMap(b => b.lines.filter(l => l.status === 'critical')).slice(0, 8).map(l => (
               <Link key={l.id} href={`/lines/${l.building}/${l.lineNo}`}
@@ -272,13 +274,13 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
           {filtered.map(b => (
             <div key={b.building}>
               <div className="flex items-center gap-3 mb-3 flex-wrap">
-                <h2 className="text-base font-semibold text-gray-800">Gedung {b.building}</h2>
+                <h2 className="text-base font-semibold text-gray-800">{t('monitor.building', { b: b.building })}</h2>
                 {b.building === 'G' && <span className="badge badge-warn text-xs">Stockfit</span>}
                 <div className="flex gap-2 text-xs text-gray-500 flex-wrap">
-                  <span>{b.summary.activeLines}/{b.summary.totalLines} aktif</span>
+                  <span>{b.summary.activeLines}/{b.summary.totalLines} {t('managerPage.active')}</span>
                   <span>·</span>
                   <span className={`font-medium ${b.summary.avgLler >= 85 ? 'text-teal' : b.summary.avgLler >= 70 ? 'text-amber-600' : b.summary.avgLler > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                    {b.summary.avgLler > 0 ? `avg ${b.summary.avgLler}% LLER` : 'belum ada data'}
+                    {b.summary.avgLler > 0 ? `avg ${b.summary.avgLler}% LLER` : t('common.noData').toLowerCase()}
                   </span>
                   <span>·</span>
                   <span className="font-medium text-gray-700">{b.summary.totalOutput.toLocaleString()} pairs</span>
@@ -297,7 +299,7 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${st.dot}`} />
-                          <span className="font-semibold text-sm text-gray-900">Line {line.lineNo}</span>
+                          <span className="font-semibold text-sm text-gray-900">{t('monitor.line', { n: line.lineNo })}</span>
                           {line.model && <span className="text-xs text-gray-400">{line.model.name}</span>}
                         </div>
                         {line.alerts.length > 0 && (
@@ -308,9 +310,9 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
                       </div>
 
                       {line.status === 'no_model' ? (
-                        <div className="text-xs text-gray-400">Belum ada model</div>
+                        <div className="text-xs text-gray-400">{t('monitor.noModel')}</div>
                       ) : line.status === 'no_input' ? (
-                        <div className="text-xs text-amber-600">Belum ada input hari ini</div>
+                        <div className="text-xs text-amber-600">{t('managerPage.noInputToday')}</div>
                       ) : (
                         <>
                           <div className="grid grid-cols-3 gap-1 mb-2">
@@ -320,13 +322,13 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
                             </div>
                             <div className="text-center">
                               <div className="text-lg font-bold text-gray-900">{line.lastOutput}</div>
-                              <div className="text-xs text-gray-400">jam ini</div>
+                              <div className="text-xs text-gray-400">{t('managerPage.thisHour')}</div>
                             </div>
                             <div className="text-center">
                               <div className={`text-lg font-bold ${line.lastOutput - line.tph >= 0 ? 'text-teal' : 'text-red-600'}`}>
                                 {line.lastOutput - line.tph >= 0 ? '+' : ''}{line.lastOutput - line.tph}
                               </div>
-                              <div className="text-xs text-gray-400">vs target</div>
+                              <div className="text-xs text-gray-400">{t('monitor.vsTarget')}</div>
                             </div>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1.5">
@@ -334,8 +336,8 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
                               style={{ width: `${Math.min(line.ller, 100)}%` }} />
                           </div>
                           <div className="flex gap-2 text-xs text-gray-400">
-                            <span>Total: <strong className="text-gray-600">{line.todayOutput}</strong></span>
-                            <span>{line.hoursInput} jam</span>
+                            <span>{t('monitor.total')}: <strong className="text-gray-600">{line.todayOutput}</strong></span>
+                            <span>{line.hoursInput} {t('common.hours')}</span>
                             {line.todayDowntime > 0 && <span className="text-amber-600">DT: {line.todayDowntime}m</span>}
                             {line.todayDefect > 0 && <span className="text-red-500">Def: {line.todayDefect}</span>}
                           </div>

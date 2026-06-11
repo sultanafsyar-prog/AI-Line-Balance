@@ -1,4 +1,5 @@
 'use client'
+import { useI18n } from '@/lib/i18n'
 
 /**
  * YamazumiAktual
@@ -35,10 +36,10 @@ interface Props {
 // Konteks: data AKTUAL vs Takt Time. Label menunjukkan performa aktual.
 function barColor(ct: number, tt: number) {
   const ratio = ct / tt
-  if (ratio <= 0.9)  return { fill: '#3B82F6', label: 'Efisien',       text: '#085041' }
-  if (ratio <= 1.0)  return { fill: '#EF9F27', label: 'Mendekati TT',  text: '#633806' }
-  if (ratio <= 1.3)  return { fill: '#E24B4A', label: 'Melebihi TT',   text: '#791F1F' }
-  return               { fill: '#A32D2D', label: 'Kritis',          text: '#501313' }
+  if (ratio <= 0.9)  return { fill: '#3B82F6', label: 'yamazumi.efficient', text: '#085041' }
+  if (ratio <= 1.0)  return { fill: '#EF9F27', label: 'yamazumi.nearTT',    text: '#633806' }
+  if (ratio <= 1.3)  return { fill: '#E24B4A', label: 'yamazumi.overTT',    text: '#791F1F' }
+  return               { fill: '#A32D2D', label: 'yamazumi.critical',  text: '#501313' }
 }
 
 // ── Format jam ───────────────────────────────────────────────
@@ -48,6 +49,7 @@ function fmtHour(h: number) {
 }
 
 export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }: Props) {
+  const { t } = useI18n()
   if (!actuals || actuals.length === 0) {
     return (
       <div style={{
@@ -55,10 +57,10 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
         color: '#888780', fontSize: '13px',
         border: '1px dashed #e0dfd7', borderRadius: '12px',
       }}>
-        Belum ada data aktual untuk section {sectionName} hari ini.
+        {t('yamazumi.noData', { section: sectionName })}
         <br/>
         <span style={{ fontSize: '12px', color: '#b4b2a9' }}>
-          Input data aktual terlebih dahulu untuk melihat Yamazumi aktual.
+          {t('yamazumi.noDataHint')}
         </span>
       </div>
     )
@@ -101,38 +103,36 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
         borderRadius: '8px', marginBottom: '16px',
         fontSize: '12px', color: '#085041', lineHeight: 1.6,
       }}>
-        <strong>Yamazumi Aktual</strong> — menampilkan cycle time nyata per jam
-        yang dihitung dari data input operator (<em>CT = waktu efektif ÷ output</em>).
-        Garis merah = Takt Time ({taktTime}s). Bar di atas garis = jam bermasalah.
+        <strong>Yamazumi Aktual</strong> — {t('yamazumi.explain', { tt: taktTime })}
       </div>
 
       {/* ── Kartu ringkasan ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '20px' }}>
         {[
           {
-            label: 'Avg CT aktual',
+            label: t('yamazumi.avgCtActual'),
             value: avgCT !== null ? `${avgCT}s` : '—',
-            sub:   avgStatus ? avgStatus.label : '',
+            sub:   avgStatus ? t(avgStatus.label) : '',
             color: avgStatus?.text ?? '#3d3d3a',
             bg:    avgCT !== null && avgCT <= taktTime ? '#EFF6FF' : '#FCEBEB',
           },
           {
-            label: 'Takt Time',
+            label: t('std.taktTime'),
             value: `${taktTime}s`,
-            sub:   `target ${Math.round(3600 / taktTime)} pairs/jam`,
+            sub:   t('yamazumi.targetPerHour', { n: Math.round(3600 / taktTime) }),
             color: '#185FA5',
             bg:    '#E6F1FB',
           },
           {
-            label: 'Jam efisien',
-            value: `${efisienJams.length} jam`,
+            label: t('yamazumi.efficientHours'),
+            value: `${efisienJams.length} ${t('common.hours')}`,
             sub:   `CT ≤ TT`,
             color: '#085041',
             bg:    '#EFF6FF',
           },
           {
-            label: 'Jam melebihi TT',
-            value: `${overTaktJams.length} jam`,
+            label: t('yamazumi.overHours'),
+            value: `${overTaktJams.length} ${t('common.hours')}`,
             sub:   `CT > TT`,
             color: overTaktJams.length > 0 ? '#A32D2D' : '#3d3d3a',
             bg:    overTaktJams.length > 0 ? '#FCEBEB' : '#f5f5f3',
@@ -199,7 +199,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
                     fill="#f5f5f3" rx={4} />
                   <text x={x + barW / 2} y={chartH / 2}
                     textAnchor="middle" fontSize={9} fill="#b4b2a9">
-                    no data
+                    {t('yamazumi.noDataShort')}
                   </text>
                   <text x={x + barW / 2} y={chartH + 14}
                     textAnchor="middle" fontSize={9} fill="#888780">
@@ -266,7 +266,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
       {/* ── Tabel detail per jam ── */}
       <div style={{ fontSize: '13px' }}>
         <div style={{ fontWeight: 500, color: '#1a1a18', marginBottom: '8px' }}>
-          Detail per jam
+          {t('yamazumi.detailPerHour')}
         </div>
         <div style={{ border: '1px solid #f0f0ef', borderRadius: '8px', overflow: 'hidden' }}>
           {/* Header */}
@@ -276,13 +276,13 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
             background: '#f5f5f3', padding: '8px 12px',
             fontSize: '11px', fontWeight: 500, color: '#888780',
           }}>
-            <span>Jam</span>
-            <span>Output</span>
-            <span>Target</span>
+            <span>{t('yamazumi.hour')}</span>
+            <span>{t('status.totalOutput')}</span>
+            <span>{t('yamazumi.target')}</span>
             <span>Gap</span>
-            <span>DT (mnt)</span>
-            <span>CT aktual</span>
-            <span>Status</span>
+            <span>DT ({t('common.minutes')})</span>
+            <span>{t('yamazumi.ctActual')}</span>
+            <span>{t('yamazumi.status')}</span>
           </div>
 
           {jamData.map((jam, i) => {
@@ -303,13 +303,13 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
                 <span style={{ fontWeight: 500 }}>
                   {fmtHour(jam.hour)}–{fmtHour(jam.hour + 1)}
                 </span>
-                <span style={{ fontWeight: 500 }}>{jam.output} pairs</span>
-                <span style={{ color: '#888780' }}>{jam.targetOut} pairs</span>
+                <span style={{ fontWeight: 500 }}>{jam.output} {t('common.pairs')}</span>
+                <span style={{ color: '#888780' }}>{jam.targetOut} {t('common.pairs')}</span>
                 <span style={{ color: jam.gap >= 0 ? '#1D4ED8' : '#A32D2D', fontWeight: 500 }}>
                   {jam.gap >= 0 ? `+${jam.gap}` : jam.gap}
                 </span>
                 <span style={{ color: (jam.downtime ?? 0) > 10 ? '#A32D2D' : '#3d3d3a' }}>
-                  {jam.downtime ?? 0} mnt
+                  {jam.downtime ?? 0} {t('common.minutes')}
                   {jam.downtimeReason ? ` (${jam.downtimeReason})` : ''}
                 </span>
                 <span style={{ fontWeight: 500, color: color?.text ?? '#3d3d3a' }}>
@@ -324,7 +324,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
                       padding: '2px 8px', borderRadius: '99px',
                       fontSize: '11px', fontWeight: 500,
                     }}>
-                      {color.label}
+                      {t(color.label)}
                     </span>
                   ) : '—'}
                 </span>
@@ -342,12 +342,11 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
           borderLeft: '3px solid #E24B4A',
           fontSize: '12px', color: '#A32D2D', lineHeight: 1.6,
         }}>
-          <strong>Insight otomatis:</strong> {overTaktJams.length} dari {jamData.length} jam
-          memiliki CT aktual di atas Takt Time ({taktTime}s) →{' '}
-          {overTaktJams.map(j => `jam ${fmtHour(j.hour)}`).join(', ')}.
+          <strong>{t('yamazumi.autoInsight')}:</strong> {t('yamazumi.insightOver', { n: overTaktJams.length, total: jamData.length, tt: taktTime })}{' '}
+          {overTaktJams.map(j => fmtHour(j.hour)).join(', ')}.
           {overTaktJams.some(j => (j.downtime ?? 0) > 10)
-            ? ' Kemungkinan penyebab utama: downtime tinggi.'
-            : ' Kemungkinan penyebab: output rendah atau MP kurang.'}
+            ? ' ' + t('yamazumi.causeDowntime')
+            : ' ' + t('yamazumi.causeOutput')}
         </div>
       )}
 
@@ -358,7 +357,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
           borderLeft: '3px solid #3B82F6',
           fontSize: '12px', color: '#085041',
         }}>
-          ✓ Semua jam beroperasi di bawah Takt Time — lini berjalan efisien hari ini.
+          ✓ {t('yamazumi.allEfficient')}
         </div>
       )}
     </div>

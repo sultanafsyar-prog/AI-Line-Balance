@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useI18n } from '@/lib/i18n'
 
 interface Props {
   lineId:    string
@@ -8,12 +9,13 @@ interface Props {
 }
 
 const SHIFTS = [
-  { label: 'Shift 1 (07:00–15:00)', value: 'Shift 1 (07:00–15:00)' },
-  { label: 'Shift 2 (15:00–23:00)', value: 'Shift 2 (15:00–23:00)' },
-  { label: 'Shift Malam (23:00–07:00)', value: 'Shift Malam (23:00–07:00)' },
+  { key: 'closeShiftBtn.shift1',     value: 'Shift 1 (07:00–15:00)' },
+  { key: 'closeShiftBtn.shift2',     value: 'Shift 2 (15:00–23:00)' },
+  { key: 'closeShiftBtn.shiftNight', value: 'Shift Malam (23:00–07:00)' },
 ]
 
 export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props) {
+  const { t } = useI18n()
   const [open,    setOpen]    = useState(false)
   const [shift,   setShift]   = useState(SHIFTS[0].value)
   const [email,   setEmail]   = useState('')
@@ -22,7 +24,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
 
   async function handleClose() {
     if (!email.includes('@')) {
-      setResult({ ok: false, msg: 'Email manager tidak valid.' })
+      setResult({ ok: false, msg: t('closeShiftBtn.invalidEmail') })
       return
     }
     setLoading(true)
@@ -35,14 +37,14 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
       })
       const data = await res.json()
       if (res.ok) {
-        const msg = (data.message ?? 'Shift berhasil ditutup.') + (data.warning ? ' ⚠ ' + data.warning : '')
+        const msg = (data.message ?? t('closeShiftBtn.closed')) + (data.warning ? ' ⚠ ' + data.warning : '')
         setResult({ ok: true, msg })
         onClosed?.()
       } else {
-        setResult({ ok: false, msg: data.error ?? 'Gagal menutup shift.' })
+        setResult({ ok: false, msg: data.error ?? t('closeShiftBtn.closeFailed') })
       }
     } catch {
-      setResult({ ok: false, msg: 'Gagal konek ke server.' })
+      setResult({ ok: false, msg: t('closeShiftBtn.connFailed') })
     } finally {
       setLoading(false)
     }
@@ -73,7 +75,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
         </svg>
-        Tutup Shift
+        {t('shift.close')}
       </button>
 
       {/* Modal overlay */}
@@ -103,7 +105,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
                 </svg>
               </div>
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a18' }}>Tutup Shift</div>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a18' }}>{t('shift.close')}</div>
                 <div style={{ fontSize: '12px', color: '#888780' }}>{lineLabel}</div>
               </div>
             </div>
@@ -116,13 +118,13 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
               borderRadius: '8px', marginBottom: '16px',
               fontSize: '12px', color: '#854F0B', lineHeight: 1.6,
             }}>
-              Menutup shift akan: <strong>mengirim laporan ke email manager</strong> dan <strong>mereset semua alert aktif</strong> di line ini. Data aktual tetap tersimpan untuk laporan historis.
+              {t('closeShiftBtn.info1')} <strong>{t('closeShiftBtn.infoSend')}</strong> {t('closeShiftBtn.infoAnd')} <strong>{t('closeShiftBtn.infoReset')}</strong> {t('closeShiftBtn.info2')}
             </div>
 
             {/* Pilih shift */}
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#5F5E5A', display: 'block', marginBottom: '6px' }}>
-                Shift yang ditutup
+                {t('closeShiftBtn.shiftToClose')}
               </label>
               <select
                 value={shift}
@@ -133,14 +135,14 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
                   background: '#fff', color: '#1a1a18', cursor: 'pointer',
                 }}
               >
-                {SHIFTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {SHIFTS.map(s => <option key={s.value} value={s.value}>{t(s.key)}</option>)}
               </select>
             </div>
 
             {/* Email manager */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#5F5E5A', display: 'block', marginBottom: '6px' }}>
-                Email manager (penerima laporan)
+                {t('closeShiftBtn.managerEmail')}
               </label>
               <input
                 type="email"
@@ -177,7 +179,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
                   fontSize: '13px', color: '#5F5E5A', cursor: 'pointer',
                 }}
               >
-                Batal
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleClose}
@@ -191,7 +193,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
                   cursor: loading || result?.ok ? 'not-allowed' : 'pointer',
                 }}
               >
-                {loading ? 'Memproses...' : result?.ok ? 'Selesai ✓' : 'Tutup Shift & Kirim Laporan'}
+                {loading ? t('closeShiftBtn.processing') : result?.ok ? t('closeShiftBtn.done') : t('closeShiftBtn.closeAndSend')}
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useI18n } from '@/lib/i18n'
 
 interface Operation { id: string; name: string; gwt?: number | null }
 interface Section {
@@ -62,6 +63,7 @@ function llerColor(ller: number) {
 }
 
 export default function StyleCard({ model, lineId, totalActual, sectionActuals = [], canSetTarget, compact }: Props) {
+  const { t } = useI18n()
   const [target,        setTarget]        = useState<DailyTarget | null>(null)
   const [showSetForm,   setShowSetForm]   = useState(false)
   const [inputTarget,   setInputTarget]   = useState('')
@@ -115,7 +117,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
   if (!model) {
     return (
       <div style={{ padding: '32px', textAlign: 'center', border: '1px dashed var(--color-border-secondary)', borderRadius: 'var(--border-radius-lg)', color: 'var(--color-text-secondary)', fontSize: '13px' }}>
-        Line belum ada model yang di-assign.
+        {t('styleCard.noModel')}
       </div>
     )
   }
@@ -177,7 +179,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
                 <path d="M6 32c0 0 4-8 12-8s10 6 16 6 8-4 8-4v8c0 2-2 4-4 4H10c-2 0-4-2-4-4v-2z"/>
                 <path d="M6 32s2-4 6-6l4-2 2-6 6-2 4 2 2 4"/>
               </svg>
-              <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>Belum ada foto</span>
+              <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>{t('styleCard.noPhoto')}</span>
             </div>
           )}
           {/* Badge NB */}
@@ -185,7 +187,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
           {/* Upload overlay */}
           {canSetTarget && (
             <label style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', padding: '5px', textAlign: 'center', cursor: 'pointer', fontSize: '10px', color: '#fff' }}>
-              {uploadingImg ? 'Uploading...' : imgUrl ? 'Ganti foto' : 'Upload foto'}
+              {uploadingImg ? t('styleCard.uploading') : imgUrl ? t('styleCard.changePhoto') : t('styleCard.uploadPhoto')}
               <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f) }} />
             </label>
           )}
@@ -199,7 +201,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
             <span style={{ background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', fontSize: '11px', padding: '2px 8px', borderRadius: '99px' }}>Takt: {model.sections.find((s: any) => s.taktTime > 0)?.taktTime ?? '—'}s</span>
           </div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
-            {model.sections.length} section · {model.sections.reduce((s, sec) => s + sec.operations.length, 0)} operasi · PPH target {pph(model.sections.find(s => s.taktTime > 0)?.taktTime ?? 36)} pairs/jam
+            {t('styleCard.modelSummary', { sections: model.sections.length, ops: model.sections.reduce((s, sec) => s + sec.operations.length, 0), pph: pph(model.sections.find(s => s.taktTime > 0)?.taktTime ?? 36) })}
           </div>
 
           {/* Target harian */}
@@ -216,11 +218,11 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
                 <div style={{ height: '100%', borderRadius: '99px', width: `${Math.min(gapPct ?? 0, 100)}%`, background: gapPairs !== null && gapPairs >= 0 ? 'var(--color-text-success)' : 'var(--color-text-warning)', transition: 'width 0.3s' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Target set oleh {target.setBy}{target.note && ` · ${target.note}`}</span>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{t('styleCard.targetSetBy', { name: target.setBy })}{target.note && ` · ${target.note}`}</span>
                 {canSetTarget && (
                   <button onClick={() => { setInputTarget(String(target.targetPairs)); setShowSetForm(true) }}
                     style={{ fontSize: '11px', color: 'var(--color-text-info)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    Ubah target
+                    {t('styleCard.changeTarget')}
                   </button>
                 )}
               </div>
@@ -228,12 +230,12 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
           ) : (
             <div style={{ background: 'var(--color-background-warning)', border: '0.5px solid var(--color-border-warning)', borderRadius: 'var(--border-radius-md)', padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
               <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-warning)', marginBottom: '2px' }}>Target harian belum di-set</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>PPIC harus input target sebelum produksi dimulai</div>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-warning)', marginBottom: '2px' }}>{t('styleCard.noTargetTitle')}</div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{t('styleCard.noTargetDesc')}</div>
               </div>
               {canSetTarget && (
                 <button onClick={() => setShowSetForm(true)} style={{ background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', flexShrink: 0 }}>
-                  + Set target
+                  + {t('styleCard.setTarget')}
                 </button>
               )}
             </div>
@@ -244,17 +246,17 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
       {/* ── Form set target ── */}
       {showSetForm && (
         <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-lg)', padding: '14px 16px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 500, marginBottom: '10px' }}>Set target produksi hari ini</div>
-          <input type="number" placeholder="Jumlah target pairs (contoh: 1200)"
+          <div style={{ fontSize: '13px', fontWeight: 500, marginBottom: '10px' }}>{t('styleCard.setTargetTitle')}</div>
+          <input type="number" placeholder={t('styleCard.targetPlaceholder')}
             value={inputTarget} onChange={e => setInputTarget(e.target.value)}
             style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', fontSize: '13px', marginBottom: '8px', boxSizing: 'border-box' as any }} />
-          <input type="text" placeholder="Catatan opsional (misal: ada order urgent NB)"
+          <input type="text" placeholder={t('styleCard.notePlaceholder')}
             value={inputNote} onChange={e => setInputNote(e.target.value)}
             style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', fontSize: '13px', marginBottom: '10px', boxSizing: 'border-box' as any }} />
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => setShowSetForm(false)} style={{ flex: 1, padding: '8px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}>Batal</button>
+            <button onClick={() => setShowSetForm(false)} style={{ flex: 1, padding: '8px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}>{t('common.cancel')}</button>
             <button onClick={saveTarget} disabled={saving} style={{ flex: 2, padding: '8px', borderRadius: 'var(--border-radius-md)', border: 'none', background: saving ? 'var(--color-border-secondary)' : '#1D4ED8', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 500 }}>
-              {saving ? 'Menyimpan...' : 'Simpan target'}
+              {saving ? t('common.saving') : t('styleCard.saveTarget')}
             </button>
           </div>
         </div>
@@ -264,10 +266,10 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
       {sectionActuals.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
           {[
-            { label: 'LLER aktual', value: avgLler !== null ? `${avgLler}%` : '—', color: avgLler !== null ? llerColor(avgLler).text : 'var(--color-text-secondary)', bg: avgLler !== null ? llerColor(avgLler).bg : 'var(--color-background-secondary)', sub: avgLler !== null ? (avgLler >= 85 ? 'Di atas target' : 'Di bawah target') : 'Belum ada data' },
-            { label: 'Output hari ini', value: `${totalActual}`, color: 'var(--color-text-primary)', bg: 'var(--color-background-secondary)', sub: target ? `target ${target.targetPairs}` : 'target belum di-set' },
-            { label: 'Total downtime', value: `${totalDT} mnt`, color: totalDT > 30 ? 'var(--color-text-danger)' : totalDT > 10 ? 'var(--color-text-warning)' : 'var(--color-text-primary)', bg: totalDT > 30 ? 'var(--color-background-danger)' : 'var(--color-background-secondary)', sub: totalDT > 30 ? 'Investigasi segera' : totalDT > 0 ? 'Pantau terus' : 'Normal' },
-            { label: 'Defect', value: `${totalDefect} pairs`, color: parseFloat(defectRate) > 3 ? 'var(--color-text-danger)' : 'var(--color-text-primary)', bg: parseFloat(defectRate) > 3 ? 'var(--color-background-danger)' : 'var(--color-background-secondary)', sub: `${defectRate}% rate` },
+            { label: t('styleCard.llerActual'), value: avgLler !== null ? `${avgLler}%` : '—', color: avgLler !== null ? llerColor(avgLler).text : 'var(--color-text-secondary)', bg: avgLler !== null ? llerColor(avgLler).bg : 'var(--color-background-secondary)', sub: avgLler !== null ? (avgLler >= 85 ? t('styleCard.aboveTarget') : t('styleCard.belowTarget')) : t('common.noData') },
+            { label: t('styleCard.outputToday'), value: `${totalActual}`, color: 'var(--color-text-primary)', bg: 'var(--color-background-secondary)', sub: target ? `target ${target.targetPairs}` : t('styleCard.targetNotSet') },
+            { label: t('status.totalDT'), value: `${totalDT} ${t('common.minutes')}`, color: totalDT > 30 ? 'var(--color-text-danger)' : totalDT > 10 ? 'var(--color-text-warning)' : 'var(--color-text-primary)', bg: totalDT > 30 ? 'var(--color-background-danger)' : 'var(--color-background-secondary)', sub: totalDT > 30 ? t('styleCard.investigateNow') : totalDT > 0 ? t('styleCard.keepWatch') : t('styleCard.normal') },
+            { label: t('leader.defect'), value: `${totalDefect} ${t('common.pairs')}`, color: parseFloat(defectRate) > 3 ? 'var(--color-text-danger)' : 'var(--color-text-primary)', bg: parseFloat(defectRate) > 3 ? 'var(--color-background-danger)' : 'var(--color-background-secondary)', sub: `${defectRate}% rate` },
           ].map((k, i) => (
             <div key={i} style={{ background: k.bg, borderRadius: 'var(--border-radius-md)', padding: '10px 12px', textAlign: 'center' }}>
               <div style={{ fontSize: '22px', fontWeight: 500, color: k.color }}>{k.value}</div>
@@ -281,7 +283,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
       {/* ── 3. STATUS PER SECTION ── */}
       {sectionActuals.length > 0 && (
         <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '12px 14px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: '8px' }}>Status section hari ini</div>
+          <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: '8px' }}>{t('styleCard.sectionStatus')}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
             {sectionActuals.map(sec => {
               const cl = sec.ller !== null ? llerColor(sec.ller) : { bg: 'var(--color-background-secondary)', text: 'var(--color-text-secondary)', border: 'var(--color-border-tertiary)' }
@@ -294,7 +296,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
           </div>
           {sectionActuals.filter(s => s.ller === null).length > 0 && (
             <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '6px' }}>
-              {sectionActuals.filter(s => s.ller === null).length} section belum ada input aktual
+              {t('styleCard.sectionsNoInput', { n: sectionActuals.filter(s => s.ller === null).length })}
             </div>
           )}
         </div>
@@ -303,7 +305,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
       {/* ── 4. STANDAR IE TABLE ── */}
       <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', overflow: 'hidden' }}>
         <div style={{ padding: '10px 14px', borderBottom: '0.5px solid var(--color-border-tertiary)', fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Standar IE — {model.name} ({model.article})</span>
+          <span>{t('std.title')} — {model.name} ({model.article})</span>
           <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-text-secondary)' }}>LBR = total GWT ÷ (ops × TT)</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px 55px 60px 60px 70px', padding: '7px 14px', background: 'var(--color-background-secondary)', fontSize: '11px', fontWeight: 500, color: 'var(--color-text-secondary)', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
@@ -340,15 +342,15 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
       {/* ── 5. RINGKASAN UNTUK MANAGER ── */}
       {hasWarnings && (
         <div style={{ background: 'var(--color-background-danger)', border: '0.5px solid var(--color-border-danger)', borderRadius: 'var(--border-radius-md)', padding: '10px 14px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-danger)', marginBottom: '6px' }}>Yang perlu perhatian sekarang</div>
+          <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-danger)', marginBottom: '6px' }}>{t('styleCard.needsAttention')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            {noTarget && <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>• Target harian belum di-set — minta PPIC input sebelum produksi mulai</div>}
+            {noTarget && <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>• {t('styleCard.warnNoTarget')}</div>}
             {lowLbrSecs.map(s => (
               <div key={s.name} style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                • LBR {s.name} {lbrCalc(s.operations, s.taktTime)}% — banyak operasi jauh di bawah takt time, pertimbangkan re-balancing
+                • {t('styleCard.warnLowLbr', { name: s.name, lbr: lbrCalc(s.operations, s.taktTime) })}
               </div>
             ))}
-            {highDefect && <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>• Defect rate {defectRate}% melebihi batas 3% — lakukan quality check segera</div>}
+            {highDefect && <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>• {t('styleCard.warnHighDefect', { rate: defectRate })}</div>}
           </div>
         </div>
       )}
