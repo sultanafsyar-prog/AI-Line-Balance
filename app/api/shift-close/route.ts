@@ -12,13 +12,13 @@ const pair = (n: number) => `${n} pairs`
 function tr(cells: string[], header = false) {
   const tag  = header ? 'th' : 'td'
   const style = header
-    ? 'background:#0F6E56;color:#fff;padding:8px 12px;text-align:left;font-size:13px;'
+    ? 'background:#1D4ED8;color:#fff;padding:8px 12px;text-align:left;font-size:13px;'
     : 'padding:8px 12px;border-bottom:1px solid #f0f0ef;font-size:13px;color:#3d3d3a;'
   return `<tr>${cells.map(c => `<${tag} style="${style}">${c}</${tag}>`).join('')}</tr>`
 }
 
 function badge(llerVal: number) {
-  if (llerVal >= 90) return `<span style="background:#E1F5EE;color:#0F6E56;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;">✓ BAIK ${pct(llerVal)}</span>`
+  if (llerVal >= 90) return `<span style="background:#EFF6FF;color:#1D4ED8;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;">✓ BAIK ${pct(llerVal)}</span>`
   if (llerVal >= 75) return `<span style="background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;">⚠ PERHATIAN ${pct(llerVal)}</span>`
   return `<span style="background:#FCEBEB;color:#A32D2D;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;">✗ KRITIS ${pct(llerVal)}</span>`
 }
@@ -116,29 +116,29 @@ export async function POST(req: NextRequest) {
 <head><meta charset="utf-8"></head>
 <body style="font-family:sans-serif;background:#f5f5f3;margin:0;padding:24px;">
 <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e0dfd7;">
-  <div style="background:#0F6E56;padding:20px 24px;">
+  <div style="background:#1D4ED8;padding:20px 24px;">
     <div style="display:flex;align-items:center;gap:12px;">
       <div style="width:40px;height:40px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-        <span style="color:#0F6E56;font-weight:700;font-size:14px;">IE</span>
+        <span style="color:#1D4ED8;font-weight:700;font-size:14px;">IE</span>
       </div>
       <div>
         <div style="color:#fff;font-size:18px;font-weight:600;">Laporan Akhir Shift</div>
-        <div style="color:#9FE1CB;font-size:13px;">${lineLabel} · ${shiftLabel}</div>
+        <div style="color:#BFDBFE;font-size:13px;">${lineLabel} · ${shiftLabel}</div>
       </div>
     </div>
   </div>
-  <div style="padding:16px 24px;background:#E1F5EE;border-bottom:1px solid #9FE1CB;">
+  <div style="padding:16px 24px;background:#EFF6FF;border-bottom:1px solid #BFDBFE;">
     <table style="width:100%;border-collapse:collapse;">
       <tr>
-        <td style="font-size:12px;color:#0F6E56;padding:2px 0;"><strong>Tanggal</strong></td>
+        <td style="font-size:12px;color:#1D4ED8;padding:2px 0;"><strong>Tanggal</strong></td>
         <td style="font-size:12px;color:#085041;padding:2px 0;">${tanggal}</td>
-        <td style="font-size:12px;color:#0F6E56;padding:2px 0;"><strong>Shift</strong></td>
+        <td style="font-size:12px;color:#1D4ED8;padding:2px 0;"><strong>Shift</strong></td>
         <td style="font-size:12px;color:#085041;padding:2px 0;">${shiftLabel}</td>
       </tr>
       <tr>
-        <td style="font-size:12px;color:#0F6E56;padding:2px 0;"><strong>Model</strong></td>
+        <td style="font-size:12px;color:#1D4ED8;padding:2px 0;"><strong>Model</strong></td>
         <td style="font-size:12px;color:#085041;padding:2px 0;">${modelLabel}</td>
-        <td style="font-size:12px;color:#0F6E56;padding:2px 0;"><strong>Ditutup</strong></td>
+        <td style="font-size:12px;color:#1D4ED8;padding:2px 0;"><strong>Ditutup</strong></td>
         <td style="font-size:12px;color:#085041;padding:2px 0;">${jamTutup} oleh ${session.user.name}</td>
       </tr>
     </table>
@@ -148,12 +148,12 @@ export async function POST(req: NextRequest) {
     <table style="width:100%;border-collapse:collapse;">
       <tr>
         <td style="padding:10px;background:#f5f5f3;border-radius:8px;text-align:center;width:25%;">
-          <div style="font-size:22px;font-weight:600;color:#0F6E56;">${pair(totalOut)}</div>
+          <div style="font-size:22px;font-weight:600;color:#1D4ED8;">${pair(totalOut)}</div>
           <div style="font-size:11px;color:#888780;margin-top:2px;">Total Output</div>
         </td>
         <td style="width:8px;"></td>
         <td style="padding:10px;background:#f5f5f3;border-radius:8px;text-align:center;width:25%;">
-          <div style="font-size:22px;font-weight:600;color:${avgLler >= 90 ? '#0F6E56' : avgLler >= 75 ? '#854F0B' : '#A32D2D'};">${pct(avgLler)}</div>
+          <div style="font-size:22px;font-weight:600;color:${avgLler >= 90 ? '#1D4ED8' : avgLler >= 75 ? '#854F0B' : '#A32D2D'};">${pct(avgLler)}</div>
           <div style="font-size:11px;color:#888780;margin-top:2px;">Avg LLER</div>
         </td>
         <td style="width:8px;"></td>

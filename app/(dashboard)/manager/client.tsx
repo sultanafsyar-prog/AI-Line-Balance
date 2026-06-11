@@ -138,8 +138,8 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
                 <AreaChart data={trend.hourly} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
                   <defs>
                     <linearGradient id="hourlyGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1D9E75" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#1D9E75" stopOpacity={0.02} />
+                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -154,7 +154,7 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
                     }}
                   />
                   <ReferenceLine y={85} stroke="#EF9F27" strokeDasharray="3 3" label={{ value: 'Target 85%', position: 'right', fontSize: 10, fill: '#EF9F27' }} />
-                  <Area type="monotone" dataKey="lller" stroke="#1D9E75" strokeWidth={2} fill="url(#hourlyGrad)" dot={{ r: 3, fill: '#1D9E75' }} />
+                  <Area type="monotone" dataKey="lller" stroke="#3B82F6" strokeWidth={2} fill="url(#hourlyGrad)" dot={{ r: 3, fill: '#3B82F6' }} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -211,11 +211,11 @@ export default function ManagerClient({ userBuilding, userName }: Props) {
                   />
                   <ReferenceLine y={85} stroke="#EF9F27" strokeDasharray="3 3" />
                   <Line
-                    type="monotone" dataKey="lller" stroke="#1D9E75" strokeWidth={2}
+                    type="monotone" dataKey="lller" stroke="#3B82F6" strokeWidth={2}
                     dot={(props: any) => {
                       const { cx, cy, payload } = props
                       if (!payload || payload.lller === 0) return <></>
-                      return <circle cx={cx} cy={cy} r={3} fill="#1D9E75" />
+                      return <circle cx={cx} cy={cy} r={3} fill="#3B82F6" />
                     }}
                     connectNulls={false}
                   />

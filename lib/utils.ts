@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
-export function cn(...inputs: ClassValue[]) { return clsx(inputs) }
+export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }
 
 export const BUILDINGS: Record<string, number> = { C: 1, D: 6, E: 6, F: 5, H: 5, I: 4, G: 7 }
 export const STOCKFIT_BUILDING = 'G'

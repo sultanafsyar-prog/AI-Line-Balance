@@ -100,8 +100,8 @@ export default function AnalyticsPage() {
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
                   <Tooltip content={<CustomTooltip />} />
-                  <ReferenceLine y={85} stroke="#1D9E75" strokeDasharray="4 3" label={{ value: 'Target 85%', fill: '#1D9E75', fontSize: 10 }} />
-                  <Line type="monotone" dataKey="avgLler" name="LLER" stroke="#1D9E75" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <ReferenceLine y={85} stroke="#3B82F6" strokeDasharray="4 3" label={{ value: 'Target 85%', fill: '#3B82F6', fontSize: 10 }} />
+                  <Line type="monotone" dataKey="avgLler" name="LLER" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -118,7 +118,7 @@ export default function AnalyticsPage() {
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="totalOutput" name="Output (pairs)" fill="#1D9E75" maxBarSize={40} radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="totalOutput" name="Output (pairs)" fill="#3B82F6" maxBarSize={40} radius={[2, 2, 0, 0]} />
                   <Bar dataKey="totalDowntime" name="Downtime (mnt)" fill="#EF9F27" maxBarSize={40} radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

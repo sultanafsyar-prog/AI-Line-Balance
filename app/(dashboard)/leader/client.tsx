@@ -245,7 +245,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
     setSaving(false)
   }
 
-  const llerColor = ller >= 90 ? '#1D9E75' : ller >= 75 ? '#EF9F27' : ller > 0 ? '#E24B4A' : '#9CA3AF'
+  const llerColor = ller >= 90 ? '#3B82F6' : ller >= 75 ? '#EF9F27' : ller > 0 ? '#E24B4A' : '#9CA3AF'
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#F9FAFB' }}>
@@ -304,7 +304,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               <button key={l.id} onClick={() => { setSelLineId(l.id); setShowLines(false) }}
                 style={{
                   padding: '8px 14px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                  background: l.id === selLineId ? '#1D9E75' : '#F3F4F6',
+                  background: l.id === selLineId ? '#3B82F6' : '#F3F4F6',
                   color: l.id === selLineId ? '#fff' : '#374151',
                   border: 'none',
                 }}>
@@ -333,7 +333,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                   style={{
                     display: 'inline-block', padding: '8px 14px', marginRight: 6,
                     borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                    background: selSec === s ? '#1D9E75' : hasActual ? '#F0FDF9' : '#F3F4F6',
+                    background: selSec === s ? '#3B82F6' : hasActual ? '#F0FDF9' : '#F3F4F6',
                     color: selSec === s ? '#fff' : hasActual ? '#065F46' : '#9CA3AF',
                     border: selSec === s ? 'none' : `1px solid ${hasActual ? '#A7F3D0' : '#E5E7EB'}`,
                   }}>
@@ -359,7 +359,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       <button key={s} onClick={() => { setShift(s); setForm(f => ({ ...f, hour: String(s === 1 ? 7 : 20) })) }}
                         style={{
                           padding: '8px 16px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                          background: shift === s ? '#1D9E75' : '#F9FAFB',
+                          background: shift === s ? '#3B82F6' : '#F9FAFB',
                           color: shift === s ? '#fff' : '#6B7280',
                         }}>
                         Shift {s}
@@ -417,7 +417,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                             flexShrink: 0, width: 52, height: 48, borderRadius: 10, fontSize: 14,
                             fontWeight: 700, cursor: 'pointer', position: 'relative',
                             border: isOT ? '2px solid #FCD34D' : 'none',
-                            background: form.hour === String(h) ? '#1D9E75' : isOT ? '#FFFBEB' : '#F3F4F6',
+                            background: form.hour === String(h) ? '#3B82F6' : isOT ? '#FFFBEB' : '#F3F4F6',
                             color: form.hour === String(h) ? '#fff' : isOT ? '#92400E' : '#6B7280',
                           }}>
                           {displayHour(h)}
@@ -426,7 +426,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                             <span style={{
                               position: 'absolute', top: 3, right: 3,
                               width: 8, height: 8, borderRadius: '50%',
-                              background: form.hour === String(h) ? '#fff' : '#1D9E75',
+                              background: form.hour === String(h) ? '#fff' : '#3B82F6',
                               border: '1.5px solid #fff',
                             }} />
                           )}
@@ -448,12 +448,12 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     style={{
                       width: '100%', height: 72, fontSize: 36, fontWeight: 800,
                       textAlign: 'center', borderRadius: 12, border: '2px solid',
-                      borderColor: gap !== null ? (gap >= 0 ? '#1D9E75' : '#EF4444') : '#E5E7EB',
+                      borderColor: gap !== null ? (gap >= 0 ? '#3B82F6' : '#EF4444') : '#E5E7EB',
                       outline: 'none', background: gap !== null ? (gap >= 0 ? '#F0FDF9' : '#FEF2F2') : '#F9FAFB',
                       color: '#111827', boxSizing: 'border-box',
                     }} />
                   {gap !== null && (
-                    <div style={{ textAlign: 'center', marginTop: 8, fontSize: 15, fontWeight: 700, color: gap >= 0 ? '#1D9E75' : '#EF4444' }}>
+                    <div style={{ textAlign: 'center', marginTop: 8, fontSize: 15, fontWeight: 700, color: gap >= 0 ? '#3B82F6' : '#EF4444' }}>
                       {gap >= 0 ? `+${gap}` : gap} dari target {tph}
                     </div>
                   )}
@@ -511,7 +511,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                           <button key={key} onClick={() => setForm(f => ({ ...f, dtReason: dbValue }))}
                             style={{
                               padding: '10px 8px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                              background: form.dtReason === dbValue ? '#1D9E75' : '#F3F4F6',
+                              background: form.dtReason === dbValue ? '#3B82F6' : '#F3F4F6',
                               color: form.dtReason === dbValue ? '#fff' : '#374151',
                               border: 'none', textAlign: 'center',
                             }}>
@@ -552,7 +552,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       {[
                         { label: t('status.totalOutput'), value: `${allTotalOut}`, sub: t('common.pairs'), color: '#111827' },
                         { label: 'Line LLER', value: `${lineLler}%`, sub: 'semua section', color: llerColor },
-                        { label: `${effectiveSec} LLER`, value: `${sectionLler}%`, sub: 'section aktif', color: sectionLler >= 90 ? '#1D9E75' : sectionLler >= 75 ? '#EF9F27' : '#EF4444' },
+                        { label: `${effectiveSec} LLER`, value: `${sectionLler}%`, sub: 'section aktif', color: sectionLler >= 90 ? '#3B82F6' : sectionLler >= 75 ? '#EF9F27' : '#EF4444' },
                         { label: t('status.totalDT'), value: `${allTotalDT}`, sub: t('common.minutes'), color: allTotalDT > 30 ? '#EF4444' : '#111827' },
                       ].map(m => (
                         <div key={m.label} style={{ background: '#fff', borderRadius: 16, padding: '14px 12px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
@@ -586,13 +586,13 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                             <span style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{displayHour(a.hour)}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <span style={{ fontSize: 22, fontWeight: 800, color: '#111827' }}>{a.output}</span>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: g >= 0 ? '#1D9E75' : '#EF4444' }}>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: g >= 0 ? '#3B82F6' : '#EF4444' }}>
                                 {g >= 0 ? '+' : ''}{g}
                               </span>
                             </div>
                           </div>
                           <div style={{ background: '#F3F4F6', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', borderRadius: 4, width: `${pct}%`, background: g >= 0 ? '#1D9E75' : '#EF4444' }} />
+                            <div style={{ height: '100%', borderRadius: 4, width: `${pct}%`, background: g >= 0 ? '#3B82F6' : '#EF4444' }} />
                           </div>
                           <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12, color: '#9CA3AF' }}>
                             <span>MP: {a.mpActual}</span>
@@ -703,7 +703,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     style={{
                       width: '100%', height: 52, borderRadius: 14, border: 'none',
                       cursor: (aiLoading || todayActs.length === 0) ? 'not-allowed' : 'pointer',
-                      background: aiLoading ? '#E5E7EB' : todayActs.length === 0 ? '#F3F4F6' : '#1D9E75',
+                      background: aiLoading ? '#E5E7EB' : todayActs.length === 0 ? '#F3F4F6' : '#3B82F6',
                       color: todayActs.length === 0 ? '#9CA3AF' : '#fff',
                       fontSize: 15, fontWeight: 700,
                       boxShadow: (aiLoading || todayActs.length === 0) ? 'none' : '0 4px 12px rgba(29,158,117,0.3)',
@@ -735,7 +735,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
               <button onClick={handleSave} disabled={saving}
                 style={{
                   width: '100%', height: 60, borderRadius: 16, border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
-                  background: saving ? '#9CA3AF' : '#1D9E75', color: '#fff',
+                  background: saving ? '#9CA3AF' : '#3B82F6', color: '#fff',
                   fontSize: 18, fontWeight: 800, letterSpacing: '0.02em',
                   boxShadow: saving ? 'none' : '0 4px 12px rgba(29,158,117,0.4)',
                 }}>
@@ -754,14 +754,14 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                   style={{
                     flex: 1, padding: '10px 4px 14px', border: 'none', cursor: 'pointer',
                     background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                    borderTop: tab === navItem.key ? '3px solid #1D9E75' : '3px solid transparent',
+                    borderTop: tab === navItem.key ? '3px solid #3B82F6' : '3px solid transparent',
                   }}>
                   {navItem.key === 'ai' ? (
                     <img src="/claude-logo.svg" alt="AI" style={{ width: 18, height: 18 }} />
                   ) : (
                     <span style={{ fontSize: 18 }}>{navItem.icon}</span>
                   )}
-                  <span style={{ fontSize: 11, fontWeight: 600, color: tab === navItem.key ? '#1D9E75' : '#9CA3AF' }}>{navItem.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: tab === navItem.key ? '#3B82F6' : '#9CA3AF' }}>{navItem.label}</span>
                 </button>
               ))}
             </div>

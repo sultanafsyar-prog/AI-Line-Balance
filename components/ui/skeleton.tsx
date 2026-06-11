@@ -63,7 +63,7 @@ export function PageLoading({ message = 'Memuat data...' }: { message?: string }
   )
 }
 
-export function Spinner({ size = 20, color = '#1D9E75' }: { size?: number; color?: string }) {
+export function Spinner({ size = 20, color = '#3B82F6' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="animate-spin">
       <circle cx="12" cy="12" r="10" stroke={color} strokeOpacity="0.2" strokeWidth="3" />
