@@ -84,6 +84,7 @@ interface YamSummary {
   stdMP: number
   theorMP: number
   maxEffCT: number
+  hourlyTarget: number | null
 }
 
 function calcYamSummaries(model: any, sections: string[]): YamSummary[] {
@@ -105,6 +106,7 @@ function calcYamSummaries(model: any, sections: string[]): YamSummary[] {
       name: secName, taktTime: sec.taktTime, stdMP: sec.stdMP,
       theorMP: parseFloat(theorMP.toFixed(1)),
       maxEffCT: parseFloat(maxEffCT.toFixed(1)),
+      hourlyTarget: sec.hourlyTarget ?? null,
     }
   }).filter(Boolean) as YamSummary[]
 }
@@ -168,6 +170,8 @@ function calcLine(line: LineData, sections: string[], building: string) {
   )
 
   const theoPPH = primaryYam ? Math.round(3600 / primaryYam.taktTime) : 0
+  // Target tampilan per jam: pakai target manual IE kalau di-set, else teoretis
+  const dispTPH = primaryYam?.hourlyTarget ?? theoPPH
   const taktStd = primaryYam ? primaryYam.taktTime : 0
 
   // STD MP / THEO MP — section-only kalau activeSection set
@@ -181,7 +185,7 @@ function calcLine(line: LineData, sections: string[], building: string) {
   const baseEmpty = {
     model: model?.name ?? null, article: model?.article ?? null,
     imageUrl: model?.imageUrl ?? null, dailyTarget: daily,
-    taktStd, theoPPH,
+    taktStd, theoPPH, dispTPH,
     theoMPTotal: parseFloat(theoMPTotal.toFixed(1)),
     stdMPTotal,
     ller: 0, lastHourOutput: 0, lastHour: null as number | null, totOut: 0,
@@ -242,7 +246,7 @@ function calcLine(line: LineData, sections: string[], building: string) {
   const ller = (avgPPH > 0 && avgMPActual > 0 && theoPPH > 0 && theoMPTotal > 0)
     ? Math.round((avgPPH * avgMPActual) / (theoPPH * theoMPTotal) * 100) : 0
 
-  const gap    = lastHourOutput - theoPPH
+  const gap    = lastHourOutput - dispTPH
   const totDT  = relevantActuals.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
   const totDef = relevantActuals.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
 
@@ -296,7 +300,7 @@ function genInsight(lineNo: number, m: ReturnType<typeof calcLine>): string {
   if (mpGap > 1.5) return `${p}: 👥 MP ${m.avgMPActual} vs theo ${m.theoMPTotal} (+${mpGap.toFixed(1)}) — overstaffed.`
   if (mpGap < -1.5) return `${p}: 👥 MP ${m.avgMPActual} vs theo ${m.theoMPTotal} (${mpGap.toFixed(1)}) — kekurangan MP.`
 
-  if (m.gap < -15) return `${p}: 📉 Aktual ${m.lastHourOutput} vs target ${m.theoPPH} (gap ${m.gap}). CT ${m.actCT}s vs takt ${m.taktStd}s.`
+  if (m.gap < -15) return `${p}: 📉 Aktual ${m.lastHourOutput} vs target ${m.dispTPH} (gap ${m.gap}). CT ${m.actCT}s vs takt ${m.taktStd}s.`
   if (m.totDT > 30) return `${p}: ⏱ Downtime ${m.totDT} mnt. LLER ${m.ller}%.`
   if (m.ller >= 95) return `${p}: ✅ LLER ${m.ller}% — lini efisien. ${m.totOut.toLocaleString()} pairs.`
 
@@ -1031,7 +1035,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                   <div style={{ textAlign: 'center' }}>
                     {m.hasData ? (
                       <>
-                        <div style={{ fontSize: '18px', fontWeight: 700, color: sc.text }}>{m.lastHourOutput}/{m.theoPPH}</div>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: sc.text }}>{m.lastHourOutput}/{m.dispTPH}</div>
                         <div style={{ fontSize: '10px', color: gapColor(m.gap) }}>
                           {m.gap >= 0 ? '+' : ''}{m.gap}/jam
                         </div>

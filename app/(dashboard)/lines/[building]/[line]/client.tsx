@@ -35,6 +35,8 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   const takt = section?.taktTime ?? 36
   const metrics = section ? calcSectionMetrics(section.operations, section.stdMP, takt) : null
   const tph = takt > 0 ? Math.round(3600 / takt) : 0
+  // Target tampilan: target manual IE per section kalau di-set (LLER tetap pakai tph teoretis)
+  const dispTph = section?.hourlyTarget ?? tph
 
   const sectionActuals = line.actuals.filter((a: any) => a.section?.name === selSec).sort((a: any, b: any) => a.hour - b.hour)
   const totOut = sectionActuals.reduce((s: number, a: any) => s + a.output, 0)
@@ -149,7 +151,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
           {model ? (
             <p className="text-sm text-gray-500">
               Model: <strong className="text-gray-800">{model.name}</strong> · {model.article} ·
-              <span className="text-teal"> Target: {tph} prs/jam</span> · Takt: {takt}s
+              <span className="text-teal"> Target: {dispTph} prs/jam</span> · Takt: {takt}s
             </p>
           ) : <p className="text-sm text-gray-400">Belum ada model</p>}
         </div>

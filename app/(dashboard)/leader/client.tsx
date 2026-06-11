@@ -111,6 +111,8 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   // TPH dari section taktTime (untuk target output per jam)
   const sectionTakt = section?.taktTime ?? 0
   const tph = sectionTakt > 0 ? Math.round(3600 / sectionTakt) : 0
+  // Target tampilan: target manual IE kalau di-set, else teoretis (LLER tetap pakai tph teoretis)
+  const dispTph = section?.hourlyTarget ?? tph
 
   // TheorMP per section: sum(GWT semua ops) / taktTime
   const getGWT = (op: any) => (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15))
@@ -177,7 +179,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const ller = lineLler
 
   const outputNum = parseInt(form.output) || 0
-  const gap      = outputNum > 0 && tph > 0 ? outputNum - tph : null
+  const gap      = outputNum > 0 && dispTph > 0 ? outputNum - dispTph : null
   const hasDT    = parseInt(form.downtime) > 0
 
   // Set jam yang sudah ada datanya (untuk dot indicator)
@@ -269,7 +271,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
             )}
             {model && (
               <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
-                {model.name} · Target {tph} pairs/jam
+                {model.name} · Target {dispTph} pairs/jam
               </div>
             )}
           </div>

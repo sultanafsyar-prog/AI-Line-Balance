@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { BUILDINGS, today } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 
-type Line = { id: string; building: string; lineNo: number; model: { name: string; lineType: string } | null; sections: { id: string; name: string; stdMP: number; taktTime: number }[] }
+type Line = { id: string; building: string; lineNo: number; model: { name: string; lineType: string } | null; sections: { id: string; name: string; stdMP: number; taktTime: number; hourlyTarget?: number | null }[] }
 
 const DT_REASONS = [
   { value: 'Mesin rusak',     key: 'inputPage.dtMachine' },
@@ -48,7 +48,7 @@ export default function InputPage() {
   const filteredLines = lines.filter(l => l.building === selBuilding && l.model)
   const selLine  = lines.find(l => l.id === selLineId)
   const selSec   = selLine?.sections.find(s => s.id === selSecId)
-  const tph      = selSec?.taktTime && selSec.taktTime > 0 ? Math.round(3600 / selSec.taktTime) : 0
+  const tph      = selSec?.hourlyTarget ?? (selSec?.taktTime && selSec.taktTime > 0 ? Math.round(3600 / selSec.taktTime) : 0)
 
   // Auto-select first building with lines that have model
   useEffect(() => {

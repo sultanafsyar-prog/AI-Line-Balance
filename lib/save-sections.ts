@@ -13,6 +13,7 @@ type SectionInput = {
   name: string
   stdMP?: number
   taktTime?: number
+  hourlyTarget?: number | null
   ops?: OpInput[]
 }
 
@@ -47,6 +48,7 @@ export async function saveSectionsPreservingActuals(
         data: {
           stdMP: s.stdMP ?? 0,
           taktTime: s.taktTime ?? 36,
+          hourlyTarget: s.hourlyTarget ?? null,
         },
       })
       await prisma.operation.deleteMany({ where: { sectionId: existing.id } })
@@ -58,6 +60,7 @@ export async function saveSectionsPreservingActuals(
           name: secName,
           stdMP: s.stdMP ?? 0,
           taktTime: s.taktTime ?? 36,
+          hourlyTarget: s.hourlyTarget ?? null,
         },
       })
       secId = created.id
