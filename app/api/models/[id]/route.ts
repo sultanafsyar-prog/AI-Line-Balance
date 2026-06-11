@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { today } from '@/lib/utils'
 import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
 import { ModelPatchSchema } from '@/lib/validation'
 import { saveSectionsPreservingActuals } from '@/lib/save-sections'
+
+// Helper: set daily target untuk semua line yang assign model ini
+async function setDailyTargetForModel(modelId: string, targetPairs: number, setBy: string) {
+  const todayDate = today()
+  const activeAssignments = await prisma.lineAssignment.findMany({
+    where: { modelId, active: true },
+    select: { lineId: true },
+  })
+  for (const { lineId } of activeAssignments) {
+    await prisma.dailyTarget.upsert({
+      where: { lineId_date: { lineId, date: todayDate } },
+      update: { targetPairs, setBy, note: 'Update dari edit model' },
+      create: { lineId, date: todayDate, targetPairs, setBy, note: 'Update dari edit model' },
+    })
+  }
+}
 
 // GET /api/models/[id]
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -17,7 +34,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
           include: { operations: { orderBy: { seq: 'asc' } } },
           orderBy: { name: 'asc' }
         },
-        assignments: { where: { active: true }, include: { line: true } }
+        assignments: {
+          where: { active: true },
+          include: {
+            line: {
+              include: { dailyTargets: { where: { date: today() }, take: 1 } },
+            },
+          },
+        },
       },
     })
     if (!model) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -38,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const parsed = await parseBody(req, ModelPatchSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { name, article, stage, lineType, sections } = parsed
+  const { name, article, stage, lineType, dailyTarget, sections } = parsed
 
   try {
     const existing = await prisma.shoeModel.findUnique({ where: { id: params.id } })
@@ -60,6 +84,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Rebuild sections jika dikirim, tanpa menghapus section lama
     if (sections && sections.length > 0) {
       await saveSectionsPreservingActuals(params.id, sections)
+    }
+
+    // Update daily target untuk semua line yang assign model ini
+    if (dailyTarget && dailyTarget > 0) {
+      await setDailyTargetForModel(params.id, dailyTarget, auth.user.id)
     }
 
     const updated = await prisma.shoeModel.findUnique({
