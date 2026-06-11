@@ -35,7 +35,7 @@ interface Props {
 // Konteks: data AKTUAL vs Takt Time. Label menunjukkan performa aktual.
 function barColor(ct: number, tt: number) {
   const ratio = ct / tt
-  if (ratio <= 0.9)  return { fill: '#1D9E75', label: 'Efisien',       text: '#085041' }
+  if (ratio <= 0.9)  return { fill: '#3B82F6', label: 'Efisien',       text: '#085041' }
   if (ratio <= 1.0)  return { fill: '#EF9F27', label: 'Mendekati TT',  text: '#633806' }
   if (ratio <= 1.3)  return { fill: '#E24B4A', label: 'Melebihi TT',   text: '#791F1F' }
   return               { fill: '#A32D2D', label: 'Kritis',          text: '#501313' }
@@ -97,7 +97,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
     <div>
       {/* ── Penjelasan singkat ── */}
       <div style={{
-        padding: '10px 14px', background: '#E1F5EE',
+        padding: '10px 14px', background: '#EFF6FF',
         borderRadius: '8px', marginBottom: '16px',
         fontSize: '12px', color: '#085041', lineHeight: 1.6,
       }}>
@@ -114,7 +114,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
             value: avgCT !== null ? `${avgCT}s` : '—',
             sub:   avgStatus ? avgStatus.label : '',
             color: avgStatus?.text ?? '#3d3d3a',
-            bg:    avgCT !== null && avgCT <= taktTime ? '#E1F5EE' : '#FCEBEB',
+            bg:    avgCT !== null && avgCT <= taktTime ? '#EFF6FF' : '#FCEBEB',
           },
           {
             label: 'Takt Time',
@@ -128,7 +128,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
             value: `${efisienJams.length} jam`,
             sub:   `CT ≤ TT`,
             color: '#085041',
-            bg:    '#E1F5EE',
+            bg:    '#EFF6FF',
           },
           {
             label: 'Jam melebihi TT',
@@ -231,7 +231,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
                     x={x} y={ttY}
                     width={barW}
                     height={chartH - ttY}
-                    fill="#1D9E75"
+                    fill="#3B82F6"
                     opacity={0.4}
                   />
                 )}
@@ -305,7 +305,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
                 </span>
                 <span style={{ fontWeight: 500 }}>{jam.output} pairs</span>
                 <span style={{ color: '#888780' }}>{jam.targetOut} pairs</span>
-                <span style={{ color: jam.gap >= 0 ? '#0F6E56' : '#A32D2D', fontWeight: 500 }}>
+                <span style={{ color: jam.gap >= 0 ? '#1D4ED8' : '#A32D2D', fontWeight: 500 }}>
                   {jam.gap >= 0 ? `+${jam.gap}` : jam.gap}
                 </span>
                 <span style={{ color: (jam.downtime ?? 0) > 10 ? '#A32D2D' : '#3d3d3a' }}>
@@ -318,7 +318,7 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
                 <span>
                   {color ? (
                     <span style={{
-                      background: ct !== null && ct <= taktTime ? '#E1F5EE'
+                      background: ct !== null && ct <= taktTime ? '#EFF6FF'
                         : ct !== null && ct <= taktTime * 1.3 ? '#FCEBEB' : '#FCEBEB',
                       color: color.text,
                       padding: '2px 8px', borderRadius: '99px',
@@ -354,8 +354,8 @@ export default function YamazumiAktual({ actuals, taktTime, stdMP, sectionName }
       {overTaktJams.length === 0 && validCTs.length > 0 && (
         <div style={{
           marginTop: '16px', padding: '12px 14px',
-          background: '#E1F5EE', borderRadius: '8px',
-          borderLeft: '3px solid #1D9E75',
+          background: '#EFF6FF', borderRadius: '8px',
+          borderLeft: '3px solid #3B82F6',
           fontSize: '12px', color: '#085041',
         }}>
           ✓ Semua jam beroperasi di bawah Takt Time — lini berjalan efisien hari ini.

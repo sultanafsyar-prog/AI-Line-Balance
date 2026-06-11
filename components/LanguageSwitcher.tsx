@@ -83,7 +83,7 @@ export default function LanguageSwitcher({ compact = false, dark = false, openUp
                 width: '100%', padding: '10px 14px', border: 'none',
                 background: locale === key ? (dark ? '#1f2937' : '#f0fdf9') : 'transparent',
                 cursor: 'pointer', fontSize: '13px',
-                color: locale === key ? (dark ? '#10b981' : '#1D9E75') : text,
+                color: locale === key ? (dark ? '#10b981' : '#3B82F6') : text,
                 fontWeight: locale === key ? 600 : 400, textAlign: 'left',
                 transition: 'background 0.15s',
               }}
@@ -100,7 +100,7 @@ export default function LanguageSwitcher({ compact = false, dark = false, openUp
                 border: '2px solid rgba(255,255,255,0.2)',
               }} />
               <span style={{ flex: 1 }}>{val.label}</span>
-              {locale === key && <span style={{ fontSize: '14px', color: '#1D9E75' }}>✓</span>}
+              {locale === key && <span style={{ fontSize: '14px', color: '#3B82F6' }}>✓</span>}
             </button>
           ))}
         </div>

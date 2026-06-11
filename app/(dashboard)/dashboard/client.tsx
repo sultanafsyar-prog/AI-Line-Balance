@@ -66,7 +66,7 @@ function calcLineLler(line: DashLine): number {
 }
 
 function llerColor(v: number): string {
-  if (v >= 90) return '#1D9E75'
+  if (v >= 90) return '#3B82F6'
   if (v >= 75) return '#EF9F27'
   if (v > 0) return '#EF4444'
   return '#D1D5DB'
@@ -289,9 +289,9 @@ export default function DashboardClient({ lines, totalModels, userName, userRole
         {[
           { label: 'Avg LLER', value: withData.length > 0 ? `${avgLler}%` : '—', color: llerColor(avgLler), bg: llerBg(avgLler) },
           { label: t('tv.totalOutput'), value: totalOutput.toLocaleString(), color: '#111827', bg: '#F9FAFB' },
-          { label: t('tv.dailyTarget'), value: totalDailyTarget > 0 ? `${targetPct}%` : '—', color: targetPct >= 100 ? '#1D9E75' : '#EF9F27', bg: totalDailyTarget > 0 ? (targetPct >= 100 ? '#F0FDF9' : '#FFFBEB') : '#F9FAFB' },
+          { label: t('tv.dailyTarget'), value: totalDailyTarget > 0 ? `${targetPct}%` : '—', color: targetPct >= 100 ? '#3B82F6' : '#EF9F27', bg: totalDailyTarget > 0 ? (targetPct >= 100 ? '#F0FDF9' : '#FFFBEB') : '#F9FAFB' },
           { label: t('tv.downtime'), value: `${totalDT} ${t('common.minutes')}`, color: totalDT > 60 ? '#EF4444' : '#111827', bg: totalDT > 60 ? '#FEF2F2' : '#F9FAFB' },
-          { label: t('tv.alert'), value: `${activeAlerts}`, color: activeAlerts > 0 ? '#EF4444' : '#1D9E75', bg: activeAlerts > 0 ? '#FEF2F2' : '#F0FDF9' },
+          { label: t('tv.alert'), value: `${activeAlerts}`, color: activeAlerts > 0 ? '#EF4444' : '#3B82F6', bg: activeAlerts > 0 ? '#FEF2F2' : '#F0FDF9' },
         ].map(k => (
           <div key={k.label} className="rounded-xl border border-gray-100 p-4" style={{ background: k.bg }}>
             <div className="text-3xl font-semibold" style={{ color: k.color }}>{k.value}</div>
@@ -305,14 +305,14 @@ export default function DashboardClient({ lines, totalModels, userName, userRole
         <div className="rounded-xl border border-gray-100 bg-white p-3 mb-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs text-gray-500">{t('tv.progressTitle')}</span>
-            <span className="text-sm font-semibold" style={{ color: targetPct >= 100 ? '#1D9E75' : '#EF9F27' }}>
+            <span className="text-sm font-semibold" style={{ color: targetPct >= 100 ? '#3B82F6' : '#EF9F27' }}>
               {totalOutput.toLocaleString()} / {totalDailyTarget.toLocaleString()} {t('common.pairs')}
             </span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(targetPct, 100)}%`, background: targetPct >= 100 ? '#1D9E75' : '#EF9F27' }}
+              style={{ width: `${Math.min(targetPct, 100)}%`, background: targetPct >= 100 ? '#3B82F6' : '#EF9F27' }}
             />
           </div>
         </div>
@@ -321,7 +321,7 @@ export default function DashboardClient({ lines, totalModels, userName, userRole
       {/* ── AI Factory Digest ── */}
       <div className="rounded-xl border border-gray-100 bg-white mb-4 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: '#1D9E75' }}>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: '#3B82F6' }}>
             <img src="/claude-logo.svg" alt="AI" style={{ width: 14, height: 14 }} /> AI
           </span>
           <span className="text-sm font-semibold text-gray-800">Factory Digest</span>

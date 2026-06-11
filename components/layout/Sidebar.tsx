@@ -3,7 +3,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import {
+  LayoutDashboard, Boxes, ClipboardList, Activity, BarChart3,
+  Users, LogOut, ChevronLeft, ChevronRight,
+} from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -30,12 +35,12 @@ export default function Sidebar({ user }: Props) {
   const { t }    = useI18n()
 
   const navItems = [
-    { href: '/dashboard',  label: t('nav.dashboard'),    icon: '⊞' },
-    ...(ie ? [{ href: '/models', label: t('nav.modelLibrary'), icon: '◫' }] : []),
-    { href: '/input',      label: t('nav.inputActual'),  icon: '✎' },
-    { href: '/monitor',    label: t('nav.monitor'),      icon: '◉' },
-    ...(ie ? [{ href: '/analytics', label: t('nav.analytics'), icon: '▦' }] : []),
-    ...(user.role === 'IT_ADMIN' ? [{ href: '/users', label: t('nav.users'), icon: '◑' }] : []),
+    { href: '/dashboard',  label: t('nav.dashboard'),    Icon: LayoutDashboard },
+    ...(ie ? [{ href: '/models', label: t('nav.modelLibrary'), Icon: Boxes }] : []),
+    { href: '/input',      label: t('nav.inputActual'),  Icon: ClipboardList },
+    { href: '/monitor',    label: t('nav.monitor'),      Icon: Activity },
+    ...(ie ? [{ href: '/analytics', label: t('nav.analytics'), Icon: BarChart3 }] : []),
+    ...(user.role === 'IT_ADMIN' ? [{ href: '/users', label: t('nav.users'), Icon: Users }] : []),
   ]
 
   const initials = (user.name ?? 'U')
@@ -46,41 +51,20 @@ export default function Sidebar({ user }: Props) {
 
   return (
     <aside
-      style={{
-        width: open ? '224px' : '60px',
-        flexShrink: 0,
-        background: '#fff',
-        borderRight: '1px solid #f0f0ef',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'width 0.2s ease',
-        overflow: 'hidden',
-        position: 'relative',
-      }}
+      className="relative flex shrink-0 flex-col overflow-hidden border-r border-border bg-card transition-[width] duration-200 ease-in-out"
+      style={{ width: open ? '232px' : '64px' }}
     >
       {/* ── Header / Logo ── */}
-      <div style={{
-        padding: '14px 12px',
-        borderBottom: '1px solid #f0f0ef',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        minHeight: '56px',
-      }}>
-        <div style={{
-          minWidth: '32px', height: '32px',
-          background: '#1D9E75', borderRadius: '8px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <span style={{ color: '#fff', fontSize: '11px', fontWeight: 700 }}>IE</span>
+      <div className="flex min-h-[56px] items-center gap-2.5 border-b border-border px-3 py-3.5">
+        <div className="flex h-8 w-8 min-w-[32px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 shadow-sm">
+          <span className="text-[11px] font-bold text-white">IE</span>
         </div>
         {open && (
-          <div style={{ overflow: 'hidden' }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a18', whiteSpace: 'nowrap' }}>
+          <div className="overflow-hidden">
+            <div className="whitespace-nowrap text-[13px] font-semibold text-foreground">
               Line Balance
             </div>
-            <div style={{ fontSize: '11px', color: '#888780', whiteSpace: 'nowrap' }}>
+            <div className="whitespace-nowrap text-[11px] text-muted-foreground">
               {ROLE_LABELS[user.role ?? ''] ?? user.role}
             </div>
           </div>
@@ -91,160 +75,83 @@ export default function Sidebar({ user }: Props) {
       <button
         onClick={() => setOpen(o => !o)}
         title={open ? 'Tutup sidebar' : 'Buka sidebar'}
-        style={{
-          position: 'absolute',
-          top: '16px',
-          right: open ? '10px' : '8px',
-          width: '22px', height: '22px',
-          borderRadius: '50%',
-          border: '1px solid #e0dfd7',
-          background: '#fff',
-          cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '10px', color: '#888780',
-          zIndex: 10,
-          flexShrink: 0,
-        }}
+        className={cn(
+          'absolute top-4 z-10 flex h-[22px] w-[22px] shrink-0 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground',
+          open ? 'right-2.5' : 'right-2',
+        )}
       >
-        {open ? '◀' : '▶'}
+        {open ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
       </button>
 
       {/* ── Nav items ── */}
-      <nav style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        {navItems.map(item => {
-          const active = path === item.href || path.startsWith(item.href + '/')
+      <nav className="flex flex-1 flex-col gap-0.5 px-2 py-2.5">
+        {navItems.map(({ href, label, Icon }) => {
+          const active = path === href || path.startsWith(href + '/')
           return (
             <Link
-              key={item.href}
-              href={item.href}
-              title={!open ? item.label : undefined}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: open ? '8px 10px' : '8px',
-                borderRadius: '8px',
-                textDecoration: 'none',
-                background: active ? '#E1F5EE' : 'transparent',
-                color: active ? '#0F6E56' : '#5F5E5A',
-                fontSize: '13px',
-                fontWeight: active ? 500 : 400,
-                transition: 'background 0.12s',
-                justifyContent: open ? 'flex-start' : 'center',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-              }}
-              onMouseEnter={e => {
-                if (!active) (e.currentTarget as HTMLElement).style.background = '#f5f5f3'
-              }}
-              onMouseLeave={e => {
-                if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
+              key={href}
+              href={href}
+              title={!open ? label : undefined}
+              className={cn(
+                'flex items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg text-[13px] transition-colors duration-150',
+                open ? 'justify-start px-2.5 py-2' : 'justify-center p-2',
+                active
+                  ? 'bg-blue-50 font-medium text-blue-700'
+                  : 'font-normal text-muted-foreground hover:bg-secondary hover:text-foreground',
+              )}
             >
-              <span style={{ fontSize: '15px', flexShrink: 0 }}>{item.icon}</span>
-              {open && <span>{item.label}</span>}
+              <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.2 : 1.8} />
+              {open && <span>{label}</span>}
             </Link>
           )
         })}
       </nav>
 
       {/* ── User info + Logout ── */}
-      <div style={{
-        padding: '10px 8px',
-        borderTop: '1px solid #f0f0ef',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
-      }}>
-        {/* Avatar + nama (hanya saat open) */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '6px 8px',
-          borderRadius: '8px',
-          overflow: 'hidden',
-          justifyContent: open ? 'flex-start' : 'center',
-        }}>
-          <div style={{
-            minWidth: '30px', height: '30px',
-            borderRadius: '50%',
-            background: '#E1F5EE',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '11px', fontWeight: 600, color: '#0F6E56',
-            flexShrink: 0,
-          }}>
+      <div className="flex flex-col gap-1.5 border-t border-border px-2 py-2.5">
+        {/* Avatar + nama */}
+        <div className={cn(
+          'flex items-center gap-2 overflow-hidden rounded-lg px-2 py-1.5',
+          open ? 'justify-start' : 'justify-center',
+        )}>
+          <div className="flex h-[30px] w-[30px] min-w-[30px] shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-semibold text-blue-700">
             {initials}
           </div>
           {open && (
-            <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: '12px', fontWeight: 500, color: '#1a1a18', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div className="overflow-hidden">
+              <div className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium text-foreground">
                 {user.name}
               </div>
-              <div style={{ fontSize: '11px', color: '#888780', whiteSpace: 'nowrap' }}>
+              <div className="whitespace-nowrap text-[11px] text-muted-foreground">
                 {user.building ? `Gedung ${user.building}` : t('nav.allBuildings')}
               </div>
             </div>
           )}
         </div>
 
-        {/* Tombol Logout — selalu muncul, ikon saja kalau collapsed */}
+        {/* Logout */}
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           title="Keluar"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: open ? '7px 10px' : '7px',
-            borderRadius: '8px',
-            border: '1px solid #f0f0ef',
-            background: 'transparent',
-            cursor: 'pointer',
-            color: '#A32D2D',
-            fontSize: '13px',
-            fontWeight: 500,
-            width: '100%',
-            justifyContent: open ? 'flex-start' : 'center',
-            transition: 'background 0.12s',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#FCEBEB')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          className={cn(
+            'flex w-full cursor-pointer items-center gap-2 overflow-hidden whitespace-nowrap rounded-lg border border-border bg-transparent text-[13px] font-medium text-red-700 transition-colors duration-150 hover:bg-red-50',
+            open ? 'justify-start px-2.5 py-[7px]' : 'justify-center p-[7px]',
+          )}
         >
-          {/* Ikon pintu keluar */}
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
+          <LogOut className="h-[15px] w-[15px] shrink-0" />
           {open && <span>{t('common.logout')}</span>}
         </button>
 
         {/* Language switcher */}
-        {open && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
-            <LanguageSwitcher compact={false} openUp />
-          </div>
-        )}
-        {!open && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
-            <LanguageSwitcher compact={true} openUp />
-          </div>
-        )}
+        <div className="mt-2 flex justify-center">
+          <LanguageSwitcher compact={!open} openUp />
+        </div>
 
         {/* Watermark */}
         {open && (
-          <div style={{
-            textAlign: 'center',
-            fontSize: '10px',
-            color: '#c4c4c0',
-            marginTop: '8px',
-            lineHeight: '1.3',
-          }}>
+          <div className="mt-2 text-center text-[10px] leading-tight text-gray-300">
             {t('app.by')}<br />
-            <span style={{ fontWeight: 600, color: '#a3a39e' }}>Third Axis Center</span>
+            <span className="font-semibold text-gray-400">Third Axis Center</span>
           </div>
         )}
       </div>

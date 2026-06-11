@@ -159,8 +159,8 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
             {result && (
               <div style={{
                 padding: '10px 14px', borderRadius: '8px', marginBottom: '16px',
-                background: result.ok ? '#E1F5EE' : '#FCEBEB',
-                color:      result.ok ? '#0F6E56' : '#A32D2D',
+                background: result.ok ? '#EFF6FF' : '#FCEBEB',
+                color:      result.ok ? '#1D4ED8' : '#A32D2D',
                 fontSize:   '13px', lineHeight: 1.5,
               }}>
                 {result.ok ? '✓ ' : '✗ '}{result.msg}

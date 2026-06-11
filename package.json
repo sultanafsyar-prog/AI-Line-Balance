@@ -14,6 +14,7 @@
     "@prisma/client": "^5.16.0",
     "@supabase/supabase-js": "^2.106.2",
     "bcryptjs": "^2.4.3",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "lucide-react": "^0.400.0",
@@ -22,6 +23,9 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },

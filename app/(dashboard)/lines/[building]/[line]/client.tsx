@@ -244,7 +244,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
               </div>
 
               <div className="flex gap-4 mb-3 text-xs text-gray-500">
-                {[['#1D9E75', 'VA'], ['#EF9F27', 'NVAN'], ['#E24B4A', 'NVA'], ['— merah', 'Takt time']].map(([c, l]) => (
+                {[['#3B82F6', 'VA'], ['#EF9F27', 'NVAN'], ['#E24B4A', 'NVA'], ['— merah', 'Takt time']].map(([c, l]) => (
                   <span key={l} className="flex items-center gap-1">
                     <span className="w-3 h-3 rounded-sm inline-block" style={{ background: c.startsWith('—') ? '#E24B4A' : c }} />
                     {l}
@@ -270,7 +270,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                     />
                     <ReferenceLine y={takt} stroke="#E24B4A" strokeWidth={2} strokeDasharray="5 4"
                       label={{ value: `TT=${takt}s`, fill: '#E24B4A', fontSize: 10, position: 'right' }} />
-                    <Bar dataKey="VA" stackId="s" fill="#1D9E75" maxBarSize={40} />
+                    <Bar dataKey="VA" stackId="s" fill="#3B82F6" maxBarSize={40} />
                     <Bar dataKey="NVAN" stackId="s" fill="#EF9F27" maxBarSize={40} />
                     <Bar dataKey="NVA" stackId="s" fill="#E24B4A" maxBarSize={40} />
                   </BarChart>

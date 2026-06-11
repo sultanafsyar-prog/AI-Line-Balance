@@ -44,7 +44,7 @@ const C = {
   gray:     '#6b7280',
   white:    '#f9fafb',
   dim:      '#9ca3af',
-  teal:     '#1D9E75',
+  teal:     '#3B82F6',
   tealBg:   '#052e22',
   tealBd:   '#0d4f3c',
 }

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { RefreshCw, Download, AlertTriangle } from 'lucide-react'
 import { BUILDINGS } from '@/lib/utils'
 
 type LineStatus = {
@@ -79,13 +80,16 @@ export default function MonitorPage() {
           <p className="text-xs text-gray-400 mt-1 flex items-center gap-2">
             {lastUpdate ? `Update terakhir: ${lastUpdate.toLocaleTimeString('id-ID')}` : 'Memuat...'}
             <button onClick={() => setAutoRefresh(a => !a)}
-              className={`px-2 py-0.5 rounded text-xs border ${autoRefresh ? 'bg-teal-light border-teal text-teal-dark' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
-              {autoRefresh ? '● Auto-refresh aktif' : '○ Auto-refresh mati'}
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs border cursor-pointer transition-colors ${autoRefresh ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
+              <span className={`inline-block w-1.5 h-1.5 rounded-full ${autoRefresh ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
+              {autoRefresh ? 'Auto-refresh aktif' : 'Auto-refresh mati'}
             </button>
-            <button onClick={fetchData} className="px-2 py-0.5 rounded text-xs border border-gray-200 hover:bg-gray-50">↺ Refresh</button>
+            <button onClick={fetchData} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs border border-gray-200 cursor-pointer transition-colors hover:bg-gray-50">
+              <RefreshCw className="w-3 h-3" /> Refresh
+            </button>
           </p>
         </div>
-        <a href="/api/export/daily" className="btn btn-secondary text-sm">↓ Export laporan hari ini</a>
+        <a href="/api/export/daily" className="btn btn-secondary text-sm"><Download className="w-4 h-4" /> Export laporan hari ini</a>
       </div>
 
       {/* Summary cards */}
@@ -127,7 +131,7 @@ export default function MonitorPage() {
       {/* Critical alerts banner */}
       {critical.length > 0 && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
-          <div className="text-sm font-medium text-red-700 mb-2">⚠ {critical.length} line butuh perhatian (LLER &lt; 75%)</div>
+          <div className="flex items-center gap-1.5 text-sm font-medium text-red-700 mb-2"><AlertTriangle className="w-4 h-4" /> {critical.length} line butuh perhatian (LLER &lt; 75%)</div>
           <div className="flex flex-wrap gap-2">
             {critical.map(l => (
               <Link key={l.id} href={`/lines/${l.building}/${l.lineNo}`}

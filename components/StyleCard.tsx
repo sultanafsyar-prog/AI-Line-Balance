@@ -181,7 +181,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
             </div>
           )}
           {/* Badge NB */}
-          <div style={{ position: 'absolute', top: '6px', left: '6px', background: '#0F6E56', borderRadius: '4px', padding: '2px 5px', fontSize: '9px', fontWeight: 700, color: '#fff' }}>NB</div>
+          <div style={{ position: 'absolute', top: '6px', left: '6px', background: '#1D4ED8', borderRadius: '4px', padding: '2px 5px', fontSize: '9px', fontWeight: 700, color: '#fff' }}>NB</div>
           {/* Upload overlay */}
           {canSetTarget && (
             <label style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', padding: '5px', textAlign: 'center', cursor: 'pointer', fontSize: '10px', color: '#fff' }}>
@@ -232,7 +232,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
                 <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>PPIC harus input target sebelum produksi dimulai</div>
               </div>
               {canSetTarget && (
-                <button onClick={() => setShowSetForm(true)} style={{ background: '#0F6E56', color: '#fff', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', flexShrink: 0 }}>
+                <button onClick={() => setShowSetForm(true)} style={{ background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', flexShrink: 0 }}>
                   + Set target
                 </button>
               )}
@@ -253,7 +253,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
             style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', fontSize: '13px', marginBottom: '10px', boxSizing: 'border-box' as any }} />
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={() => setShowSetForm(false)} style={{ flex: 1, padding: '8px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}>Batal</button>
-            <button onClick={saveTarget} disabled={saving} style={{ flex: 2, padding: '8px', borderRadius: 'var(--border-radius-md)', border: 'none', background: saving ? 'var(--color-border-secondary)' : '#0F6E56', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 500 }}>
+            <button onClick={saveTarget} disabled={saving} style={{ flex: 2, padding: '8px', borderRadius: 'var(--border-radius-md)', border: 'none', background: saving ? 'var(--color-border-secondary)' : '#1D4ED8', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 500 }}>
               {saving ? 'Menyimpan...' : 'Simpan target'}
             </button>
           </div>
@@ -318,7 +318,7 @@ export default function StyleCard({ model, lineId, totalActual, sectionActuals =
               <span style={{ textAlign: 'center', color: 'var(--color-text-secondary)' }}>{sec.operations.length}</span>
               <span style={{ textAlign: 'center' }}>{sec.taktTime}s</span>
               <span style={{ textAlign: 'center' }}>{parseFloat(Number(sec.stdMP).toFixed(2))}</span>
-              <span style={{ textAlign: 'center', fontWeight: 500, color: '#0F6E56' }}>{pph(sec.taktTime)}</span>
+              <span style={{ textAlign: 'center', fontWeight: 500, color: '#1D4ED8' }}>{pph(sec.taktTime)}</span>
               <span style={{ textAlign: 'center' }}>
                 <span style={{ background: lc.bg, color: lc.text, padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 500 }}>
                   {lbr > 0 ? `${lbr}%` : '—'}
