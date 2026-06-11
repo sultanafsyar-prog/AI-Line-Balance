@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     include: { model: true },
   })
   if (section) {
-    const tph = section.taktTime > 0 ? Math.round(3600 / section.taktTime) : 0
+    const tph = section.hourlyTarget ?? (section.taktTime > 0 ? Math.round(3600 / section.taktTime) : 0)
     const secName = section.name
 
     async function ensureAlert(type: 'OUTPUT_LOW' | 'DOWNTIME_HIGH' | 'DEFECT_HIGH', message: string) {

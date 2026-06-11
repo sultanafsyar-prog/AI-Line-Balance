@@ -7,7 +7,7 @@ import { useI18n } from '@/lib/i18n'
 
 // ─── TYPES ───────────────────────────────────────────────────
 type Op = { id: string; name: string; va: number; nvan: number; nva: number; mcCT: number; allowance: number }
-type Sec = { name: string; stdMP: number; taktTime: number; ops: Op[] }
+type Sec = { name: string; stdMP: number; taktTime: number; hourlyTarget?: number | null; ops: Op[] }
 type ModelDraft = { name: string; article: string; stage: string; lineType: 'MINI' | 'BIG'; sections: Sec[]; dailyTarget?: number; hourlyTarget?: number }
 
 const ALL_SECTIONS = [...SECTIONS, ...SF_SECTIONS]
@@ -702,26 +702,14 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
               </select>
             </div>
             <div>
-              <label className="label">
-                {t('modelLib.dailyTargetLabel')}
-                {draft.dailyTarget ? (
-                  <span className="ml-1 text-blue-600 font-normal">
-                    · {draft.hourlyTarget ?? Math.round(draft.dailyTarget / 8)} {t('modelLib.prsPerHour')}
-                  </span>
-                ) : null}
-              </label>
+              <label className="label">{t('modelLib.dailyTargetPpic')}</label>
               <input
                 type="number" min={0} className="input text-sm"
                 value={draft.dailyTarget ?? ''}
                 placeholder={t('modelLib.dailyTargetPlaceholder')}
                 onChange={e => {
                   const v = parseInt(e.target.value)
-                  const daily = !isNaN(v) && v > 0 ? v : undefined
-                  setDraft(d => ({
-                    ...d,
-                    dailyTarget: daily,
-                    hourlyTarget: daily ? Math.round(daily / 8) : undefined,
-                  }))
+                  setDraft(d => ({ ...d, dailyTarget: !isNaN(v) && v > 0 ? v : undefined }))
                 }}
               />
             </div>
@@ -760,6 +748,17 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
                   {t('std.taktTime')}:
                   <input type="number" step="0.1" min="1" className="w-16 px-1 py-0.5 border border-gray-200 rounded text-center text-xs" value={section.taktTime} onChange={e => updSection('taktTime', parseFloat(e.target.value) || 36)} />
                   <span>{t('modelLib.seconds')}</span>
+                </label>
+                <label className="flex items-center gap-1 text-gray-500">
+                  {t('modelLib.hourlyTargetIe')}:
+                  <input type="number" min="0" className="w-16 px-1 py-0.5 border border-gray-200 rounded text-center text-xs"
+                    value={section.hourlyTarget ?? ''}
+                    placeholder={section.taktTime > 0 ? String(Math.round(3600 / section.taktTime)) : ''}
+                    onChange={e => {
+                      const v = parseInt(e.target.value)
+                      updSection('hourlyTarget', !isNaN(v) && v > 0 ? v : null)
+                    }} />
+                  <span>{t('modelLib.prsPerHour')}</span>
                 </label>
                 {/* ─── VALIDATION WARNING (stdMP vs theoMP) ─── */}
                 {(() => {
@@ -908,6 +907,7 @@ export default function ModelsPage() {
         .filter(s => s.ops.length > 0)
         .map(s => ({
           name: s.name, stdMP: s.stdMP, taktTime: s.taktTime,
+          hourlyTarget: s.hourlyTarget ?? null,
           ops: s.ops.map(op => ({ ...op, allowance: op.allowance <= 1 ? op.allowance : op.allowance / 100 }))
         }))
     }
@@ -941,6 +941,7 @@ export default function ModelsPage() {
           name: secName,
           stdMP: dbSec?.stdMP ?? 0,
           taktTime: dbSec?.taktTime ?? (secName === 'Stockfit' ? 14.4 : 36),
+          hourlyTarget: dbSec?.hourlyTarget ?? null,
           ops: (dbSec?.operations ?? []).map((op: any) => ({
             id: op.id ?? Math.random().toString(36).slice(2),
             name: op.name, va: op.va, nvan: op.nvan, nva: op.nva,

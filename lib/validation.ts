@@ -44,10 +44,11 @@ const OperationSchema = z.object({
 })
 
 const SectionSchema = z.object({
-  name:     z.string().min(1).max(100),
-  stdMP:    z.number().min(0).default(0),
-  taktTime: z.number().min(1, 'Takt time minimal 1 detik').default(36),
-  ops:      z.array(OperationSchema).default([]),
+  name:         z.string().min(1).max(100),
+  stdMP:        z.number().min(0).default(0),
+  taktTime:     z.number().min(1, 'Takt time minimal 1 detik').default(36),
+  hourlyTarget: z.number().int().min(0).max(10000).optional().nullable(),
+  ops:          z.array(OperationSchema).default([]),
 })
 
 // ─── MODELS ─────────────────────────────────────────────────

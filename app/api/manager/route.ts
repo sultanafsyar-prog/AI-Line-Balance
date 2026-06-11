@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       },
       actuals: {
         where: { date: today() },
-        include: { section: { select: { name: true, taktTime: true, stdMP: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
+        include: { section: { select: { name: true, taktTime: true, stdMP: true, hourlyTarget: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
         orderBy: { hour: 'desc' },
       },
       alerts: { where: { resolved: false } },
@@ -72,6 +72,8 @@ export async function GET(req: NextRequest) {
     const model = line.assignments[0]?.model ?? null
     const latestTakt = line.actuals[0]?.section?.taktTime ?? 0
     const tph   = latestTakt > 0 ? Math.round(3600 / latestTakt) : 0
+    // Target tampilan untuk gap di client (LLER tetap pakai tph teoretis)
+    const dispTph = (line.actuals[0]?.section as any)?.hourlyTarget ?? tph
     const actuals = line.actuals
 
     const totalOutput   = actuals.reduce((s, a) => s + a.output, 0)
@@ -107,7 +109,7 @@ export async function GET(req: NextRequest) {
     const lineData: LineSummary = {
       id: line.id, lineNo: line.lineNo, building: line.building,
       model: model ? { name: model.name, lineType: model.lineType } : null,
-      ller, lastOutput, tph,
+      ller, lastOutput, tph: dispTph,
       todayOutput: totalOutput,
       todayDowntime: totalDowntime,
       todayDefect: totalDefect,
