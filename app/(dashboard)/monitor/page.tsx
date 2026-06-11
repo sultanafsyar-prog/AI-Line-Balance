@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { RefreshCw, Download, AlertTriangle } from 'lucide-react'
 import { BUILDINGS } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n'
 
 type LineStatus = {
   id: string; building: string; lineNo: number; lineType: string
@@ -22,6 +23,7 @@ function statusColor(ller: number, hasModel: boolean, hasActual: boolean) {
 }
 
 export default function MonitorPage() {
+  const { t } = useI18n()
   const [lines, setLines] = useState<LineStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [selBuilding, setSelBuilding] = useState<string>('ALL')
@@ -67,7 +69,7 @@ export default function MonitorPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
-      Memuat data monitor...
+      {t('monitor.loadingData')}
     </div>
   )
 
@@ -76,29 +78,29 @@ export default function MonitorPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Monitor lini</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('monitor.title')}</h1>
           <p className="text-xs text-gray-400 mt-1 flex items-center gap-2">
-            {lastUpdate ? `Update terakhir: ${lastUpdate.toLocaleTimeString('id-ID')}` : 'Memuat...'}
+            {lastUpdate ? t('monitor.lastUpdate', { time: lastUpdate.toLocaleTimeString('id-ID') }) : t('common.loading')}
             <button onClick={() => setAutoRefresh(a => !a)}
               className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs border cursor-pointer transition-colors ${autoRefresh ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
               <span className={`inline-block w-1.5 h-1.5 rounded-full ${autoRefresh ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
-              {autoRefresh ? 'Auto-refresh aktif' : 'Auto-refresh mati'}
+              {autoRefresh ? t('monitor.autoRefreshOn') : t('monitor.autoRefreshOff')}
             </button>
             <button onClick={fetchData} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs border border-gray-200 cursor-pointer transition-colors hover:bg-gray-50">
-              <RefreshCw className="w-3 h-3" /> Refresh
+              <RefreshCw className="w-3 h-3" /> {t('monitor.refresh')}
             </button>
           </p>
         </div>
-        <a href="/api/export/daily" className="btn btn-secondary text-sm"><Download className="w-4 h-4" /> Export laporan hari ini</a>
+        <a href="/api/export/daily" className="btn btn-secondary text-sm"><Download className="w-4 h-4" /> {t('monitor.exportToday')}</a>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { label: 'Line aktif', value: withActual.length + ' / ' + withModel.length, sub: 'dari ' + lines.length + ' total', color: '' },
-          { label: 'Total output hari ini', value: totalOut.toLocaleString(), sub: 'pairs', color: 'text-teal' },
-          { label: 'Avg LLER', value: avgLler + '%', sub: withActual.length + ' line dengan data', color: avgLler >= 90 ? 'text-teal' : avgLler >= 75 ? 'text-amber-600' : 'text-red-600' },
-          { label: 'Alert aktif', value: totalAlerts, sub: critical.length + ' line LLER < 75%', color: totalAlerts > 0 ? 'text-red-600' : 'text-gray-900' },
+          { label: t('monitor.activeLines'), value: withActual.length + ' / ' + withModel.length, sub: t('monitor.ofTotal', { n: lines.length }), color: '' },
+          { label: t('monitor.totalOutputToday'), value: totalOut.toLocaleString(), sub: t('common.pairs'), color: 'text-teal' },
+          { label: t('monitor.avgLler'), value: avgLler + '%', sub: t('monitor.linesWithData', { n: withActual.length }), color: avgLler >= 90 ? 'text-teal' : avgLler >= 75 ? 'text-amber-600' : 'text-red-600' },
+          { label: t('dash.totalAlerts'), value: totalAlerts, sub: t('monitor.linesLowLler', { n: critical.length }), color: totalAlerts > 0 ? 'text-red-600' : 'text-gray-900' },
         ].map(m => (
           <div key={m.label} className="card p-3">
             <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{m.label}</div>
@@ -111,7 +113,7 @@ export default function MonitorPage() {
       {/* Legend + building filter */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex gap-3 text-xs text-gray-500">
-          {[['bg-teal','LLER ≥ 90%'],['bg-yellow-400','75–90%'],['bg-red-500','< 75%'],['bg-amber-300','Ada model, belum input'],['bg-gray-300','Kosong']].map(([c,l]) => (
+          {[['bg-teal','LLER ≥ 90%'],['bg-yellow-400','75–90%'],['bg-red-500','< 75%'],['bg-amber-300',t('monitor.legendNoInput')],['bg-gray-300',t('monitor.legendEmpty')]].map(([c,l]) => (
             <span key={l} className="flex items-center gap-1.5">
               <span className={`w-2.5 h-2.5 rounded-full ${c}`}/>
               {l}
@@ -122,7 +124,7 @@ export default function MonitorPage() {
           {['ALL', ...Object.keys(BUILDINGS)].map(b => (
             <button key={b} onClick={() => setSelBuilding(b)}
               className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${selBuilding === b ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {b === 'ALL' ? 'Semua' : `Gdg ${b}`}
+              {b === 'ALL' ? t('common.all') : t('monitor.bldg', { b })}
             </button>
           ))}
         </div>
@@ -131,12 +133,12 @@ export default function MonitorPage() {
       {/* Critical alerts banner */}
       {critical.length > 0 && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
-          <div className="flex items-center gap-1.5 text-sm font-medium text-red-700 mb-2"><AlertTriangle className="w-4 h-4" /> {critical.length} line butuh perhatian (LLER &lt; 75%)</div>
+          <div className="flex items-center gap-1.5 text-sm font-medium text-red-700 mb-2"><AlertTriangle className="w-4 h-4" /> {t('monitor.criticalBanner', { n: critical.length })}</div>
           <div className="flex flex-wrap gap-2">
             {critical.map(l => (
               <Link key={l.id} href={`/lines/${l.building}/${l.lineNo}`}
                 className="text-xs px-2.5 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">
-                Gdg {l.building} Line {l.lineNo} — {l.ller}%
+                {t('monitor.bldg', { b: l.building })} {t('monitor.line', { n: l.lineNo })} — {l.ller}%
               </Link>
             ))}
           </div>
@@ -149,9 +151,9 @@ export default function MonitorPage() {
         .map(([building, bLines]) => (
         <div key={building} className="mb-5">
           <div className="flex items-center gap-2 mb-2">
-            <h2 className="text-sm font-semibold text-gray-700">Gedung {building}</h2>
+            <h2 className="text-sm font-semibold text-gray-700">{t('monitor.building', { b: building })}</h2>
             {building === 'G' && <span className="badge badge-warn text-xs">Stockfit</span>}
-            <span className="text-xs text-gray-400">{bLines.length} line</span>
+            <span className="text-xs text-gray-400">{t('monitor.lineCount', { n: bLines.length })}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
             {bLines.sort((a, b) => a.lineNo - b.lineNo).map(line => {
@@ -163,7 +165,7 @@ export default function MonitorPage() {
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${st.dot}`}/>
-                      <span className="font-medium text-sm text-gray-900">Line {line.lineNo}</span>
+                      <span className="font-medium text-sm text-gray-900">{t('monitor.line', { n: line.lineNo })}</span>
                       {line.model && (
                         <span className="text-xs text-gray-500">{line.model.name}</span>
                       )}
@@ -176,9 +178,9 @@ export default function MonitorPage() {
                   </div>
 
                   {!line.model ? (
-                    <div className="text-xs text-gray-400">Belum ada model</div>
+                    <div className="text-xs text-gray-400">{t('monitor.noModel')}</div>
                   ) : !line.latestActual ? (
-                    <div className="text-xs text-amber-600">Model: {line.model.name} — belum ada input hari ini</div>
+                    <div className="text-xs text-amber-600">{t('monitor.noInputToday', { name: line.model.name })}</div>
                   ) : (
                     <>
                       {/* Metrics */}
@@ -189,13 +191,13 @@ export default function MonitorPage() {
                         </div>
                         <div className="text-center">
                           <div className="text-lg font-semibold text-gray-900">{line.latestActual.output}</div>
-                          <div className="text-xs text-gray-400">Jam {line.latestActual.hour}:00</div>
+                          <div className="text-xs text-gray-400">{t('monitor.atHour', { h: line.latestActual.hour })}</div>
                         </div>
                         <div className="text-center">
                           <div className={`text-lg font-semibold ${line.gap >= 0 ? 'text-teal' : 'text-red-600'}`}>
                             {line.gap >= 0 ? '+' : ''}{line.gap}
                           </div>
-                          <div className="text-xs text-gray-400">vs target</div>
+                          <div className="text-xs text-gray-400">{t('monitor.vsTarget')}</div>
                         </div>
                       </div>
 
@@ -207,13 +209,13 @@ export default function MonitorPage() {
 
                       {/* Today totals */}
                       <div className="flex gap-3 text-xs text-gray-500">
-                        <span>Total: <strong className="text-gray-700">{line.todayTotals.output}</strong> pairs</span>
+                        <span>{t('monitor.total')}: <strong className="text-gray-700">{line.todayTotals.output}</strong> {t('common.pairs')}</span>
                         <span>MP: <strong className="text-gray-700">{line.todayTotals.avgMP}</strong></span>
                         {line.todayTotals.downtime > 0 && (
                           <span className="text-amber-600">DT: <strong>{line.todayTotals.downtime}m</strong></span>
                         )}
                         {line.todayTotals.defect > 0 && (
-                          <span className="text-red-500">Defect: <strong>{line.todayTotals.defect}</strong></span>
+                          <span className="text-red-500">{t('leader.defect')}: <strong>{line.todayTotals.defect}</strong></span>
                         )}
                       </div>
                     </>

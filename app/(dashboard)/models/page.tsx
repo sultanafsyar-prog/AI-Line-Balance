@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { SECTIONS, SF_SECTIONS } from '@/lib/utils'
 import Link from 'next/link'
+import { useI18n } from '@/lib/i18n'
 
 // ─── TYPES ───────────────────────────────────────────────────
 type Op = { id: string; name: string; va: number; nvan: number; nva: number; mcCT: number; allowance: number }
@@ -601,6 +602,7 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
 
 // ─── EDITABLE OP ROW ─────────────────────────────────────────
 function OpRow({ op, onChange, onDelete }: { op: Op; onChange: (op: Op) => void; onDelete: () => void }) {
+  const { t } = useI18n()
   const gwt = parseFloat(((op.va + op.nvan + op.nva) * (1 + op.allowance)).toFixed(2))
   function upd(field: keyof Op, val: string) {
     onChange({ ...op, [field]: field === 'name' ? val : parseFloat(val) || 0 })
@@ -608,7 +610,7 @@ function OpRow({ op, onChange, onDelete }: { op: Op; onChange: (op: Op) => void;
   return (
     <tr className="border-b border-gray-50 hover:bg-gray-50 group">
       <td className="px-2 py-1">
-        <input className="w-full text-sm px-1 py-0.5 border-0 bg-transparent focus:bg-white focus:border focus:border-gray-200 rounded" value={op.name} onChange={e => upd('name', e.target.value)} placeholder="Nama operasi..." />
+        <input className="w-full text-sm px-1 py-0.5 border-0 bg-transparent focus:bg-white focus:border focus:border-gray-200 rounded" value={op.name} onChange={e => upd('name', e.target.value)} placeholder={t('modelLib.opNamePlaceholder')} />
       </td>
       {(['va','nvan','nva','mcCT'] as const).map(f => (
         <td key={f} className="px-1 py-1 w-16">
@@ -625,6 +627,7 @@ function OpRow({ op, onChange, onDelete }: { op: Op; onChange: (op: Op) => void;
 
 // ─── EDITOR FORM ─────────────────────────────────────────────
 function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onSave: (d: ModelDraft) => void; onCancel: () => void }) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState<ModelDraft>(JSON.parse(JSON.stringify(init)))
   const [selSec, setSelSec] = useState(draft.sections.find(s => s.ops.length > 0)?.name ?? draft.sections[0].name)
   const [saving, setSaving] = useState(false)
@@ -652,7 +655,7 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
   }
 
   async function handleSave() {
-    if (!draft.name) return alert('Nama model wajib diisi')
+    if (!draft.name) return alert(t('modelLib.nameRequired'))
     setSaving(true)
     await onSave(draft)
     setSaving(false)
@@ -669,14 +672,14 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              {init.name ? `Edit Model — ${init.name}` : 'Buat Model Baru'}
+              {init.name ? t('modelLib.editTitle', { name: init.name }) : t('modelLib.createTitle')}
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">{filledSections.length} section · {totalOps} operasi total</p>
+            <p className="text-xs text-gray-400 mt-0.5">{t('modelLib.editorSummary', { sections: filledSections.length, ops: totalOps })}</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={onCancel} className="btn btn-secondary text-sm">Batal</button>
+            <button onClick={onCancel} className="btn btn-secondary text-sm">{t('common.cancel')}</button>
             <button onClick={handleSave} disabled={saving} className="btn btn-primary text-sm">
-              {saving ? 'Menyimpan...' : '✓ Simpan model'}
+              {saving ? t('common.saving') : `✓ ${t('modelLib.saveModel')}`}
             </button>
           </div>
         </div>
@@ -685,11 +688,11 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
         <div className="px-6 py-3 border-b border-gray-100 bg-gray-50">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label className="label">Model name *</label>
+              <label className="label">{t('modelLib.modelName')} *</label>
               <input className="input text-sm" value={draft.name} onChange={e => updModel('name', e.target.value)} placeholder="U740" />
             </div>
             <div>
-              <label className="label">Article</label>
+              <label className="label">{t('model.article')}</label>
               <input className="input text-sm" value={draft.article} onChange={e => updModel('article', e.target.value)} placeholder="U-740" />
             </div>
             <div>
@@ -700,17 +703,17 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
             </div>
             <div>
               <label className="label">
-                Target Harian (pairs/hari)
+                {t('modelLib.dailyTargetLabel')}
                 {draft.dailyTarget ? (
                   <span className="ml-1 text-blue-600 font-normal">
-                    · {draft.hourlyTarget ?? Math.round(draft.dailyTarget / 8)} prs/jam
+                    · {draft.hourlyTarget ?? Math.round(draft.dailyTarget / 8)} {t('modelLib.prsPerHour')}
                   </span>
                 ) : null}
               </label>
               <input
                 type="number" min={0} className="input text-sm"
                 value={draft.dailyTarget ?? ''}
-                placeholder="cth: 1680"
+                placeholder={t('modelLib.dailyTargetPlaceholder')}
                 onChange={e => {
                   const v = parseInt(e.target.value)
                   const daily = !isNaN(v) && v > 0 ? v : undefined
@@ -749,14 +752,14 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
               <span className="text-sm font-medium text-gray-700">{selSec}</span>
               <div className="flex items-center gap-3 text-xs flex-wrap">
                 <label className="flex items-center gap-1 text-gray-500">
-                  Std MP:
+                  {t('std.stdMP')}:
                   <input type="number" step="0.25" min="0" className="w-16 px-1 py-0.5 border border-gray-200 rounded text-center text-xs" value={section.stdMP || ''} onChange={e => updSection('stdMP', parseFloat(e.target.value) || 0)} />
-                  <span>orang</span>
+                  <span>{t('common.persons')}</span>
                 </label>
                 <label className="flex items-center gap-1 text-gray-500">
-                  Takt time:
+                  {t('std.taktTime')}:
                   <input type="number" step="0.1" min="1" className="w-16 px-1 py-0.5 border border-gray-200 rounded text-center text-xs" value={section.taktTime} onChange={e => updSection('taktTime', parseFloat(e.target.value) || 36)} />
-                  <span>detik</span>
+                  <span>{t('modelLib.seconds')}</span>
                 </label>
                 {/* ─── VALIDATION WARNING (stdMP vs theoMP) ─── */}
                 {(() => {
@@ -768,21 +771,21 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
                   if (section.stdMP > 0 && section.stdMP < theoMP * 0.7) {
                     return (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 border border-red-200 text-red-700" title="Standard MP terlalu kecil — line akan tidak cukup orang untuk capai takt time">
-                        ⚠ Std MP terlalu kecil — Theo MP ≈ {theoMP.toFixed(1)} (saran: {theoMPCeil})
+                        ⚠ {t('modelLib.stdMpTooSmall', { theo: theoMP.toFixed(1), suggest: theoMPCeil })}
                       </span>
                     )
                   }
                   if (section.stdMP === 0) {
                     return (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700" title="Std MP belum diisi">
-                        ⚠ Std MP belum diisi — Theo MP ≈ {theoMP.toFixed(1)} (saran: {theoMPCeil})
+                        ⚠ {t('modelLib.stdMpEmpty', { theo: theoMP.toFixed(1), suggest: theoMPCeil })}
                       </span>
                     )
                   }
                   if (section.stdMP > theoMP * 1.5) {
                     return (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700" title="Standard MP jauh lebih besar dari theoretical — kemungkinan overstaffed">
-                        ℹ Std MP &gt; Theo MP ({theoMP.toFixed(1)}) — overstaffed?
+                        ℹ {t('modelLib.stdMpOverstaffed', { theo: theoMP.toFixed(1) })}
                       </span>
                     )
                   }
@@ -800,7 +803,7 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <th className="text-left px-2 py-2 text-xs text-gray-500 font-medium">Nama Operasi</th>
+                    <th className="text-left px-2 py-2 text-xs text-gray-500 font-medium">{t('modelLib.opName')}</th>
                     <th className="px-1 py-2 text-xs text-gray-500 font-medium w-16 text-center">VA (s)</th>
                     <th className="px-1 py-2 text-xs text-gray-500 font-medium w-16 text-center">NVAN (s)</th>
                     <th className="px-1 py-2 text-xs text-gray-500 font-medium w-16 text-center">NVA (s)</th>
@@ -811,7 +814,7 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
                 </thead>
                 <tbody>
                   {section.ops.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-sm">Belum ada operasi — klik "+ Tambah operasi" di bawah</td></tr>
+                    <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-sm">{t('modelLib.noOps')}</td></tr>
                   ) : (
                     section.ops.map(op => (
                       <OpRow key={op.id} op={op} onChange={updated => updOp(op.id, updated)} onDelete={() => deleteOp(op.id)} />
@@ -824,7 +827,7 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
             {/* Add operation */}
             <div className="px-4 py-2 border-t border-gray-100">
               <button onClick={addOp} className="text-xs text-teal hover:text-teal-dark font-medium flex items-center gap-1">
-                <span className="text-base leading-none">+</span> Tambah operasi
+                <span className="text-base leading-none">+</span> {t('modelLib.addOp')}
               </button>
             </div>
           </div>
@@ -836,6 +839,7 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
 
 // ─── MAIN PAGE ────────────────────────────────────────────────
 export default function ModelsPage() {
+  const { t } = useI18n()
   const [models, setModels] = useState<any[]>([])
   const [editor, setEditor] = useState<ModelDraft | null>(null)
   const [loading, setLoading] = useState(true)
@@ -873,7 +877,7 @@ export default function ModelsPage() {
               failCount++
             }
           }
-          setParseMsg(`Stockfit: ${successCount} model berhasil diupload${failCount > 0 ? `, ${failCount} gagal` : ''}. Refresh halaman.`)
+          setParseMsg(t('modelLib.stockfitUploaded', { n: successCount }) + (failCount > 0 ? t('modelLib.uploadFailedCount', { n: failCount }) : ''))
           setTimeout(() => window.location.reload(), 2000)
         } else {
           // Single model
@@ -881,11 +885,11 @@ export default function ModelsPage() {
           const filledSecs = draft.sections.filter(s => s.ops.length > 0)
           const totalOps = filledSecs.reduce((sum, s) => sum + s.ops.length, 0)
           const targetInfo = draft.dailyTarget ? ` · Target: ${draft.dailyTarget} prs/hari` : ''
-          setParseMsg(`Berhasil membaca ${filledSecs.length} section, ${totalOps} operasi${targetInfo}${!draft.name ? ' — nama model tidak terbaca, isi manual' : ''}`)
+          setParseMsg(t('modelLib.parseSuccess', { sections: filledSecs.length, ops: totalOps }) + targetInfo + (!draft.name ? t('modelLib.nameNotRead') : ''))
           setEditor(draft)
         }
       } catch (err: any) {
-        setParseError('Gagal baca file: ' + err.message)
+        setParseError(t('modelLib.parseFailed') + ': ' + err.message)
       }
     }
     reader.readAsArrayBuffer(file)
@@ -921,7 +925,7 @@ export default function ModelsPage() {
       )
       setEditor(null)
     } else {
-      alert('Gagal simpan. Cek konsol untuk detail.')
+      alert(t('modelLib.saveFailed'))
     }
   }
 
@@ -957,31 +961,31 @@ export default function ModelsPage() {
   }
 
   async function deleteModel(id: string, name: string) {
-    if (!confirm(`Hapus model ${name}? Tindakan ini tidak dapat dibatalkan.`)) return
+    if (!confirm(t('modelLib.deleteConfirm', { name }))) return
     const res = await fetch(`/api/models/${id}`, { method: 'DELETE' })
     if (res.ok) setModels(prev => prev.filter(m => m.id !== id))
   }
 
-  if (loading) return <div className="text-gray-400 text-sm p-8">Memuat...</div>
+  if (loading) return <div className="text-gray-400 text-sm p-8">{t('common.loading')}</div>
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Model library</h1>
-          <p className="text-sm text-gray-500 mt-1">{models.length} model tersimpan</p>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('model.library')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('modelLib.savedCount', { n: models.length })}</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           {/* Download template panduan */}
-          <a href="/api/templates" className="btn btn-secondary text-xs">↓ Template Excel</a>
+          <a href="/api/templates" className="btn btn-secondary text-xs">↓ {t('modelLib.templateExcel')}</a>
           {/* Upload NB Standard */}
           <label className="btn btn-primary cursor-pointer text-sm">
-            ↑ Upload NB Standard
+            ↑ {t('model.upload')}
             <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
           </label>
           {/* Buat manual */}
-          <button onClick={() => setEditor(emptyDraft())} className="btn btn-secondary text-sm">+ Buat manual</button>
+          <button onClick={() => setEditor(emptyDraft())} className="btn btn-secondary text-sm">+ {t('modelLib.createManual')}</button>
         </div>
       </div>
 
@@ -990,8 +994,8 @@ export default function ModelsPage() {
         <div className="mb-4 px-4 py-3 bg-teal-light border border-teal rounded-lg text-sm text-teal-dark flex items-start gap-2">
           <span>✓</span>
           <div>
-            <strong>File NB Standard terbaca.</strong> {parseMsg}
-            <br /><span className="text-xs opacity-80">Cek dan koreksi data di bawah sebelum menyimpan.</span>
+            <strong>{t('modelLib.fileRead')}</strong> {parseMsg}
+            <br /><span className="text-xs opacity-80">{t('modelLib.reviewBeforeSave')}</span>
           </div>
         </div>
       )}
@@ -1002,19 +1006,19 @@ export default function ModelsPage() {
       {/* How it works */}
       {models.length === 0 && !parseMsg && (
         <div className="card p-5 mb-6 border-dashed border-2 border-gray-200">
-          <div className="text-sm font-medium text-gray-700 mb-3">Cara menambahkan model:</div>
+          <div className="text-sm font-medium text-gray-700 mb-3">{t('modelLib.howTo')}</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-500">
             <div className="flex gap-2">
               <span className="w-5 h-5 bg-teal text-white rounded-full flex items-center justify-center flex-shrink-0 font-medium">1</span>
-              <div><strong className="text-gray-700">Upload NB Standard</strong><br/>Upload file Excel NB Standard. Sistem otomatis baca data, lalu bisa dikoreksi sebelum simpan.</div>
+              <div><strong className="text-gray-700">{t('modelLib.step1Title')}</strong><br/>{t('modelLib.step1Desc')}</div>
             </div>
             <div className="flex gap-2">
               <span className="w-5 h-5 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-medium">2</span>
-              <div><strong className="text-gray-700">Review & koreksi</strong><br/>Cek hasil parsing — edit operasi yang salah, tambah yang kurang, hapus yang tidak perlu.</div>
+              <div><strong className="text-gray-700">{t('modelLib.step2Title')}</strong><br/>{t('modelLib.step2Desc')}</div>
             </div>
             <div className="flex gap-2">
               <span className="w-5 h-5 bg-gray-300 text-white rounded-full flex items-center justify-center flex-shrink-0 font-medium">3</span>
-              <div><strong className="text-gray-700">Simpan & assign</strong><br/>Simpan ke sistem lalu assign ke line produksi yang berjalan.</div>
+              <div><strong className="text-gray-700">{t('modelLib.step3Title')}</strong><br/>{t('modelLib.step3Desc')}</div>
             </div>
           </div>
         </div>
@@ -1043,12 +1047,12 @@ export default function ModelsPage() {
               {m.uploadedFrom && <div className="text-xs text-gray-400 mb-2">📁 {m.uploadedFrom}</div>}
               <div className="text-xs text-gray-500 mb-3">
                 {assigned.length > 0
-                  ? 'Aktif: ' + assigned.map((a: any) => `Gdg ${a.line.building} L${a.line.lineNo}`).join(', ')
-                  : 'Belum diassign ke line manapun'}
+                  ? t('common.active') + ': ' + assigned.map((a: any) => `Gdg ${a.line.building} L${a.line.lineNo}`).join(', ')
+                  : t('model.noAssignment')}
               </div>
               <div className="flex gap-2 pt-2 border-t border-gray-50">
-                <button onClick={() => loadModelForEdit(m.id)} className="text-xs text-teal hover:underline font-medium">✏ Edit model</button>
-                <button onClick={() => deleteModel(m.id, m.name)} className="text-xs text-red-400 hover:text-red-600 hover:underline">Hapus</button>
+                <button onClick={() => loadModelForEdit(m.id)} className="text-xs text-teal hover:underline font-medium">✏ {t('modelLib.editModel')}</button>
+                <button onClick={() => deleteModel(m.id, m.name)} className="text-xs text-red-400 hover:text-red-600 hover:underline">{t('common.delete')}</button>
               </div>
             </div>
           )

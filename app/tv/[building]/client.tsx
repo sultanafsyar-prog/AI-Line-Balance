@@ -50,10 +50,10 @@ const C = {
 }
 
 function statusColors(ller: number, hasData: boolean) {
-  if (!hasData) return { text: C.gray,  bg: C.surface, border: C.border,  label: 'NO DATA' }
-  if (ller >= 95) return { text: C.green, bg: C.greenBg, border: C.greenBd, label: 'BAIK' }
-  if (ller >= 80) return { text: C.amber, bg: C.amberBg, border: C.amberBd, label: 'WARN' }
-  return               { text: C.red,   bg: C.redBg,   border: C.redBd,   label: 'KRITIS' }
+  if (!hasData) return { text: C.gray,  bg: C.surface, border: C.border,  label: 'tv.stNoData' }
+  if (ller >= 95) return { text: C.green, bg: C.greenBg, border: C.greenBd, label: 'tv.stGood' }
+  if (ller >= 80) return { text: C.amber, bg: C.amberBg, border: C.amberBd, label: 'tv.stWarn' }
+  return               { text: C.red,   bg: C.redBg,   border: C.redBd,   label: 'tv.stCritical' }
 }
 
 function gapColor(gap: number) {
@@ -659,7 +659,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                         background: sc.bg, border: `1px solid ${sc.border}`,
                         borderRadius: '4px', padding: '2px 8px',
                         fontSize: '9px', fontWeight: 700, color: sc.text,
-                      }}>{sc.label}</div>
+                      }}>{t(sc.label)}</div>
                     </div>
                   </div>
                 </div>
@@ -1050,7 +1050,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                       borderRadius: '6px', padding: '4px 10px',
                       fontSize: '11px', fontWeight: 700, color: sc.text,
                     }}>
-                      {hasAlert ? '⚠ ALERT' : sc.label}
+                      {hasAlert ? '⚠ ALERT' : t(sc.label)}
                     </div>
                   </div>
                 </div>
@@ -1247,7 +1247,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                       background: sc.bg, border: `1px solid ${sc.border}`,
                       borderRadius: '6px', padding: '4px 10px',
                       fontSize: '11px', fontWeight: 700, color: sc.text,
-                    }}>{sc.label}</div>
+                    }}>{t(sc.label)}</div>
                   </div>
                 </div>
 
@@ -1311,9 +1311,9 @@ export default function TVClient({ building, lines, sections }: Props) {
   const AIView = () => {
     // Status banner color
     const statusConfig = {
-      ok:       { color: C.green, bg: C.greenBg, bd: C.greenBd, label: 'SEHAT',   icon: '✓' },
-      warning:  { color: C.amber, bg: C.amberBg, bd: C.amberBd, label: 'WARNING', icon: '⚠' },
-      critical: { color: C.red,   bg: C.redBg,   bd: C.redBd,   label: 'KRITIS',  icon: '⛔' },
+      ok:       { color: C.green, bg: C.greenBg, bd: C.greenBd, label: t('tv.stHealthy'),  icon: '✓' },
+      warning:  { color: C.amber, bg: C.amberBg, bd: C.amberBd, label: t('tv.stWarning'),  icon: '⚠' },
+      critical: { color: C.red,   bg: C.redBg,   bd: C.redBd,   label: t('tv.stCritical2'), icon: '⛔' },
     }
     const sc = aiData ? statusConfig[aiData.status] : statusConfig.ok
 

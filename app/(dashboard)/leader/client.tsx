@@ -184,17 +184,17 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const filledHours = new Set(todayActs.map((a: any) => a.hour))
 
   async function handleSave() {
-    if (!selLineId) { setError('Pilih line terlebih dahulu'); return }
+    if (!selLineId) { setError(t('leader.errPickLine')); return }
     if (!section) {
-      setError(`Section "${effectiveSec}" tidak ada di model ini. Pilih section lain.`); return
+      setError(t('leader.errNoSection', { section: effectiveSec })); return
     }
-    if (!form.output) { setError('Output wajib diisi'); return }
-    if (!form.mpActual) { setError('MP hadir wajib diisi'); return }
+    if (!form.output) { setError(t('leader.errOutput')); return }
+    if (!form.mpActual) { setError(t('leader.errMp')); return }
 
     // Konfirmasi overwrite jika jam ini sudah ada data
     if (filledHours.has(parseInt(form.hour))) {
       const existing = todayActs.find((a: any) => a.hour === parseInt(form.hour))
-      if (existing && !confirm(`Jam ${displayHour(parseInt(form.hour))} sudah ada data (output: ${existing.output}). Overwrite?`)) {
+      if (existing && !confirm(t('leader.confirmOverwrite', { hour: displayHour(parseInt(form.hour)), output: existing.output }))) {
         return
       }
     }
@@ -240,7 +240,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
       setTimeout(() => setSaved(false), 3000)
     } else {
       const d = await res.json()
-      setError(d.error ?? 'Gagal simpan, coba lagi')
+      setError(d.error ?? t('leader.errSave'))
     }
     setSaving(false)
   }

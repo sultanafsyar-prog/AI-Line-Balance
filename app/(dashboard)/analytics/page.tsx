@@ -2,12 +2,14 @@
 import { useState, useEffect } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts'
 import { BUILDINGS } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n'
 
 type DayData = { date: string; avgLler: number; totalOutput: number; totalDefect: number; activeLines: number; totalDowntime: number }
 type LineData = { building: string; lineNo: number; modelName: string; avgLler: number; totalOutput: number; hours: number }
 type AlertSummary = { type: string; count: number }
 
 export default function AnalyticsPage() {
+  const { t } = useI18n()
   const [days, setDays]     = useState<DayData[]>([])
   const [linePerf, setLinePerf] = useState<LineData[]>([])
   const [alerts, setAlerts] = useState<AlertSummary[]>([])
@@ -45,33 +47,33 @@ export default function AnalyticsPage() {
     <div>
       <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Analitik</h1>
-          <p className="text-sm text-gray-500 mt-1">Tren performa lini produksi</p>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('nav.analytics')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('analytics.subtitle')}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
             {[7, 14, 30].map(d => (
               <button key={d} onClick={() => setPeriod(d)}
                 className={`px-3 py-1 rounded text-xs font-medium transition-colors ${period === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                {d} hari
+                {t('analytics.daysN', { n: d })}
               </button>
             ))}
           </div>
           <select className="input text-xs w-32" value={selBuilding} onChange={e => setSelBuilding(e.target.value)}>
-            <option value="ALL">Semua gedung</option>
-            {Object.keys(BUILDINGS).map(b => <option key={b} value={b}>Gedung {b}</option>)}
+            <option value="ALL">{t('nav.allBuildings')}</option>
+            {Object.keys(BUILDINGS).map(b => <option key={b} value={b}>{t('monitor.building', { b })}</option>)}
           </select>
-          <a href={`/api/export/daily`} className="btn btn-secondary text-xs">↓ Export hari ini</a>
+          <a href={`/api/export/daily`} className="btn btn-secondary text-xs">↓ {t('monitor.exportToday')}</a>
         </div>
       </div>
 
       {/* Summary metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { label: `Avg LLER ${period} hari`, value: avgLler + '%', color: avgLler >= 85 ? 'text-teal' : avgLler >= 70 ? 'text-amber-600' : 'text-red-600' },
-          { label: 'Total output', value: totOut.toLocaleString() + ' pairs', color: '' },
-          { label: 'Total downtime', value: totDT + ' mnt', color: totDT > 100 ? 'text-amber-600' : '' },
-          { label: 'Defect rate', value: defRate + '%', color: parseFloat(defRate) > 2 ? 'text-red-600' : 'text-teal' },
+          { label: t('analytics.avgLlerDays', { n: period }), value: avgLler + '%', color: avgLler >= 85 ? 'text-teal' : avgLler >= 70 ? 'text-amber-600' : 'text-red-600' },
+          { label: t('status.totalOutput'), value: totOut.toLocaleString() + ' ' + t('common.pairs'), color: '' },
+          { label: t('status.totalDT'), value: totDT + ' ' + t('common.minutes'), color: totDT > 100 ? 'text-amber-600' : '' },
+          { label: t('analytics.defectRate'), value: defRate + '%', color: parseFloat(defRate) > 2 ? 'text-red-600' : 'text-teal' },
         ].map(m => (
           <div key={m.label} className="card p-3">
             <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{m.label}</div>
@@ -81,18 +83,18 @@ export default function AnalyticsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-16 text-gray-400 text-sm">Memuat data analitik...</div>
+        <div className="text-center py-16 text-gray-400 text-sm">{t('analytics.loading')}</div>
       ) : days.length === 0 ? (
         <div className="card p-12 text-center text-gray-400">
           <div className="text-4xl mb-3">📊</div>
-          <div className="font-medium mb-2">Belum ada data historis</div>
-          <p className="text-sm">Data akan muncul setelah produksi mulai input aktual per jam.</p>
+          <div className="font-medium mb-2">{t('analytics.noHistory')}</div>
+          <p className="text-sm">{t('analytics.noHistoryHint')}</p>
         </div>
       ) : (
         <div className="space-y-5">
           {/* LLER Trend */}
           <div className="card p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Tren LLER harian</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">{t('analytics.llerTrend')}</h2>
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={days} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -109,7 +111,7 @@ export default function AnalyticsPage() {
 
           {/* Output trend */}
           <div className="card p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Output & downtime harian</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">{t('analytics.outputDowntime')}</h2>
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={days} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -128,9 +130,9 @@ export default function AnalyticsPage() {
           {/* Top & bottom lines */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="card p-4">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3">🏆 Line terbaik (avg LLER)</h2>
+              <h2 className="text-sm font-semibold text-gray-700 mb-3">🏆 {t('analytics.topLines')}</h2>
               {topLines.length === 0 ? (
-                <p className="text-sm text-gray-400">Belum ada data</p>
+                <p className="text-sm text-gray-400">{t('common.noData')}</p>
               ) : (
                 <div className="space-y-2">
                   {topLines.map((l, i) => (
@@ -152,9 +154,9 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="card p-4">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3">⚠ Line perlu perhatian</h2>
+              <h2 className="text-sm font-semibold text-gray-700 mb-3">⚠ {t('analytics.botLines')}</h2>
               {botLines.length === 0 ? (
-                <p className="text-sm text-gray-400">Belum ada data</p>
+                <p className="text-sm text-gray-400">{t('common.noData')}</p>
               ) : (
                 <div className="space-y-2">
                   {botLines.map((l, i) => (
@@ -179,7 +181,7 @@ export default function AnalyticsPage() {
           {/* Alert frequency */}
           {alerts.length > 0 && (
             <div className="card p-4">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3">Frekuensi alert {period} hari terakhir</h2>
+              <h2 className="text-sm font-semibold text-gray-700 mb-3">{t('analytics.alertFreq', { n: period })}</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {alerts.map(a => (
                   <div key={a.type} className="text-center p-3 bg-gray-50 rounded-lg">

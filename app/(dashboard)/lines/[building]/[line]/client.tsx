@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { calcSectionMetrics, isIE, getGWT, today, getShift1Hours, displayHourLabel } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n'
 import Link from 'next/link'
 import YamazumiAktual from '@/components/YamazumiAktual'
 import CloseShiftButton from '@/components/CloseShiftButton'
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export default function LineDetailClient({ line, allModels, user, sections }: Props) {
+  const { t } = useI18n()
   const [selSec, setSelSec] = useState(sections.includes('Assembly') ? 'Assembly' : sections[0] ?? '')
   const [feat, setFeat] = useState< 'style' | 'yamazumi' | 'yamazumi-aktual' | 'input' | 'monitor' | 'ai'>('style')
   const [inputF, setInputF] = useState(() => {
@@ -77,9 +79,9 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
         window.location.reload()
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error ?? 'Gagal menyimpan data')
+        alert(data.error ?? t('lineDetail.saveFailed'))
       }
-    } catch { alert('Gagal menyimpan — periksa koneksi') }
+    } catch { alert(t('lineDetail.saveConnFailed')) }
     setSaving(false)
   }
 
@@ -91,7 +93,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
         body: JSON.stringify({ lineId: line.id, sectionName: selSec })
       })
       const data = await res.json()
-      setAiText(res.ok ? (data.analysis ?? 'Tidak ada hasil.') : (data.error ?? 'Gagal menganalisis.'))
+      setAiText(res.ok ? (data.analysis ?? t('lineDetail.noResult')) : (data.error ?? t('lineDetail.analyzeFailed')))
     } catch { setAiText('Gagal menghubungi server.') }
     setAiLoading(false)
   }
