@@ -32,7 +32,7 @@ export async function GET() {
       },
       actuals: {
         where: { date: today() },
-        include: { section: { select: { name: true, taktTime: true, stdMP: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
+        include: { section: { select: { name: true, taktTime: true, stdMP: true, hourlyTarget: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
         orderBy: { hour: 'desc' },
       },
       alerts: { where: { resolved: false, triggeredAt: { gte: new Date(today() + 'T00:00:00+07:00') } } },
@@ -68,10 +68,12 @@ export async function GET() {
     }
 
     const latestOutput = latestActual?.output ?? 0
+    // Target tampilan: target manual IE kalau di-set, else teoretis
+    const dispTph = (latestActual?.section as any)?.hourlyTarget ?? tph
     // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
     const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
       ? Math.round((avgOut * avgMP) / (tph * theoMP) * 100) : 0
-    const gap  = latestOutput - tph
+    const gap  = latestOutput - dispTph
 
     return {
       id: line.id,
@@ -90,7 +92,7 @@ export async function GET() {
         defect: totalDefect, hours: new Set(actuals.map(a => a.hour)).size, avgMP,
       },
       alerts: line.alerts.map(a => ({ type: a.type, message: a.message })),
-      ller, gap, targetPPH: tph,
+      ller, gap, targetPPH: dispTph,
     }
   })
 

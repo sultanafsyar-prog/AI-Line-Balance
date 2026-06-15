@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── USERS & AUTH ───────────────────────────────────────────
@@ -83,11 +84,12 @@ model DailyTarget {
 
 // ─── SECTION PER MODEL ───────────────────────────────────────
 model Section {
-  id       String @id @default(cuid())
-  modelId  String
-  name     String
-  stdMP    Float
-  taktTime Float
+  id           String @id @default(cuid())
+  modelId      String
+  name         String
+  stdMP        Float
+  taktTime     Float
+  hourlyTarget Int?   // target/jam dari tim IE — null = pakai 3600/taktTime
 
   model      ShoeModel   @relation(fields: [modelId], references: [id], onDelete: Cascade)
   operations Operation[]
