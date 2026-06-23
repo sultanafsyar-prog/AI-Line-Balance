@@ -3,7 +3,6 @@ import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
 import { requireSession, requireRole, parseBody, hasLineAccess } from '@/lib/api-helpers'
 import { ActualUpsertSchema } from '@/lib/validation'
-import { sendTelegramAlert, formatAlertMessage } from '@/lib/notify'
 
 // GET /api/actuals?lineId=X&date=YYYY-MM-DD
 export async function GET(req: NextRequest) {
@@ -92,10 +91,6 @@ export async function POST(req: NextRequest) {
   if (section) {
     const tph = section.hourlyTarget ?? (section.taktTime > 0 ? Math.round(3600 / section.taktTime) : 0)
     const secName = section.name
-    const lineInfo = await prisma.line.findUnique({
-      where: { id: lineId }, select: { building: true, lineNo: true },
-    })
-    const lineTag = lineInfo ? `Gdg ${lineInfo.building} L${lineInfo.lineNo}` : lineId
 
     async function ensureAlert(type: 'OUTPUT_LOW' | 'DOWNTIME_HIGH' | 'DEFECT_HIGH', message: string) {
       // Dedup: cari alert aktif per line+type yang sudah mengandung section name
@@ -109,9 +104,6 @@ export async function POST(req: NextRequest) {
         })
       } else {
         await prisma.alert.create({ data: { lineId, type, message: `[${secName}] ${message}` } })
-        // Kirim notifikasi proaktif HANYA saat alert baru muncul (hindari spam
-        // tiap jam selama alert masih aktif). Fire-and-forget, tidak blokir respons.
-        await sendTelegramAlert(formatAlertMessage({ lineTag, section: secName, type, message }))
       }
     }
 
