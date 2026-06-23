@@ -84,6 +84,21 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.sent':        'Terkirim',
     'history.notSent':     'Tidak',
 
+    // Forecast
+    'forecast.projected':  'Proyeksi',
+    'forecast.onTrack':    'sesuai target',
+    'forecast.need':       'butuh',
+    'forecast.behind':     'Berisiko meleset',
+
+    // Nudge jam kosong (leader)
+    'leader.overdueNudge': '{n} jam belum diinput: {hours}',
+    'leader.fillNow':      'Isi sekarang',
+
+    // Offline / PWA
+    'offline.synced':      '{n} input offline berhasil disinkronkan',
+    'offline.backOnline':  'Kembali online — menyinkronkan data...',
+    'offline.nowOffline':  'Offline — input akan disimpan & dikirim saat online',
+
     // Leader tabs
     'leader.tabStatus':       'Status',
     'leader.tabInput':        'Input',
@@ -529,6 +544,21 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.sent':        'Sent',
     'history.notSent':     'No',
 
+    // Forecast
+    'forecast.projected':  'Projected',
+    'forecast.onTrack':    'on track',
+    'forecast.need':       'need',
+    'forecast.behind':     'At risk of missing',
+
+    // Empty-hour nudge (leader)
+    'leader.overdueNudge': '{n} hours not yet entered: {hours}',
+    'leader.fillNow':      'Fill now',
+
+    // Offline / PWA
+    'offline.synced':      '{n} offline entries synced',
+    'offline.backOnline':  'Back online — syncing data...',
+    'offline.nowOffline':  'Offline — entries will be saved & sent when online',
+
     // Leader tabs
     'leader.tabStatus':       'Status',
     'leader.tabInput':        'Input',
@@ -973,6 +1003,21 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.colReport':   '報告',
     'history.sent':        '已寄送',
     'history.notSent':     '否',
+
+    // Forecast
+    'forecast.projected':  '預測',
+    'forecast.onTrack':    '達標中',
+    'forecast.need':       '需要',
+    'forecast.behind':     '有未達標風險',
+
+    // 未填寫時段提醒 (leader)
+    'leader.overdueNudge': '{n} 個時段尚未輸入：{hours}',
+    'leader.fillNow':      '立即填寫',
+
+    // 離線 / PWA
+    'offline.synced':      '已同步 {n} 筆離線輸入',
+    'offline.backOnline':  '已恢復連線 — 正在同步資料...',
+    'offline.nowOffline':  '離線中 — 輸入將於連線後儲存並送出',
 
     // Leader tabs
     'leader.tabStatus':       '狀態',

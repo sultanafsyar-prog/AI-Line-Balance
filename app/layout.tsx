@@ -19,6 +19,13 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'IE Line Balance System',
   description: 'Sistem Manajemen Lini Produksi Sepatu',
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, title: 'IE Balance', statusBarStyle: 'black-translucent' },
+  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+}
+
+export const viewport = {
+  themeColor: '#3B82F6',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
