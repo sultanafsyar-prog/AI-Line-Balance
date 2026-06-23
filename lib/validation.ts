@@ -23,7 +23,7 @@ export const ActualUpsertSchema = z.object({
   lineId:    cuid,
   sectionId: cuid,
   date:      dateString,
-  hour:      z.number().int().min(0).max(23),
+  hour:      z.number().int().min(0).max(32), // 0-23 normal; 24-32 = jam virtual shift malam (00:00-08:00 hari berikutnya)
   output:    nonNegInt.max(10000, 'Output terlalu besar (>10000)'),
   mpActual:  nonNegInt.max(500, 'MP terlalu besar (>500)'),
   downtime:  nonNegInt.max(480, 'Downtime > 8 jam tidak masuk akal').optional().default(0),
@@ -125,5 +125,6 @@ export const ShiftCloseSchema = z.object({
   lineId:       cuid,
   shiftLabel:   z.string().min(1).max(50),
   managerEmail: z.string().email(),
+  date:         dateString.optional(), // override work date; default = tanggal actual terbuka terbaru
 })
 export type ShiftCloseInput = z.infer<typeof ShiftCloseSchema>

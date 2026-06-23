@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
-import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
+import { requireSession, requireRole, parseBody, hasLineAccess } from '@/lib/api-helpers'
 import { DailyTargetUpsertSchema } from '@/lib/validation'
 
 const TARGET_ROLES = ['PPIC', 'IE_ADMIN', 'MANAGEMENT'] as const
@@ -43,6 +43,11 @@ export async function POST(req: NextRequest) {
   const { lineId, targetPairs, note } = parsed
   const date = parsed.date ?? today()
 
+  // Cek akses line — Manager dengan scope gedung tidak boleh set target line gedung lain
+  if (!(await hasLineAccess(auth, lineId))) {
+    return NextResponse.json({ error: 'Anda tidak punya akses ke line ini.' }, { status: 403 })
+  }
+
   const setBy = auth.user.name ?? auth.user.email ?? auth.user.id
 
   const target = await prisma.dailyTarget.upsert({
@@ -63,6 +68,11 @@ export async function DELETE(req: NextRequest) {
   const date   = searchParams.get('date') ?? today()
 
   if (!lineId) return NextResponse.json({ error: 'lineId wajib.' }, { status: 400 })
+
+  // Cek akses line — sama seperti POST
+  if (!(await hasLineAccess(auth, lineId))) {
+    return NextResponse.json({ error: 'Anda tidak punya akses ke line ini.' }, { status: 403 })
+  }
 
   try {
     await prisma.dailyTarget.delete({
