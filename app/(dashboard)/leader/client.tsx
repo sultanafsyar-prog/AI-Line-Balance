@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
 import { SF_SECTIONS as UTIL_SF_SECTIONS, getShift1Hours, getShift1OTHours, displayHourLabel, isFridayWIB } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
+import { postActual } from '@/lib/offline-queue'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 const DT_REASONS_I18N: Record<string, { id: string; en: string; 'zh-TW': string }> = {
@@ -185,6 +186,16 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   // Set jam yang sudah ada datanya (untuk dot indicator)
   const filledHours = new Set(todayActs.map((a: any) => a.hour))
 
+  // ── Nudge: jam yang sudah lewat tapi belum diisi ──
+  // Slot dianggap "telat" kalau jam slot < slot saat ini (numbering sama dgn
+  // activeHours: shift 1 = jam jam, shift 2 = virtual 20-32).
+  const nowSlot = (() => {
+    const h = new Date().getHours()
+    if (shift === 2) return h >= 20 ? h : h < 8 ? h + 24 : 20
+    return h
+  })()
+  const overdueHours = activeHours.filter((h: number) => h < nowSlot && !filledHours.has(h))
+
   async function handleSave() {
     if (!selLineId) { setError(t('leader.errPickLine')); return }
     if (!section) {
@@ -202,36 +213,34 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
     }
 
     setSaving(true); setError(''); setSaved(false)
-    const res = await fetch('/api/actuals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        lineId: selLineId, sectionId: section.id,
-        date: getWorkDate(shift),
-        hour: parseInt(form.hour),
-        shift,
-        output: outputNum,
-        mpActual: parseInt(form.mpActual),
-        downtime: parseInt(form.downtime) || 0,
-        dtReason: form.dtReason,
-        defect: parseInt(form.defect) || 0,
-      }),
+    const result = await postActual({
+      lineId: selLineId, sectionId: section.id,
+      date: getWorkDate(shift),
+      hour: parseInt(form.hour),
+      shift,
+      output: outputNum,
+      mpActual: parseInt(form.mpActual),
+      downtime: parseInt(form.downtime) || 0,
+      dtReason: form.dtReason,
+      defect: parseInt(form.defect) || 0,
     })
-    if (res.ok) {
+
+    if (result.ok || result.queued) {
       setSaved(true)
-      // Refresh data tanpa reload halaman
-      try {
-        const freshRes = await fetch(`/api/actuals?lineId=${selLineId}&date=${getWorkDate(shift)}`)
-        if (freshRes.ok) {
-          const freshActuals = await freshRes.json()
-          // Update line actuals in-place
-          if (line) {
-            line.actuals = freshActuals
+      if (result.queued) {
+        // Offline: tampilkan di UI seolah tersimpan (akan ter-sync saat online)
+        setError('')
+      } else {
+        // Online sukses: refresh data tanpa reload halaman
+        try {
+          const freshRes = await fetch(`/api/actuals?lineId=${selLineId}&date=${getWorkDate(shift)}`)
+          if (freshRes.ok) {
+            const freshActuals = await freshRes.json()
+            if (line) line.actuals = freshActuals
           }
-        }
-      } catch {}
+        } catch {}
+      }
       // Pindah ke jam berikutnya yang belum diisi — PERTAHANKAN mpActual supaya carry over
-      // (MP biasanya sama orang dari jam ke jam; tetap editable kalau ada perubahan)
       const currentH = parseInt(form.hour)
       const nextEmpty = activeHours.find((h: number) => h > currentH && !filledHours.has(h))
       if (nextEmpty !== undefined) {
@@ -241,8 +250,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
       }
       setTimeout(() => setSaved(false), 3000)
     } else {
-      const d = await res.json()
-      setError(d.error ?? t('leader.errSave'))
+      setError(result.error ?? t('leader.errSave'))
     }
     setSaving(false)
   }
@@ -386,6 +394,26 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     : `Shift 2: 20:00 – 05:00${showOT ? ' + Lembur 06:00 – 08:00' : ''}`
                   }
                 </div>
+
+                {/* Nudge: jam telat belum diinput */}
+                {overdueHours.length > 0 && (
+                  <button
+                    onClick={() => setForm(f => ({ ...f, hour: String(overdueHours[0]), output: '', mpActual: f.mpActual, downtime: '0', dtReason: '', defect: '0' }))}
+                    style={{
+                      width: '100%', textAlign: 'left', cursor: 'pointer',
+                      marginBottom: 12, padding: '10px 12px', borderRadius: 10,
+                      background: '#FEF2F2', border: '1px solid #FECACA',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                    <span style={{ fontSize: 16 }}>⏰</span>
+                    <span style={{ fontSize: 12.5, color: '#B91C1C', fontWeight: 600, flex: 1 }}>
+                      {t('leader.overdueNudge', { n: overdueHours.length, hours: overdueHours.map((h: number) => displayHour(h)).join(', ') })}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {t('leader.fillNow')} →
+                    </span>
+                  </button>
+                )}
 
                 {/* Jam selector */}
                 <div style={{ marginBottom: 16 }}>

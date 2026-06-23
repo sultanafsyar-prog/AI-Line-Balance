@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
   LayoutDashboard, Boxes, ClipboardList, Activity, BarChart3,
-  Users, LogOut, ChevronLeft, ChevronRight,
+  Users, LogOut, ChevronLeft, ChevronRight, History,
 } from 'lucide-react'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -39,6 +39,7 @@ export default function Sidebar({ user }: Props) {
     ...(ie ? [{ href: '/models', label: t('nav.modelLibrary'), Icon: Boxes }] : []),
     { href: '/input',      label: t('nav.inputActual'),  Icon: ClipboardList },
     { href: '/monitor',    label: t('nav.monitor'),      Icon: Activity },
+    { href: '/history',    label: t('nav.history'),      Icon: History },
     ...(ie ? [{ href: '/analytics', label: t('nav.analytics'), Icon: BarChart3 }] : []),
     ...(user.role === 'IT_ADMIN' ? [{ href: '/users', label: t('nav.users'), Icon: Users }] : []),
   ]

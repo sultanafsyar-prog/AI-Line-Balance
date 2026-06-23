@@ -42,6 +42,16 @@ export async function POST(req: NextRequest) {
     return jsonError('Anda tidak punya akses ke line ini.', 403)
   }
 
+  // Tentukan work date — handle shift malam yang lintas tengah malam.
+  // Actual shift 2 disimpan dengan tanggal kerja kemarin, jadi today() bisa salah.
+  // Ambil tanggal actual TERBUKA terbaru untuk line ini (atau override eksplisit).
+  const openActual = await prisma.actual.findFirst({
+    where: { lineId, shiftClosed: false },
+    orderBy: [{ date: 'desc' }, { hour: 'desc' }],
+    select: { date: true },
+  })
+  const workDate = data.date ?? openActual?.date ?? today()
+
   const line = await prisma.line.findUnique({
     where: { id: lineId },
     include: {
@@ -50,7 +60,7 @@ export async function POST(req: NextRequest) {
         include: { model: { include: { sections: { include: { operations: true } } } } },
       },
       actuals: {
-        where: { date: today() },
+        where: { date: workDate },
         include: { section: true },
         orderBy: { hour: 'asc' },
       },
@@ -227,7 +237,7 @@ export async function POST(req: NextRequest) {
     prisma.shiftArchive.create({
       data: {
         lineId,
-        date: today(),
+        date: workDate,
         shiftLabel,
         closedBy: session.user.id,
         totalOutput: totalOut,
@@ -239,7 +249,7 @@ export async function POST(req: NextRequest) {
       },
     }),
     prisma.actual.updateMany({
-      where: { lineId, date: today(), shiftClosed: false },
+      where: { lineId, date: workDate, shiftClosed: false },
       data:  { shiftClosed: true },
     }),
     prisma.alert.updateMany({

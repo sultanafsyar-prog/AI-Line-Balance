@@ -61,9 +61,43 @@ const translations: Record<Locale, Record<string, string>> = {
     'nav.modelLibrary':       'Model library',
     'nav.inputActual':        'Input aktual',
     'nav.monitor':            'Monitor',
+    'nav.history':            'Riwayat Shift',
     'nav.analytics':          'Analitik',
     'nav.users':              'Pengguna',
     'nav.allBuildings':       'Semua gedung',
+
+    // Shift history
+    'history.title':       'Riwayat Shift',
+    'history.subtitle':    'Arsip shift yang sudah ditutup',
+    'history.totalShifts': 'Total shift',
+    'history.avgLler':     'Rata-rata LLER',
+    'history.totalOutput': 'Total output',
+    'history.totalDt':     'Total downtime',
+    'history.empty':       'Belum ada shift yang ditutup',
+    'history.emptyHint':   'Riwayat muncul setelah IE menutup shift dari halaman line.',
+    'history.colDate':     'Tanggal',
+    'history.colLine':     'Line',
+    'history.colShift':    'Shift',
+    'history.colOutput':   'Output',
+    'history.colClosedBy': 'Ditutup oleh',
+    'history.colReport':   'Laporan',
+    'history.sent':        'Terkirim',
+    'history.notSent':     'Tidak',
+
+    // Forecast
+    'forecast.projected':  'Proyeksi',
+    'forecast.onTrack':    'sesuai target',
+    'forecast.need':       'butuh',
+    'forecast.behind':     'Berisiko meleset',
+
+    // Nudge jam kosong (leader)
+    'leader.overdueNudge': '{n} jam belum diinput: {hours}',
+    'leader.fillNow':      'Isi sekarang',
+
+    // Offline / PWA
+    'offline.synced':      '{n} input offline berhasil disinkronkan',
+    'offline.backOnline':  'Kembali online — menyinkronkan data...',
+    'offline.nowOffline':  'Offline — input akan disimpan & dikirim saat online',
 
     // Leader tabs
     'leader.tabStatus':       'Status',
@@ -487,9 +521,43 @@ const translations: Record<Locale, Record<string, string>> = {
     'nav.modelLibrary':       'Model Library',
     'nav.inputActual':        'Input Actual',
     'nav.monitor':            'Monitor',
+    'nav.history':            'Shift History',
     'nav.analytics':          'Analytics',
     'nav.users':              'Users',
     'nav.allBuildings':       'All buildings',
+
+    // Shift history
+    'history.title':       'Shift History',
+    'history.subtitle':    'Archive of closed shifts',
+    'history.totalShifts': 'Total shifts',
+    'history.avgLler':     'Average LLER',
+    'history.totalOutput': 'Total output',
+    'history.totalDt':     'Total downtime',
+    'history.empty':       'No shifts closed yet',
+    'history.emptyHint':   'History appears after IE closes a shift from the line page.',
+    'history.colDate':     'Date',
+    'history.colLine':     'Line',
+    'history.colShift':    'Shift',
+    'history.colOutput':   'Output',
+    'history.colClosedBy': 'Closed by',
+    'history.colReport':   'Report',
+    'history.sent':        'Sent',
+    'history.notSent':     'No',
+
+    // Forecast
+    'forecast.projected':  'Projected',
+    'forecast.onTrack':    'on track',
+    'forecast.need':       'need',
+    'forecast.behind':     'At risk of missing',
+
+    // Empty-hour nudge (leader)
+    'leader.overdueNudge': '{n} hours not yet entered: {hours}',
+    'leader.fillNow':      'Fill now',
+
+    // Offline / PWA
+    'offline.synced':      '{n} offline entries synced',
+    'offline.backOnline':  'Back online — syncing data...',
+    'offline.nowOffline':  'Offline — entries will be saved & sent when online',
 
     // Leader tabs
     'leader.tabStatus':       'Status',
@@ -913,9 +981,43 @@ const translations: Record<Locale, Record<string, string>> = {
     'nav.modelLibrary':       '鞋型資料庫',
     'nav.inputActual':        '實際數據輸入',
     'nav.monitor':            '監控中心',
+    'nav.history':            '班次歷史',
     'nav.analytics':          '數據分析',
     'nav.users':              '使用者管理',
     'nav.allBuildings':       '所有廠房',
+
+    // Shift history
+    'history.title':       '班次歷史',
+    'history.subtitle':    '已結束班次的存檔',
+    'history.totalShifts': '總班次數',
+    'history.avgLler':     '平均 LLER',
+    'history.totalOutput': '總產出',
+    'history.totalDt':     '總停機',
+    'history.empty':       '尚無已結束的班次',
+    'history.emptyHint':   'IE 從產線頁面結束班次後會顯示歷史。',
+    'history.colDate':     '日期',
+    'history.colLine':     '產線',
+    'history.colShift':    '班次',
+    'history.colOutput':   '產出',
+    'history.colClosedBy': '結束者',
+    'history.colReport':   '報告',
+    'history.sent':        '已寄送',
+    'history.notSent':     '否',
+
+    // Forecast
+    'forecast.projected':  '預測',
+    'forecast.onTrack':    '達標中',
+    'forecast.need':       '需要',
+    'forecast.behind':     '有未達標風險',
+
+    // 未填寫時段提醒 (leader)
+    'leader.overdueNudge': '{n} 個時段尚未輸入：{hours}',
+    'leader.fillNow':      '立即填寫',
+
+    // 離線 / PWA
+    'offline.synced':      '已同步 {n} 筆離線輸入',
+    'offline.backOnline':  '已恢復連線 — 正在同步資料...',
+    'offline.nowOffline':  '離線中 — 輸入將於連線後儲存並送出',
 
     // Leader tabs
     'leader.tabStatus':       '狀態',

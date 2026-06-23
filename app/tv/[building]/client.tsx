@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useI18n } from '@/lib/i18n'
+import { forecastShift, type Forecast } from '@/lib/forecast'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 // ── Types ────────────────────────────────────────────────────
@@ -195,6 +196,7 @@ function calcLine(line: LineData, sections: string[], building: string) {
     yamSummaries, primaryYam,
     sectionActuals: {} as Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }>,
     targetPct: 0, hoursWithData: 0,
+    forecast: null as Forecast | null,
     activeSection,
   }
 
@@ -282,6 +284,12 @@ function calcLine(line: LineData, sections: string[], building: string) {
     gap, totDT, totDef,
     hasData: true, hourlyOutputs, sectionActuals,
     targetPct, hoursWithData: hourEntries.length,
+    forecast: forecastShift({
+      currentOutput: totOut,
+      hoursWithData: hourEntries.length,
+      dailyTarget: daily?.targetPairs ?? 0,
+      hourlyTarget: dispTPH,
+    }),
   }
 }
 
@@ -1028,6 +1036,14 @@ export default function TVClient({ building, lines, sections }: Props) {
                             borderRadius: '3px',
                           }} />
                         </div>
+                        {/* Forecast akhir shift — peringatan dini */}
+                        {m.forecast && m.forecast.status !== 'nodata' && m.forecast.status !== 'done' && (
+                          <div style={{ fontSize: '10px', marginTop: '3px', color: m.forecast.status === 'ontrack' ? C.green : m.forecast.status === 'risk' ? C.amber : C.red }}>
+                            {m.forecast.status === 'ontrack'
+                              ? `📈 ${t('forecast.projected')} ~${m.forecast.projectedEod.toLocaleString()} (${t('forecast.onTrack')})`
+                              : `⚠ ${t('forecast.projected')} ~${m.forecast.projectedEod.toLocaleString()} · ${t('forecast.need')} ${m.forecast.requiredPerHour}/jam`}
+                          </div>
+                        )}
                       </>
                     ) : <span style={{ fontSize: '11px', color: C.gray }}>Belum ada target</span>}
                   </div>

@@ -64,16 +64,25 @@ export async function POST(req: NextRequest) {
   if (parsed instanceof NextResponse) return parsed
   const { lineId, modelId } = parsed
 
-  await prisma.lineAssignment.updateMany({
-    where: { lineId, active: true },
-    data: { active: false }
-  })
+  // Hapus assignment lama + buat baru dalam satu transaksi supaya line tidak
+  // pernah dalam keadaan tanpa model aktif kalau salah satu operasi gagal.
+  if (!modelId) {
+    await prisma.lineAssignment.updateMany({
+      where: { lineId, active: true },
+      data: { active: false }
+    })
+    return NextResponse.json({ message: 'Assignment removed' })
+  }
 
-  if (!modelId) return NextResponse.json({ message: 'Assignment removed' })
-
-  const assignment = await prisma.lineAssignment.create({
-    data: { lineId, modelId, assignedBy: auth.user.id },
-    include: { model: true, line: true },
-  })
+  const [, assignment] = await prisma.$transaction([
+    prisma.lineAssignment.updateMany({
+      where: { lineId, active: true },
+      data: { active: false }
+    }),
+    prisma.lineAssignment.create({
+      data: { lineId, modelId, assignedBy: auth.user.id },
+      include: { model: true, line: true },
+    }),
+  ])
   return NextResponse.json(assignment, { status: 201 })
 }
