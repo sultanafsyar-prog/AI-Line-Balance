@@ -692,6 +692,38 @@ export default function TVClient({ building, lines, sections }: Props) {
                     <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.gray, textAlign: 'center', letterSpacing: '0.5px' }}>GAP</div>
                   </div>
 
+                  {/* OUTPUT row — output/jam aktual vs target (yang diinput team leader) */}
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                    borderTop: `1px solid rgba(255,255,255,0.06)`, alignItems: 'center',
+                    background: 'rgba(59,130,246,0.06)',
+                  }}>
+                    <div style={{ padding: '6px 8px' }}>
+                      <div style={{ fontSize: '10px', color: C.dim, fontWeight: 600 }}>OUTPUT</div>
+                      <div style={{ fontSize: '8px', color: C.gray }}>pairs/jam</div>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '20px', fontWeight: 800, color: C.teal, lineHeight: 1 }}>
+                        {m.dispTPH > 0 ? m.dispTPH : '—'}
+                      </span>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: m.hasData ? C.white : C.gray, lineHeight: 1 }}>
+                        {m.hasData ? m.lastHourOutput : '—'}
+                      </div>
+                      <div style={{ fontSize: '8px', color: C.gray, marginTop: '2px' }}>
+                        {m.hasData && m.lastHour != null ? `jam ${m.lastHour}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      {m.hasData && m.dispTPH > 0 ? (
+                        <span style={{ fontSize: '16px', fontWeight: 700, color: m.gap >= 0 ? C.green : m.gap >= -m.dispTPH * 0.15 ? C.amber : C.red }}>
+                          {m.gap >= 0 ? '+' : ''}{m.gap}
+                        </span>
+                      ) : <span style={{ color: C.gray }}>—</span>}
+                    </div>
+                  </div>
+
                   {/* PPH/MP row — Produktivitas per orang per jam */}
                   {(() => {
                     const stdPPHperMP = m.theoMPTotal > 0 ? m.theoPPH / m.theoMPTotal : 0
