@@ -19,7 +19,7 @@ export default async function LeaderPage() {
       line: {
         include: {
           assignments: {
-            where: { active: true }, take: 1,
+            where: { active: true },
             orderBy: { assignedAt: 'desc' },
             include: {
               model: {

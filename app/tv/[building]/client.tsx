@@ -84,7 +84,9 @@ const LINE_ACCENTS = [
 
 // ── Yamazumi summary per section ─────────────────────────────
 interface YamSummary {
+  id: string
   name: string
+  modelName: string
   taktTime: number
   stdMP: number
   theorMP: number
@@ -109,6 +111,8 @@ function calcYamSummaries(model: any, sections: string[]): YamSummary[] {
     }, 0)
     return {
       name: secName, taktTime: sec.taktTime, stdMP: sec.stdMP,
+      id: sec.id,
+      modelName: model.name,
       theorMP: parseFloat(theorMP.toFixed(1)),
       maxEffCT: parseFloat(maxEffCT.toFixed(1)),
       hourlyTarget: sec.hourlyTarget ?? null,
@@ -131,15 +135,20 @@ function calcYamSummaries(model: any, sections: string[]): YamSummary[] {
 // dari actuals hari ini. Kalau belum ada actuals, fallback ke 'Stockfit'
 // (mayoritas line di gedung G adalah Stockfit).
 function calcLine(line: LineData, sections: string[], building: string) {
-  const model   = line.assignments[0]?.model
+  const activeModels = (line.assignments ?? []).map((a: any) => a.model).filter(Boolean)
+  const model   = activeModels[0]
   const actuals = line.actuals
   const daily   = line.dailyTargets?.[0] ?? null
-  const yamSummaries = model ? calcYamSummaries(model, sections) : []
+  const yamSummaries = activeModels.flatMap((m: any) => calcYamSummaries(m, sections))
+  const usedSectionIds = new Set(actuals.map((a: any) => a.sectionId ?? a.section?.id).filter(Boolean))
+  const metricYams = usedSectionIds.size > 0
+    ? yamSummaries.filter(y => usedSectionIds.has(y.id))
+    : yamSummaries
 
   // ─── ACTIVE SECTION DETECTION (Building G only) ──────────
   const isStockfitBuilding = building === 'G'
   let activeSection: string | null = null
-  if (isStockfitBuilding && yamSummaries.length > 0) {
+  if (isStockfitBuilding && metricYams.length > 0) {
     if (actuals.length > 0) {
       const sumByName = new Map<string, number>()
       for (const a of actuals) {
@@ -152,26 +161,26 @@ function calcLine(line: LineData, sections: string[], building: string) {
         if (val > bestVal) { best = sn; bestVal = val }
       }
       // Hanya pakai hasil deteksi kalau memang section itu ada di yamSummaries
-      if (best && yamSummaries.some(y => y.name === best)) activeSection = best
+      if (best && metricYams.some(y => y.name === best)) activeSection = best
     }
     // Fallback: Stockfit kalau ada di yamSummaries, kalau tidak ambil yamSummaries pertama
     if (!activeSection) {
-      activeSection = yamSummaries.find(y => y.name === 'Stockfit')?.name
-        ?? yamSummaries[0]?.name
+      activeSection = metricYams.find(y => y.name === 'Stockfit')?.name
+        ?? metricYams[0]?.name
         ?? null
     }
   }
 
   // ─── PILIH yamSummary REFERENSI ───────────────────────────
   const activeYam = activeSection
-    ? yamSummaries.find(y => y.name === activeSection) ?? null
+    ? metricYams.find(y => y.name === activeSection) ?? null
     : null
 
   const primaryYam = activeYam ?? (
-       yamSummaries.find(y => y.name === 'Stockfit')
-    ?? yamSummaries.find(y => y.name === 'Assembly')
-    ?? yamSummaries.find(y => y.name === 'Sewing')
-    ?? yamSummaries[0] ?? null
+       metricYams.find(y => y.name === 'Stockfit')
+    ?? metricYams.find(y => y.name === 'Assembly')
+    ?? metricYams.find(y => y.name === 'Sewing')
+    ?? metricYams[0] ?? null
   )
 
   const theoPPH = primaryYam ? Math.round(3600 / primaryYam.taktTime) : 0
@@ -182,10 +191,10 @@ function calcLine(line: LineData, sections: string[], building: string) {
   // STD MP / THEO MP — section-only kalau activeSection set
   const theoMPTotal = activeYam
     ? activeYam.theorMP
-    : yamSummaries.reduce((s, y) => s + y.theorMP, 0)
+    : metricYams.reduce((s, y) => s + y.theorMP, 0)
   const stdMPTotal = activeYam
     ? activeYam.stdMP
-    : parseFloat(yamSummaries.reduce((s, y) => s + y.stdMP, 0).toFixed(1))
+    : parseFloat(metricYams.reduce((s, y) => s + y.stdMP, 0).toFixed(1))
 
   const baseEmpty = {
     model: model?.name ?? null, article: model?.article ?? null,
@@ -198,7 +207,7 @@ function calcLine(line: LineData, sections: string[], building: string) {
     hasData: false, alerts: line.alerts,
     hourlyOutputs: [] as number[],
     hourEntries: [] as [number, number][],
-    yamSummaries, primaryYam,
+    yamSummaries: metricYams, primaryYam,
     sectionActuals: {} as Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }>,
     targetPct: 0, hoursWithData: 0,
     forecast: null as Forecast | null,
@@ -260,8 +269,8 @@ function calcLine(line: LineData, sections: string[], building: string) {
   // Per-section actuals — selalu hitung semua untuk informasi tambahan;
   // view yang memutuskan mana yang ditampilkan.
   const sectionActuals: Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }> = {}
-  for (const ys of yamSummaries) {
-    const sa = actuals.filter((a: any) => a.section?.name === ys.name)
+  for (const ys of metricYams) {
+    const sa = actuals.filter((a: any) => a.sectionId === ys.id || a.section?.id === ys.id)
     if (sa.length === 0) continue
     const avgMP   = sa.reduce((s: number, a: any) => s + (a.mpActual ?? 0), 0) / sa.length
     const avgOut  = sa.reduce((s: number, a: any) => s + (a.output ?? 0), 0) / sa.length
@@ -270,7 +279,7 @@ function calcLine(line: LineData, sections: string[], building: string) {
     const secTheoPPH = ys.taktTime > 0 ? 3600 / ys.taktTime : 0
     const secLler = (avgOut > 0 && avgMP > 0 && secTheoPPH > 0 && ys.theorMP > 0)
       ? Math.round((avgOut * avgMP) / (secTheoPPH * ys.theorMP) * 100) : 0
-    sectionActuals[ys.name] = {
+    sectionActuals[ys.id] = {
       avgMP: parseFloat(avgMP.toFixed(1)),
       avgOut: Math.round(avgOut),
       lastOut, ller: secLler,
@@ -863,7 +872,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       {sectionsToShow.map(ys => {
-                        const act = m.sectionActuals[ys.name]
+                        const act = m.sectionActuals[ys.id]
                         const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
                         return (
                           <div key={ys.name} style={{
@@ -1370,7 +1379,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                       }}>SECTION AKTIF:</span>
                     )}
                     {sectionsToShow.map(ys => {
-                      const act = m.sectionActuals[ys.name]
+                      const act = m.sectionActuals[ys.id]
                       const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
                       return (
                         <div key={ys.name} style={{

@@ -68,6 +68,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const [showLines, setShowLines] = useState(false)
   const [aiResult, setAiResult]   = useState('')
   const [aiLoading, setAiLoading] = useState(false)
+  const [selModelId, setSelModelId] = useState('')
 
   const [form, setForm] = useState({
     hour: '7',
@@ -87,7 +88,8 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   }, [])
 
   const line    = lines.find(l => l.id === selLineId)
-  const model   = line?.assignments?.[0]?.model
+  const activeModels = (line?.assignments ?? []).map((a: any) => a.model).filter(Boolean)
+  const model   = activeModels.find((m: any) => m.id === selModelId) ?? activeModels[0]
   const secs    = line?.building === 'G' ? SF_SECTIONS : SECTIONS
 
   // Auto-select section pertama yang punya operasi
@@ -95,20 +97,28 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const effectiveSec  = availableSecs.includes(selSec) ? selSec : (availableSecs[0] ?? selSec)
   const section = model?.sections?.find((s: any) => s.name === effectiveSec)
 
+  useEffect(() => {
+    if (!line) return
+    const firstModelId = activeModels[0]?.id ?? ''
+    if (firstModelId && !activeModels.some((m: any) => m.id === selModelId)) {
+      setSelModelId(firstModelId)
+    }
+  }, [selLineId, activeModels.map((m: any) => m.id).join(','), selModelId])
+
   // ── MP auto-fill ───────────────────────────────────────────
   // MP biasanya tidak berubah tiap jam (orang yang sama bekerja), jadi prefill
   // dari input terakhir untuk hemat ketik. Tetap editable kalau ada perubahan.
   useEffect(() => {
     if (!selLineId || !line) return
     const acts = (line.actuals ?? [])
-      .filter((a: any) => a.section?.name === effectiveSec)
+      .filter((a: any) => a.sectionId === section?.id)
       .sort((a: any, b: any) => b.hour - a.hour)
     const lastMP = acts[0]?.mpActual
     if (lastMP && lastMP > 0) {
       // Hanya prefill kalau field MP saat ini kosong — jangan overwrite ketikan user
       setForm(f => f.mpActual === '' ? { ...f, mpActual: String(lastMP) } : f)
     }
-  }, [selLineId, effectiveSec, line])
+  }, [selLineId, section?.id, line])
   // TPH dari section taktTime (untuk target output per jam)
   const sectionTakt = section?.taktTime ?? 0
   const tph = sectionTakt > 0 ? Math.round(3600 / sectionTakt) : 0
@@ -118,10 +128,19 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   // TheorMP per section: sum(GWT semua ops) / taktTime
   const getGWT = (op: any) => (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15))
   const sectionTheoMP: Record<string, number> = {}
+  const sectionById: Record<string, any> = {}
+  for (const m of activeModels) {
+    for (const sec of (m?.sections ?? [])) {
+      sectionById[sec.id] = sec
+      if (!sec.taktTime || sec.taktTime <= 0) continue
+      const totalGWT = (sec.operations ?? []).reduce((s: number, op: any) => s + getGWT(op), 0)
+      sectionTheoMP[sec.id] = parseFloat((totalGWT / sec.taktTime).toFixed(2))
+    }
+  }
   for (const sec of (model?.sections ?? [])) {
     if (!sec.taktTime || sec.taktTime <= 0) continue
     const totalGWT = (sec.operations ?? []).reduce((s: number, op: any) => s + getGWT(op), 0)
-    sectionTheoMP[sec.name] = parseFloat((totalGWT / sec.taktTime).toFixed(2))
+    sectionTheoMP[sec.id] = parseFloat((totalGWT / sec.taktTime).toFixed(2))
   }
 
   // Auto-update selSec kalau section yang dipilih tidak ada di model ini
@@ -133,13 +152,13 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
 
   // Actuals untuk section yang sedang dipilih
   const todayActs = (line?.actuals ?? [])
-    .filter((a: any) => a.section?.name === effectiveSec)
+    .filter((a: any) => a.sectionId === section?.id)
     .sort((a: any, b: any) => a.hour - b.hour)
 
   const totalOut = todayActs.reduce((s: number, a: any) => s + a.output, 0)
 
   // Section LLER produktivitas: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
-  const secTheo = sectionTheoMP[effectiveSec] ?? 0
+  const secTheo = sectionTheoMP[section?.id ?? ''] ?? 0
   const secAvgMP = todayActs.length > 0
     ? todayActs.reduce((s: number, a: any) => s + a.mpActual, 0) / todayActs.length : 0
   const secAvgOut = todayActs.length > 0
@@ -151,9 +170,9 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const allActs = line?.actuals ?? []
   const secMPMap = new Map<string, { mpSum: number; outSum: number; hours: number }>()
   for (const a of allActs) {
-    const sName = a.section?.name ?? ''
-    const prev = secMPMap.get(sName) ?? { mpSum: 0, outSum: 0, hours: 0 }
-    secMPMap.set(sName, {
+    const secId = a.sectionId ?? a.section?.id ?? ''
+    const prev = secMPMap.get(secId) ?? { mpSum: 0, outSum: 0, hours: 0 }
+    secMPMap.set(secId, {
       mpSum: prev.mpSum + a.mpActual,
       outSum: prev.outSum + a.output,
       hours: prev.hours + 1,
@@ -162,10 +181,10 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   // Numerator: Σ (sec_avgOut × sec_avgMP)
   // Denominator: Σ (sec_theoPPH × sec_theoMP)
   let lineNum = 0, lineDen = 0
-  for (const [sName, data] of secMPMap.entries()) {
-    const theo = sectionTheoMP[sName]
+  for (const [secId, data] of secMPMap.entries()) {
+    const theo = sectionTheoMP[secId]
     if (theo && theo > 0 && data.hours > 0) {
-      const sec = model?.sections?.find((s: any) => s.name === sName)
+      const sec = sectionById[secId]
       const secTakt = sec?.taktTime ?? 0
       const secPPHTheo = secTakt > 0 ? 3600 / secTakt : 0
       const secAvgMPVal = data.mpSum / data.hours
@@ -333,10 +352,28 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
         </div>
       ) : (
         <div>
+          {activeModels.length > 1 && (
+            <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', overflowX: 'auto', whiteSpace: 'nowrap', padding: '8px 12px' }}>
+              {activeModels.map((m: any) => (
+                <button key={m.id} onClick={() => setSelModelId(m.id)}
+                  style={{
+                    display: 'inline-block', padding: '8px 14px', marginRight: 6,
+                    borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    background: model?.id === m.id ? '#111827' : '#F3F4F6',
+                    color: model?.id === m.id ? '#fff' : '#374151',
+                    border: model?.id === m.id ? 'none' : '1px solid #E5E7EB',
+                  }}>
+                  {m.name}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* ── SECTION TABS (hanya tampilkan section yang punya operasi) ── */}
           <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', overflowX: 'auto', whiteSpace: 'nowrap', padding: '8px 12px' }}>
             {availableSecs.map(s => {
-              const secActs = (line?.actuals ?? []).filter((a: any) => a.section?.name === s)
+              const secForName = model?.sections?.find((ms: any) => ms.name === s)
+              const secActs = (line?.actuals ?? []).filter((a: any) => a.sectionId === secForName?.id)
               const hasActual = secActs.length > 0
               return (
                 <button key={s} onClick={() => setSelSec(s)} 
@@ -472,7 +509,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     Output jam {displayHour(parseInt(form.hour))}
                   </div>
                   <input type="number" inputMode="numeric" pattern="[0-9]*"
-                    placeholder={`Target: ${tph}`}
+                    placeholder={`Target: ${dispTph}`}
                     value={form.output}
                     onChange={e => setForm(f => ({ ...f, output: e.target.value }))}
                     style={{
@@ -484,7 +521,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     }} />
                   {gap !== null && (
                     <div style={{ textAlign: 'center', marginTop: 8, fontSize: 15, fontWeight: 700, color: gap >= 0 ? '#3B82F6' : '#EF4444' }}>
-                      {gap >= 0 ? `+${gap}` : gap} dari target {tph}
+                      {gap >= 0 ? `+${gap}` : gap} dari target {dispTph}
                     </div>
                   )}
                 </div>
@@ -650,7 +687,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       {[
                         { label: 'Std MP', value: `${section.stdMP} org` },
                         { label: 'Takt time', value: `${section.taktTime}s` },
-                        { label: 'Target/jam', value: `${tph} pairs` },
+                        { label: 'Target/jam', value: `${dispTph} pairs` },
                         { label: 'Total ops', value: `${section.operations?.length ?? 0}` },
                       ].map(m => (
                         <div key={m.label} style={{ background: '#fff', borderRadius: 16, padding: '14px 12px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>

@@ -79,6 +79,7 @@ export type ModelPatchInput = z.infer<typeof ModelPatchSchema>
 export const LineAssignSchema = z.object({
   lineId:  cuid,
   modelId: cuid.nullable().optional(),
+  mode:    z.enum(['add', 'remove', 'clear']).optional().default('add'),
 })
 export type LineAssignInput = z.infer<typeof LineAssignSchema>
 

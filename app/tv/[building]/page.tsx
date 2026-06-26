@@ -18,7 +18,7 @@ export default async function TVPage({ params }: Props) {
     orderBy: { lineNo: 'asc' },
     include: {
       assignments: {
-        where: { active: true }, take: 1, orderBy: { assignedAt: 'desc' },
+        where: { active: true }, orderBy: { assignedAt: 'desc' },
         include: {
           model: {
             include: {
@@ -29,7 +29,7 @@ export default async function TVPage({ params }: Props) {
       },
       actuals: {
         where: { date: today() },
-        include: { section: true },
+        include: { section: { include: { operations: true, model: true } } },
         orderBy: { hour: 'asc' }
       },
       alerts: {
