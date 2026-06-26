@@ -5,6 +5,7 @@ import { SF_SECTIONS as UTIL_SF_SECTIONS, getShift1Hours, getShift1OTHours, disp
 import { useI18n } from '@/lib/i18n'
 import { postActual } from '@/lib/offline-queue'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
+import CloseShiftButton from '@/components/CloseShiftButton'
 
 const DT_REASONS_I18N: Record<string, { id: string; en: string; 'zh-TW': string }> = {
   machine:  { id: 'Mesin rusak',       en: 'Machine breakdown',  'zh-TW': '機台故障' },
@@ -669,6 +670,22 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                         </div>
                       )
                     })}
+                  </div>
+                )}
+
+                {/* ─ Tutup Shift (Team Leader bisa tutup sendiri) ─ */}
+                {line && (line.actuals ?? []).length > 0 && (
+                  <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #E5E7EB' }}>
+                    <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10, lineHeight: 1.5 }}>
+                      {t('leader.closeShiftHint')}
+                    </div>
+                    <CloseShiftButton
+                      lineId={line.id}
+                      lineLabel={`Gedung ${line.building} — Line ${line.lineNo}`}
+                      workDate={getWorkDate(shift)}
+                      fixedShiftLabel={shift === 1 ? 'Shift 1' : 'Shift 2'}
+                      onClosed={() => window.location.reload()}
+                    />
                   </div>
                 )}
               </div>

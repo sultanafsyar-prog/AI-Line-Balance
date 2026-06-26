@@ -6,6 +6,8 @@ interface Props {
   lineId:    string
   lineLabel: string
   onClosed?: () => void
+  workDate?: string         // override tanggal kerja (leader kirim getWorkDate(shift))
+  fixedShiftLabel?: string  // kalau diisi, label shift dikunci (tanpa dropdown)
 }
 
 const SHIFTS = [
@@ -14,16 +16,17 @@ const SHIFTS = [
   { key: 'closeShiftBtn.shiftNight', value: 'Shift Malam (23:00–07:00)' },
 ]
 
-export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props) {
+export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate, fixedShiftLabel }: Props) {
   const { t } = useI18n()
   const [open,    setOpen]    = useState(false)
-  const [shift,   setShift]   = useState(SHIFTS[0].value)
+  const [shift,   setShift]   = useState(fixedShiftLabel ?? SHIFTS[0].value)
   const [email,   setEmail]   = useState('')
   const [loading, setLoading] = useState(false)
   const [result,  setResult]  = useState<{ ok: boolean; msg: string } | null>(null)
 
   async function handleClose() {
-    if (!email.includes('@')) {
+    // Email OPSIONAL — hanya validasi format kalau diisi
+    if (email && !email.includes('@')) {
       setResult({ ok: false, msg: t('closeShiftBtn.invalidEmail') })
       return
     }
@@ -33,7 +36,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
       const res  = await fetch('/api/shift-close', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ lineId, shiftLabel: shift, managerEmail: email }),
+        body:    JSON.stringify({ lineId, shiftLabel: shift, managerEmail: email, ...(workDate ? { date: workDate } : {}) }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -121,28 +124,36 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
               {t('closeShiftBtn.info1')} <strong>{t('closeShiftBtn.infoSend')}</strong> {t('closeShiftBtn.infoAnd')} <strong>{t('closeShiftBtn.infoReset')}</strong> {t('closeShiftBtn.info2')}
             </div>
 
-            {/* Pilih shift */}
+            {/* Pilih shift — dikunci kalau fixedShiftLabel diberikan (mis. dari leader) */}
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#5F5E5A', display: 'block', marginBottom: '6px' }}>
                 {t('closeShiftBtn.shiftToClose')}
               </label>
-              <select
-                value={shift}
-                onChange={e => setShift(e.target.value)}
-                style={{
+              {fixedShiftLabel ? (
+                <div style={{
                   width: '100%', padding: '8px 12px', borderRadius: '8px',
                   border: '1px solid #e0dfd7', fontSize: '13px',
-                  background: '#fff', color: '#1a1a18', cursor: 'pointer',
-                }}
-              >
-                {SHIFTS.map(s => <option key={s.value} value={s.value}>{t(s.key)}</option>)}
-              </select>
+                  background: '#F9FAFB', color: '#1a1a18',
+                }}>{fixedShiftLabel}</div>
+              ) : (
+                <select
+                  value={shift}
+                  onChange={e => setShift(e.target.value)}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: '8px',
+                    border: '1px solid #e0dfd7', fontSize: '13px',
+                    background: '#fff', color: '#1a1a18', cursor: 'pointer',
+                  }}
+                >
+                  {SHIFTS.map(s => <option key={s.value} value={s.value}>{t(s.key)}</option>)}
+                </select>
+              )}
             </div>
 
-            {/* Email manager */}
+            {/* Email manager (opsional) */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#5F5E5A', display: 'block', marginBottom: '6px' }}>
-                {t('closeShiftBtn.managerEmail')}
+                {t('closeShiftBtn.managerEmail')} <span style={{ color: '#9CA3AF', fontWeight: 400 }}>({t('closeShiftBtn.optional')})</span>
               </label>
               <input
                 type="email"
@@ -193,7 +204,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed }: Props)
                   cursor: loading || result?.ok ? 'not-allowed' : 'pointer',
                 }}
               >
-                {loading ? t('closeShiftBtn.processing') : result?.ok ? t('closeShiftBtn.done') : t('closeShiftBtn.closeAndSend')}
+                {loading ? t('closeShiftBtn.processing') : result?.ok ? t('closeShiftBtn.done') : email ? t('closeShiftBtn.closeAndSend') : t('closeShiftBtn.closeOnly')}
               </button>
             </div>
           </div>
