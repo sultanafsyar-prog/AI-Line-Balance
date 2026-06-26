@@ -602,6 +602,23 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                     ✅ Data jam {displayHour(parseInt(form.hour))} {t('leader.saved')}
                   </div>
                 )}
+
+                {/* ─ Tutup Shift (tim produksi bisa tutup sendiri) ─ */}
+                {line && (line.actuals ?? []).length > 0 && (
+                  <div style={{ background: '#fff', borderRadius: 16, padding: 16, marginBottom: 100, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 6 }}>{t('shift.close')}</div>
+                    <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 12, lineHeight: 1.5 }}>
+                      {t('leader.closeShiftHint')}
+                    </div>
+                    <CloseShiftButton
+                      lineId={line.id}
+                      lineLabel={`Gedung ${line.building} — Line ${line.lineNo}`}
+                      workDate={getWorkDate(shift)}
+                      fixedShiftLabel={shift === 1 ? 'Shift 1' : 'Shift 2'}
+                      onClosed={() => window.location.reload()}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -673,21 +690,6 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                   </div>
                 )}
 
-                {/* ─ Tutup Shift (Team Leader bisa tutup sendiri) ─ */}
-                {line && (line.actuals ?? []).length > 0 && (
-                  <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #E5E7EB' }}>
-                    <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10, lineHeight: 1.5 }}>
-                      {t('leader.closeShiftHint')}
-                    </div>
-                    <CloseShiftButton
-                      lineId={line.id}
-                      lineLabel={`Gedung ${line.building} — Line ${line.lineNo}`}
-                      workDate={getWorkDate(shift)}
-                      fixedShiftLabel={shift === 1 ? 'Shift 1' : 'Shift 2'}
-                      onClosed={() => window.location.reload()}
-                    />
-                  </div>
-                )}
               </div>
             )}
 

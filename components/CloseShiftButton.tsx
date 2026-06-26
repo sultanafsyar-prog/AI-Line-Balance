@@ -64,14 +64,14 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
           gap:          '6px',
           padding:      '7px 14px',
           borderRadius: '8px',
-          border:       '1px solid #E24B4A',
+          border:       '1px solid #E5E7EB',
           background:   'transparent',
-          color:        '#A32D2D',
+          color:        '#374151',
           fontSize:     '13px',
           fontWeight:   500,
           cursor:       'pointer',
         }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#FCEBEB')}
+        onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         {/* Ikon flag */}
@@ -101,39 +101,39 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
               <div style={{
                 width: '36px', height: '36px', borderRadius: '8px',
-                background: '#FCEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A32D2D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
                 </svg>
               </div>
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a18' }}>{t('shift.close')}</div>
-                <div style={{ fontSize: '12px', color: '#888780' }}>{lineLabel}</div>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{t('shift.close')}</div>
+                <div style={{ fontSize: '12px', color: '#6B7280' }}>{lineLabel}</div>
               </div>
             </div>
 
-            <div style={{ height: '1px', background: '#f0f0ef', margin: '16px 0' }} />
+            <div style={{ height: '1px', background: '#E5E7EB', margin: '16px 0' }} />
 
             {/* Info */}
             <div style={{
-              padding: '10px 14px', background: '#FAEEDA',
+              padding: '10px 14px', background: '#F1F5F9',
               borderRadius: '8px', marginBottom: '16px',
-              fontSize: '12px', color: '#854F0B', lineHeight: 1.6,
+              fontSize: '12px', color: '#475569', lineHeight: 1.6,
             }}>
               {t('closeShiftBtn.info1')} <strong>{t('closeShiftBtn.infoSend')}</strong> {t('closeShiftBtn.infoAnd')} <strong>{t('closeShiftBtn.infoReset')}</strong> {t('closeShiftBtn.info2')}
             </div>
 
             {/* Pilih shift — dikunci kalau fixedShiftLabel diberikan (mis. dari leader) */}
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: '#5F5E5A', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#475569', display: 'block', marginBottom: '6px' }}>
                 {t('closeShiftBtn.shiftToClose')}
               </label>
               {fixedShiftLabel ? (
                 <div style={{
                   width: '100%', padding: '8px 12px', borderRadius: '8px',
-                  border: '1px solid #e0dfd7', fontSize: '13px',
-                  background: '#F9FAFB', color: '#1a1a18',
+                  border: '1px solid #E5E7EB', fontSize: '13px',
+                  background: '#F9FAFB', color: '#111827', fontWeight: 600,
                 }}>{fixedShiftLabel}</div>
               ) : (
                 <select
@@ -141,8 +141,8 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
                   onChange={e => setShift(e.target.value)}
                   style={{
                     width: '100%', padding: '8px 12px', borderRadius: '8px',
-                    border: '1px solid #e0dfd7', fontSize: '13px',
-                    background: '#fff', color: '#1a1a18', cursor: 'pointer',
+                    border: '1px solid #E5E7EB', fontSize: '13px',
+                    background: '#fff', color: '#111827', cursor: 'pointer',
                   }}
                 >
                   {SHIFTS.map(s => <option key={s.value} value={s.value}>{t(s.key)}</option>)}
@@ -152,7 +152,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
 
             {/* Email manager (opsional) */}
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: '#5F5E5A', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#475569', display: 'block', marginBottom: '6px' }}>
                 {t('closeShiftBtn.managerEmail')} <span style={{ color: '#9CA3AF', fontWeight: 400 }}>({t('closeShiftBtn.optional')})</span>
               </label>
               <input
@@ -162,8 +162,8 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
                 onChange={e => setEmail(e.target.value)}
                 style={{
                   width: '100%', padding: '8px 12px', borderRadius: '8px',
-                  border: '1px solid #e0dfd7', fontSize: '13px',
-                  color: '#1a1a18', boxSizing: 'border-box',
+                  border: '1px solid #E5E7EB', fontSize: '13px',
+                  color: '#111827', boxSizing: 'border-box',
                 }}
               />
             </div>
@@ -172,8 +172,8 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
             {result && (
               <div style={{
                 padding: '10px 14px', borderRadius: '8px', marginBottom: '16px',
-                background: result.ok ? '#EFF6FF' : '#FCEBEB',
-                color:      result.ok ? '#1D4ED8' : '#A32D2D',
+                background: result.ok ? '#EFF6FF' : '#FEF2F2',
+                color:      result.ok ? '#1D4ED8' : '#DC2626',
                 fontSize:   '13px', lineHeight: 1.5,
               }}>
                 {result.ok ? '✓ ' : '✗ '}{result.msg}
@@ -186,8 +186,8 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
                 onClick={() => setOpen(false)}
                 style={{
                   flex: 1, padding: '9px', borderRadius: '8px',
-                  border: '1px solid #e0dfd7', background: 'transparent',
-                  fontSize: '13px', color: '#5F5E5A', cursor: 'pointer',
+                  border: '1px solid #E5E7EB', background: 'transparent',
+                  fontSize: '13px', color: '#6B7280', cursor: 'pointer',
                 }}
               >
                 {t('common.cancel')}
@@ -198,8 +198,8 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
                 style={{
                   flex: 2, padding: '9px', borderRadius: '8px',
                   border: 'none',
-                  background: loading || result?.ok ? '#e0dfd7' : '#A32D2D',
-                  color:  loading || result?.ok ? '#888780' : '#fff',
+                  background: loading || result?.ok ? '#E5E7EB' : '#3B82F6',
+                  color:  loading || result?.ok ? '#9CA3AF' : '#fff',
                   fontSize: '13px', fontWeight: 500,
                   cursor: loading || result?.ok ? 'not-allowed' : 'pointer',
                 }}
