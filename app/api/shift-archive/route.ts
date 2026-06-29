@@ -54,27 +54,53 @@ export async function GET(req: NextRequest) {
   // ── Resolve lineId → building/lineNo dan closedBy → nama (tanpa relasi FK) ──
   const lineIds = [...new Set(archives.map(a => a.lineId))]
   const userIds = [...new Set(archives.map(a => a.closedBy))]
-  const [lines, users] = await Promise.all([
+  const dates   = [...new Set(archives.map(a => a.date))]
+
+  const [lines, users, dailyTargets, actualSecs] = await Promise.all([
     prisma.line.findMany({ where: { id: { in: lineIds } }, select: { id: true, building: true, lineNo: true } }),
     prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }),
+    // Target harian (PPIC) per line+tanggal — untuk kolom Target & pencapaian
+    prisma.dailyTarget.findMany({
+      where: { lineId: { in: lineIds }, date: { in: dates } },
+      select: { lineId: true, date: true, targetPairs: true },
+    }),
+    // Section/style yang dijalankan per line+tanggal (mixed-model)
+    prisma.actual.findMany({
+      where: { lineId: { in: lineIds }, date: { in: dates } },
+      select: { lineId: true, date: true, section: { select: { name: true } } },
+    }),
   ])
   const lineMap = new Map(lines.map(l => [l.id, l]))
   const userMap = new Map(users.map(u => [u.id, u.name]))
+  const targetMap = new Map(dailyTargets.map(d => [`${d.lineId}|${d.date}`, d.targetPairs]))
+  const secMap = new Map<string, Set<string>>()
+  for (const a of actualSecs) {
+    const k = `${a.lineId}|${a.date}`
+    if (!secMap.has(k)) secMap.set(k, new Set())
+    if (a.section?.name) secMap.get(k)!.add(a.section.name)
+  }
 
-  const result = archives.map(a => ({
-    id: a.id,
-    date: a.date,
-    shiftLabel: a.shiftLabel,
-    building: lineMap.get(a.lineId)?.building ?? '?',
-    lineNo: lineMap.get(a.lineId)?.lineNo ?? 0,
-    closedByName: userMap.get(a.closedBy) ?? '—',
-    closedAt: a.closedAt.toISOString(),
-    totalOutput: a.totalOutput,
-    totalDT: a.totalDT,
-    totalDefect: a.totalDefect,
-    avgLler: a.avgLler,
-    emailSent: a.emailSent,
-  }))
+  const result = archives.map(a => {
+    const k = `${a.lineId}|${a.date}`
+    const target = targetMap.get(k) ?? null
+    return {
+      id: a.id,
+      date: a.date,
+      shiftLabel: a.shiftLabel,
+      building: lineMap.get(a.lineId)?.building ?? '?',
+      lineNo: lineMap.get(a.lineId)?.lineNo ?? 0,
+      sections: [...(secMap.get(k) ?? [])],
+      target,
+      achievement: target && target > 0 ? Math.round((a.totalOutput / target) * 100) : null,
+      closedByName: userMap.get(a.closedBy) ?? '—',
+      closedAt: a.closedAt.toISOString(),
+      totalOutput: a.totalOutput,
+      totalDT: a.totalDT,
+      totalDefect: a.totalDefect,
+      avgLler: a.avgLler,
+      emailSent: a.emailSent,
+    }
+  })
 
   return NextResponse.json({ archives: result })
 }

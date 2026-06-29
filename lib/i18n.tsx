@@ -83,6 +83,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.colReport':   'Laporan',
     'history.sent':        'Terkirim',
     'history.notSent':     'Tidak',
+    'history.colSection':  'Section',
+    'history.colTarget':   'Target',
+    'history.colAch':      'Capai',
+    'history.allLines':    'Semua line',
+    'history.allShifts':   'Semua shift',
+    'history.filterDate':  'Tanggal',
+    'history.resetFilter': 'Reset',
 
     // Forecast
     'forecast.projected':  'Proyeksi',
@@ -546,6 +553,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.colReport':   'Report',
     'history.sent':        'Sent',
     'history.notSent':     'No',
+    'history.colSection':  'Section',
+    'history.colTarget':   'Target',
+    'history.colAch':      'Achv',
+    'history.allLines':    'All lines',
+    'history.allShifts':   'All shifts',
+    'history.filterDate':  'Date',
+    'history.resetFilter': 'Reset',
 
     // Forecast
     'forecast.projected':  'Projected',
@@ -1009,6 +1023,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.colReport':   '報告',
     'history.sent':        '已寄送',
     'history.notSent':     '否',
+    'history.colSection':  '工段',
+    'history.colTarget':   '目標',
+    'history.colAch':      '達成',
+    'history.allLines':    '所有產線',
+    'history.allShifts':   '所有班次',
+    'history.filterDate':  '日期',
+    'history.resetFilter': '重設',
 
     // Forecast
     'forecast.projected':  '預測',
