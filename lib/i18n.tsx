@@ -90,6 +90,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.allShifts':   'Semua shift',
     'history.filterDate':  'Tanggal',
     'history.resetFilter': 'Reset',
+    'history.exportExcel': 'Export Excel',
 
     // Forecast
     'forecast.projected':  'Proyeksi',
@@ -560,6 +561,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.allShifts':   'All shifts',
     'history.filterDate':  'Date',
     'history.resetFilter': 'Reset',
+    'history.exportExcel': 'Export Excel',
 
     // Forecast
     'forecast.projected':  'Projected',
@@ -1030,6 +1032,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.allShifts':   '所有班次',
     'history.filterDate':  '日期',
     'history.resetFilter': '重設',
+    'history.exportExcel': '匯出 Excel',
 
     // Forecast
     'forecast.projected':  '預測',

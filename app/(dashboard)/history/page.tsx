@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { History, Mail, MailX, TrendingUp, X } from 'lucide-react'
+import { History, Mail, MailX, TrendingUp, X, Download } from 'lucide-react'
 import { BUILDINGS } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 
@@ -96,13 +96,20 @@ export default function HistoryPage() {
           </h1>
           <p className="text-xs text-gray-400 mt-1">{t('history.subtitle')}</p>
         </div>
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {[7, 30, 90].map(d => (
-            <button key={d} onClick={() => setDays(d)}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${days === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {t('analytics.daysN', { n: d })}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+            {[7, 30, 90].map(d => (
+              <button key={d} onClick={() => setDays(d)}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${days === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {t('analytics.daysN', { n: d })}
+              </button>
+            ))}
+          </div>
+          <a
+            href={`/api/export/shift-history?building=${selBuilding}&days=${days}&line=${encodeURIComponent(selLine)}&shift=${encodeURIComponent(selShift)}&date=${selDate}`}
+            className={`btn btn-primary text-sm ${filtered.length === 0 ? 'pointer-events-none opacity-50' : ''}`}>
+            <Download className="w-4 h-4" /> {t('history.exportExcel')}
+          </a>
         </div>
       </div>
 
