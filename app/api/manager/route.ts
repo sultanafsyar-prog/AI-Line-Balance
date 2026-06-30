@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     // LLER produktivitas gabungan
     const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
-      ? Math.round((avgOut * avgMP) / (tph * theoMP) * 100) : 0
+      ? Math.round((avgOut * theoMP) / (tph * avgMP) * 100) : 0
 
     let status: LineStatus
     if (!model)               status = 'no_model'
@@ -171,7 +171,7 @@ export async function GET(req: NextRequest) {
                 const avgOut = b.outSum / b.hours
                 const avgMP = b.mpSum / b.hours
                 const theoPPH = 3600 / b.takt
-                if (avgOut > 0 && avgMP > 0) { num += avgOut * avgMP; den += theoPPH * b.theoMP }
+                if (avgOut > 0 && avgMP > 0) { num += avgOut * b.theoMP; den += theoPPH * avgMP }
               }
             }
             return den > 0 ? (num / den) * 100 : 0

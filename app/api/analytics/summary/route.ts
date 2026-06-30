@@ -66,8 +66,8 @@ export async function GET(req: NextRequest) {
     const theoPPH = secTakt > 0 ? 3600 / secTakt : 0
     const theoMP = theoMPCache.get(a.sectionId) ?? 0
     if (theoPPH > 0 && theoMP > 0 && a.mpActual > 0 && a.output > 0) {
-      bucket.num += a.output * a.mpActual
-      bucket.den += theoPPH * theoMP
+      bucket.num += a.output * theoMP
+      bucket.den += theoPPH * a.mpActual
     }
     bucket.downtime += a.downtime
     bucket.defect   += a.defect
@@ -111,8 +111,8 @@ export async function GET(req: NextRequest) {
       }
     }
     if (theoPPH > 0 && theoMP > 0 && a.mpActual > 0 && a.output > 0) {
-      lineMap[key].num += a.output * a.mpActual
-      lineMap[key].den += theoPPH * theoMP
+      lineMap[key].num += a.output * theoMP
+      lineMap[key].den += theoPPH * a.mpActual
     }
     lineMap[key].output += a.output
     lineMap[key].hours  += 1

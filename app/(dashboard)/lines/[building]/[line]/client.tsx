@@ -29,8 +29,11 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   const [aiText, setAiText] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [assigning, setAssigning] = useState(false)
+  const [selModelId, setSelModelId] = useState('')
 
-  const model = line.assignments[0]?.model
+  const activeModels = (line.assignments ?? []).map((a: any) => a.model).filter(Boolean)
+  const model = activeModels.find((m: any) => m.id === selModelId) ?? activeModels[0]
+  const modelSections = sections.filter(secName => model?.sections?.some((s: any) => s.name === secName))
   const section = model?.sections.find((s: any) => s.name === selSec)
   const takt = section?.taktTime ?? 36
   const metrics = section ? calcSectionMetrics(section.operations, section.stdMP, takt) : null
@@ -38,7 +41,20 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   // Target tampilan: target manual IE per section kalau di-set (LLER tetap pakai tph teoretis)
   const dispTph = section?.hourlyTarget ?? tph
 
-  const sectionActuals = line.actuals.filter((a: any) => a.section?.name === selSec).sort((a: any, b: any) => a.hour - b.hour)
+  useEffect(() => {
+    const firstModelId = activeModels[0]?.id ?? ''
+    if (firstModelId && !activeModels.some((m: any) => m.id === selModelId)) {
+      setSelModelId(firstModelId)
+    }
+  }, [activeModels.map((m: any) => m.id).join(','), selModelId])
+
+  useEffect(() => {
+    if (modelSections.length > 0 && !modelSections.includes(selSec)) {
+      setSelSec(modelSections[0])
+    }
+  }, [modelSections.join(','), selSec])
+
+  const sectionActuals = line.actuals.filter((a: any) => a.sectionId === section?.id).sort((a: any, b: any) => a.hour - b.hour)
   const totOut = sectionActuals.reduce((s: number, a: any) => s + a.output, 0)
   const totDT  = sectionActuals.reduce((s: number, a: any) => s + a.downtime, 0)
   const totDef = sectionActuals.reduce((s: number, a: any) => s + a.defect, 0)
@@ -47,7 +63,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
   const theoMP = metrics?.theorMP ?? 0
   const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
-    ? parseFloat(((avgOut * avgMP) / (tph * theoMP) * 100).toFixed(1)) : 0
+    ? parseFloat(((avgOut * theoMP) / (tph * avgMP) * 100).toFixed(1)) : 0
 
   // ── MP auto-fill: prefill MP dari input terakhir section ini ──
   // MP biasanya tidak berubah tiap jam, jadi prefill untuk hemat ketik
@@ -100,12 +116,12 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
     setAiLoading(false)
   }
 
-  async function assignModel(modelId: string | null) {
+  async function assignModel(modelId: string | null, mode: 'add' | 'remove' | 'clear' = 'add') {
     setAssigning(true)
     try {
       const res = await fetch('/api/lines', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lineId: line.id, modelId })
+        body: JSON.stringify({ lineId: line.id, modelId, mode })
       })
       if (res.ok) { window.location.reload() }
       else { alert('Gagal assign model'); setAssigning(false) }
@@ -152,13 +168,14 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
             <p className="text-sm text-gray-500">
               Model: <strong className="text-gray-800">{model.name}</strong> · {model.article} ·
               <span className="text-teal"> Target: {dispTph} prs/jam</span> · Takt: {takt}s
+              {activeModels.length > 1 && <span className="text-gray-400"> · {activeModels.length} style aktif</span>}
             </p>
           ) : <p className="text-sm text-gray-400">Belum ada model</p>}
         </div>
         {isIE(user?.role) && (
           <div className="flex gap-2 flex-wrap">
             <button onClick={() => setAssigning(true)} className="btn btn-secondary text-xs">
-              {model ? 'Ganti model' : 'Assign model'}
+              {model ? 'Kelola style' : 'Assign model'}
             </button>
             {model && (
               <CloseShiftButton
@@ -182,9 +199,20 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
         </div>
       )}
 
+      {activeModels.length > 1 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {activeModels.map((m: any) => (
+            <button key={m.id} onClick={() => setSelModelId(m.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${model?.id === m.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Section tabs */}
       <div className="flex flex-wrap gap-1 mb-4 pb-3 border-b border-gray-100">
-        {sections.map(s => (
+        {modelSections.map(s => (
           <button key={s} onClick={() => setSelSec(s)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selSec === s ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {s}
@@ -337,20 +365,20 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
               } : null}
               lineId={line.id}
               totalActual={totOut}
-              sectionActuals={sections.map((secName: string) => {
-                const sa  = line.actuals.filter((a: any) => a.section?.name === secName)
+              sectionActuals={modelSections.map((secName: string) => {
+                const sec = model?.sections?.find((s: any) => s.name === secName)
+                const sa  = line.actuals.filter((a: any) => a.sectionId === sec?.id)
                 const out = sa.reduce((s: number, a: any) => s + (a.output ?? 0), 0)
                 const dt  = sa.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
                 const def = sa.reduce((s: number, a: any) => s + (a.defect ?? 0), 0)
                 // LLER produktivitas gabungan: (avgOut × avgMP) / (theoPPH × theoMP) × 100
-                const sec = model?.sections?.find((s: any) => s.name === secName)
                 const secMetrics = sec ? calcSectionMetrics(sec.operations, sec.stdMP, sec.taktTime) : null
                 const secTheoMP = secMetrics?.theorMP ?? 0
                 const theoPPH = sec?.taktTime > 0 ? 3600 / sec.taktTime : 0
                 const secAvgOut = sa.length > 0 ? out / sa.length : 0
                 const secAvgMP = sa.length > 0 ? sa.reduce((s: number, a: any) => s + (a.mpActual ?? 0), 0) / sa.length : 0
                 const secLler = (secAvgOut > 0 && secAvgMP > 0 && theoPPH > 0 && secTheoMP > 0)
-                  ? Math.round((secAvgOut * secAvgMP) / (theoPPH * secTheoMP) * 100) : null
+                  ? Math.round((secAvgOut * secTheoMP) / (theoPPH * secAvgMP) * 100) : null
                 return {
                   name:   secName,
                   ller:   secLler,
@@ -536,18 +564,20 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
       {assigning && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setAssigning(false)}>
           <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="font-semibold mb-3">Assign model — Gedung {line.building} Line {line.lineNo}</div>
+            <div className="font-semibold mb-3">Kelola style - Gedung {line.building} Line {line.lineNo}</div>
             <div className="space-y-2 mb-4 max-h-64 overflow-auto">
-              <div onClick={() => assignModel(null)} className="px-3 py-2.5 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
-                — Hapus assign —
+              <div onClick={() => assignModel(null, 'clear')} className="px-3 py-2.5 border border-red-200 rounded-lg cursor-pointer hover:bg-red-50 text-sm text-red-700">
+                Nonaktifkan semua style dari line ini
               </div>
-              {allModels.map((m: any) => (
-                <div key={m.id} onClick={() => assignModel(m.id)}
-                  className={`px-3 py-2.5 border rounded-lg cursor-pointer text-sm ${model?.id === m.id ? 'border-teal bg-teal-light' : 'border-gray-200 hover:bg-gray-50'}`}>
-                  <div className="font-medium">{m.name} · {m.article}</div>
-                  <div className="text-xs text-gray-400">Takt: {m.sections?.[0]?.taktTime ?? '—'}s</div>
+              {allModels.map((m: any) => {
+                const isActive = activeModels.some((am: any) => am.id === m.id)
+                return (
+                <div key={m.id} onClick={() => assignModel(m.id, isActive ? 'remove' : 'add')}
+                  className={`px-3 py-2.5 border rounded-lg cursor-pointer text-sm ${isActive ? 'border-teal bg-teal-light' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <div className="font-medium">{m.name} - {m.article} {isActive && <span className="text-xs text-teal">(aktif)</span>}</div>
+                  <div className="text-xs text-gray-400">Takt: {m.sections?.[0]?.taktTime ?? '-'}s</div>
                 </div>
-              ))}
+              )})}
             </div>
             <button onClick={() => setAssigning(false)} className="btn btn-secondary w-full justify-center">Batal</button>
           </div>

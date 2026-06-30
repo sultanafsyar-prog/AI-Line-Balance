@@ -44,7 +44,6 @@ export async function GET(req: NextRequest) {
             }
           }
         },
-        take: 1,
         orderBy: { assignedAt: 'desc' },
       },
       actuals: { where: { date: today() } },
@@ -62,11 +61,11 @@ export async function POST(req: NextRequest) {
 
   const parsed = await parseBody(req, LineAssignSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { lineId, modelId } = parsed
+  const { lineId, modelId, mode } = parsed
 
-  // Hapus assignment lama + buat baru dalam satu transaksi supaya line tidak
-  // pernah dalam keadaan tanpa model aktif kalau salah satu operasi gagal.
-  if (!modelId) {
+  // Fase mixed-model: assignment aktif = daftar style yang boleh dijalankan
+  // pada line ini. Actual tetap terikat ke style lewat sectionId.
+  if (!modelId || mode === 'clear') {
     await prisma.lineAssignment.updateMany({
       where: { lineId, active: true },
       data: { active: false }
@@ -74,15 +73,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Assignment removed' })
   }
 
-  const [, assignment] = await prisma.$transaction([
-    prisma.lineAssignment.updateMany({
-      where: { lineId, active: true },
-      data: { active: false }
-    }),
-    prisma.lineAssignment.create({
-      data: { lineId, modelId, assignedBy: auth.user.id },
-      include: { model: true, line: true },
-    }),
-  ])
+  if (mode === 'remove') {
+    await prisma.lineAssignment.updateMany({
+      where: { lineId, modelId, active: true },
+      data: { active: false },
+    })
+    return NextResponse.json({ message: 'Assignment removed' })
+  }
+
+  const existing = await prisma.lineAssignment.findFirst({
+    where: { lineId, modelId, active: true },
+    include: { model: true, line: true },
+  })
+  if (existing) return NextResponse.json(existing)
+
+  const assignment = await prisma.lineAssignment.create({
+    data: { lineId, modelId, assignedBy: auth.user.id },
+    include: { model: true, line: true },
+  })
   return NextResponse.json(assignment, { status: 201 })
 }

@@ -79,6 +79,7 @@ export type ModelPatchInput = z.infer<typeof ModelPatchSchema>
 export const LineAssignSchema = z.object({
   lineId:  cuid,
   modelId: cuid.nullable().optional(),
+  mode:    z.enum(['add', 'remove', 'clear']).optional().default('add'),
 })
 export type LineAssignInput = z.infer<typeof LineAssignSchema>
 
@@ -124,7 +125,9 @@ export type AnalyticsRequestInput = z.infer<typeof AnalyticsRequestSchema>
 export const ShiftCloseSchema = z.object({
   lineId:       cuid,
   shiftLabel:   z.string().min(1).max(50),
-  managerEmail: z.string().email(),
+  // Email manager OPSIONAL — Team Leader bisa tutup shift tanpa kirim laporan.
+  // Terima email valid, string kosong, atau tidak ada.
+  managerEmail: z.union([z.string().email(), z.literal('')]).optional().default(''),
   date:         dateString.optional(), // override work date; default = tanggal actual terbuka terbaru
 })
 export type ShiftCloseInput = z.infer<typeof ShiftCloseSchema>

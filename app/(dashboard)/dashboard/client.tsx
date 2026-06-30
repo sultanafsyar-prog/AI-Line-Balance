@@ -57,8 +57,8 @@ function calcLineLler(line: DashLine): number {
       const takt = secActs[0]?.taktTime ?? 0
       const theoPPH = takt > 0 ? 3600 / takt : 0
       if (theoPPH > 0 && avgMP > 0 && avgOut > 0) {
-        num += avgOut * avgMP
-        den += theoPPH * theo
+        num += avgOut * theo
+        den += theoPPH * avgMP
       }
     }
   }
@@ -94,7 +94,7 @@ function calcSectionLlers(line: DashLine): { name: string; ller: number; theorMP
       const avgOut = s.hours > 0 ? s.outSum / s.hours : 0
       const theoPPH = s.taktTime > 0 ? 3600 / s.taktTime : 0
       const ller = (avgOut > 0 && avgMP > 0 && theoPPH > 0 && theo > 0)
-        ? Math.round((avgOut * avgMP) / (theoPPH * theo) * 100) : 0
+        ? Math.round((avgOut * theo) / (theoPPH * avgMP) * 100) : 0
       return { name, ller, theorMP: theo, avgMP, output: s.outSum }
     })
     .filter(s => s.theorMP > 0)

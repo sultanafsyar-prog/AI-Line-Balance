@@ -16,7 +16,7 @@ export default async function LineDetailPage({ params }: Props) {
     where: { building_lineNo: { building, lineNo } },
     include: {
       assignments: {
-        where: { active: true }, take: 1, orderBy: { assignedAt: 'desc' },
+        where: { active: true }, orderBy: { assignedAt: 'desc' },
         include: { model: { include: {
           sections: { include: { operations: { orderBy: { seq: 'asc' } } } }
         }}}
@@ -29,7 +29,11 @@ export default async function LineDetailPage({ params }: Props) {
   if (!line) notFound()
 
   const allModels = isIE(session?.user?.role)
-    ? await prisma.shoeModel.findMany({ where: { active: true }, select: { id: true, name: true, article: true, lineType: true } })
+    ? await prisma.shoeModel.findMany({
+        where: { active: true },
+        select: { id: true, name: true, article: true, lineType: true, sections: { select: { taktTime: true } } },
+        orderBy: { name: 'asc' },
+      })
     : []
 
   return (

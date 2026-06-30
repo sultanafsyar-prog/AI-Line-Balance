@@ -29,7 +29,9 @@ type SectionSummary = {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRole(['IE_ADMIN', 'IE_OPERATOR'])
+  // Team Leader boleh tutup shift juga — kalau IE tidak ada/tidak sempat.
+  // Akses tetap dibatasi per line lewat hasLineAccess di bawah.
+  const auth = await requireRole(['IE_ADMIN', 'IE_OPERATOR', 'TEAM_LEADER'])
   if (auth instanceof NextResponse) return auth
   const session = auth
 
@@ -99,7 +101,7 @@ export async function POST(req: NextRequest) {
     const theoMP = sec.taktTime > 0 ? totalGWT / sec.taktTime : 0
     // LLER produktivitas gabungan
     const ller = (targetPH > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
-      ? Math.round((avgOut * avgMP) / (targetPH * theoMP) * 100) : 0
+      ? Math.round((avgOut * theoMP) / (targetPH * avgMP) * 100) : 0
     const defRate   = totOut > 0 ? ((totDef / totOut) * 100).toFixed(1) : '0'
 
     return [{ name: sec.name, totOut, totDT, totDef, avgMP, totalTgt, ller, defRate, jamCount: secActuals.length }]
@@ -212,7 +214,7 @@ export async function POST(req: NextRequest) {
   const fromEmail    = process.env.EMAIL_FROM ?? 'noreply@ielinebalance.com'
 
   let emailSent = false
-  if (resendApiKey) {
+  if (resendApiKey && managerEmail) {
     try {
       const emailRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -263,9 +265,11 @@ export async function POST(req: NextRequest) {
     emailSent,
     message: emailSent
       ? `Shift ditutup. Laporan dikirim ke ${managerEmail}.`
-      : resendApiKey
-        ? `Shift ditutup dan data diarsipkan. Email gagal terkirim — cek konfigurasi Resend.`
-        : `Shift ditutup dan data diarsipkan. Email tidak dikirim karena RESEND_API_KEY belum diset.`,
+      : !managerEmail
+        ? `Shift ditutup dan data diarsipkan.`
+        : resendApiKey
+          ? `Shift ditutup dan data diarsipkan. Email gagal terkirim — cek konfigurasi Resend.`
+          : `Shift ditutup dan data diarsipkan. Email tidak dikirim karena RESEND_API_KEY belum diset.`,
     summary: { totalOut, avgLler, totalDT, totalDef },
   })
 }

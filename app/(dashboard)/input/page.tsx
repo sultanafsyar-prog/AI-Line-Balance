@@ -3,7 +3,13 @@ import { useState, useEffect } from 'react'
 import { BUILDINGS, today } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 
-type Line = { id: string; building: string; lineNo: number; model: { name: string; lineType: string } | null; sections: { id: string; name: string; stdMP: number; taktTime: number; hourlyTarget?: number | null }[] }
+type Model = {
+  id: string
+  name: string
+  lineType: string
+  sections: { id: string; name: string; stdMP: number; taktTime: number; hourlyTarget?: number | null }[]
+}
+type Line = { id: string; building: string; lineNo: number; models: Model[] }
 
 const DT_REASONS = [
   { value: 'Mesin rusak',     key: 'inputPage.dtMachine' },
@@ -22,6 +28,7 @@ export default function InputPage() {
   const [loading, setLoading] = useState(true)
   const [selBuilding, setSelBuilding] = useState('')
   const [selLineId, setSelLineId]     = useState('')
+  const [selModelId, setSelModelId]   = useState('')
   const [selSecId, setSelSecId]       = useState('')
   const [saving, setSaving]   = useState(false)
   const [saved, setSaved]     = useState(false)
@@ -36,8 +43,7 @@ export default function InputPage() {
     fetch('/api/lines').then(r => r.json()).then((data: any[]) => {
       const mapped: Line[] = data.map(l => ({
         id: l.id, building: l.building, lineNo: l.lineNo,
-        model: l.assignments?.[0]?.model ?? null,
-        sections: l.assignments?.[0]?.model?.sections ?? [],
+        models: (l.assignments ?? []).map((a: any) => a.model).filter(Boolean),
       }))
       setLines(mapped)
       setLoading(false)
@@ -45,15 +51,16 @@ export default function InputPage() {
   }, [])
 
   const buildings = [...new Set(lines.map(l => l.building))].sort()
-  const filteredLines = lines.filter(l => l.building === selBuilding && l.model)
+  const filteredLines = lines.filter(l => l.building === selBuilding && l.models.length > 0)
   const selLine  = lines.find(l => l.id === selLineId)
-  const selSec   = selLine?.sections.find(s => s.id === selSecId)
+  const selModel = selLine?.models.find(m => m.id === selModelId)
+  const selSec   = selModel?.sections.find(s => s.id === selSecId)
   const tph      = selSec?.hourlyTarget ?? (selSec?.taktTime && selSec.taktTime > 0 ? Math.round(3600 / selSec.taktTime) : 0)
 
   // Auto-select first building with lines that have model
   useEffect(() => {
     if (!selBuilding && buildings.length > 0) {
-      const first = buildings.find(b => lines.some(l => l.building === b && l.model))
+      const first = buildings.find(b => lines.some(l => l.building === b && l.models.length > 0))
       if (first) setSelBuilding(first)
     }
   }, [buildings, lines, selBuilding])
@@ -61,9 +68,10 @@ export default function InputPage() {
   // Auto-select first line when building changes or lines load
   useEffect(() => {
     if (selBuilding) {
-      const fl = lines.filter(l => l.building === selBuilding && l.model)[0]
+      const fl = lines.filter(l => l.building === selBuilding && l.models.length > 0)[0]
       setSelLineId(fl?.id ?? '')
-      setSelSecId(fl?.sections[0]?.id ?? '')
+      setSelModelId(fl?.models[0]?.id ?? '')
+      setSelSecId(fl?.models[0]?.sections[0]?.id ?? '')
     }
   }, [selBuilding, lines])
 
@@ -71,9 +79,16 @@ export default function InputPage() {
   useEffect(() => {
     if (selLineId) {
       const sl = lines.find(l => l.id === selLineId)
-      setSelSecId(sl?.sections[0]?.id ?? '')
+      setSelModelId(sl?.models[0]?.id ?? '')
+      setSelSecId(sl?.models[0]?.sections[0]?.id ?? '')
     }
   }, [selLineId, lines])
+
+  useEffect(() => {
+    if (!selModelId) return
+    const model = selLine?.models.find(m => m.id === selModelId)
+    setSelSecId(model?.sections[0]?.id ?? '')
+  }, [selModelId, selLine])
 
   async function handleSubmit() {
     if (!selLineId || !selSecId || !form.output || !form.mpActual) {
@@ -155,7 +170,7 @@ export default function InputPage() {
                         selLineId === l.id ? 'bg-teal text-white border-teal' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                       }`}>
                       {t('inputPage.lineN', { n: l.lineNo })}
-                      {l.model && <span className="text-xs opacity-75 ml-1">({l.model.name})</span>}
+                      <span className="text-xs opacity-75 ml-1">({l.models.length} style)</span>
                     </button>
                   ))}
                 </div>
@@ -163,12 +178,29 @@ export default function InputPage() {
             </div>
           )}
 
+          {/* Model / Style */}
+          {selLineId && selLine?.models && selLine.models.length > 0 && (
+            <div>
+              <label className="label">Style / Model</label>
+              <div className="flex flex-wrap gap-2">
+                {selLine.models.map(m => (
+                  <button key={m.id} onClick={() => setSelModelId(m.id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                      selModelId === m.id ? 'bg-teal text-white border-teal' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}>
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Section */}
-          {selLineId && selLine?.sections && selLine.sections.length > 0 && (
+          {selModelId && selModel?.sections && selModel.sections.length > 0 && (
             <div>
               <label className="label">{t('inputPage.section')}</label>
               <div className="flex flex-wrap gap-2">
-                {selLine.sections.map(s => (
+                {selModel.sections.map(s => (
                   <button key={s.id} onClick={() => setSelSecId(s.id)}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
                       selSecId === s.id ? 'bg-teal text-white border-teal' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
@@ -187,6 +219,7 @@ export default function InputPage() {
         <div className="px-4 py-2 bg-teal-light border border-teal rounded-lg text-sm text-teal-dark mb-3 flex items-center justify-between">
           <span>
             <strong>{t('inputPage.selectedLine', { building: selLine.building, line: selLine.lineNo })}</strong> · {selSec.name}
+            {selModel && <span> · {selModel.name}</span>}
           </span>
           <span className="text-xs">{t('inputPage.targetInfo', { tph, tt: selSec.taktTime })}</span>
         </div>

@@ -24,30 +24,32 @@ interface Props {
 
 type ViewMode = 'floor' | 'manager' | 'ie' | 'ai'
 
-// ── Warna ────────────────────────────────────────────────────
+// ── Warna — corporate flat dark (slate family) ──────────────
 const C = {
-  bg:       '#0a0e1a',
-  card:     '#111827',
-  surface:  '#1a1f2e',
-  border:   '#1f2937',
+  bg:       '#020617',   // slate-950 — solid corporate background
+  card:     '#0f172a',   // slate-900
+  surface:  '#1e293b',   // slate-800
+  border:   '#1e293b',   // slate-800 (subtle, no shadow)
+  // Status — muted, professional
   green:    '#10b981',
-  greenBg:  '#052e1c',
-  greenBd:  '#064e3b',
+  greenBg:  'rgba(16,185,129,0.08)',
+  greenBd:  'rgba(16,185,129,0.25)',
   amber:    '#f59e0b',
-  amberBg:  '#2d1f06',
-  amberBd:  '#78350f',
+  amberBg:  'rgba(245,158,11,0.08)',
+  amberBd:  'rgba(245,158,11,0.25)',
   red:      '#ef4444',
-  redBg:    '#2d0a0a',
-  redBd:    '#7f1d1d',
+  redBg:    'rgba(239,68,68,0.08)',
+  redBd:    'rgba(239,68,68,0.25)',
   blue:     '#3b82f6',
-  blueBg:   '#172554',
-  blueBd:   '#1e3a5f',
-  gray:     '#6b7280',
-  white:    '#f9fafb',
-  dim:      '#9ca3af',
+  blueBg:   'rgba(59,130,246,0.08)',
+  blueBd:   'rgba(59,130,246,0.25)',
+  // Neutral text scale
+  gray:     '#64748b',   // slate-500
+  dim:      '#94a3b8',   // slate-400
+  white:    '#f1f5f9',   // slate-100 (softer than pure white on TV)
   teal:     '#3B82F6',
-  tealBg:   '#052e22',
-  tealBd:   '#0d4f3c',
+  tealBg:   'rgba(59,130,246,0.08)',
+  tealBd:   'rgba(59,130,246,0.25)',
 }
 
 function statusColors(ller: number, hasData: boolean) {
@@ -67,20 +69,24 @@ function getGWT(op: any): number {
   return (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15))
 }
 
-// ── Per-line accent colors for visual differentiation ──────
+// ── Per-line accent — single muted blue family (corporate flat) ──
+// Sebelumnya rainbow 7-warna; diganti tone biru/slate yang konsisten supaya
+// tampilan TV terasa seperti enterprise dashboard, bukan papan iklan.
 const LINE_ACCENTS = [
-  { accent: '#3b82f6', accentBg: 'rgba(59,130,246,0.08)',  accentBd: 'rgba(59,130,246,0.25)',  stripe: 'rgba(59,130,246,0.04)'  },  // blue
-  { accent: '#8b5cf6', accentBg: 'rgba(139,92,246,0.08)',  accentBd: 'rgba(139,92,246,0.25)',  stripe: 'rgba(139,92,246,0.04)'  },  // violet
-  { accent: '#06b6d4', accentBg: 'rgba(6,182,212,0.08)',   accentBd: 'rgba(6,182,212,0.25)',   stripe: 'rgba(6,182,212,0.04)'   },  // cyan
-  { accent: '#f97316', accentBg: 'rgba(249,115,22,0.08)',  accentBd: 'rgba(249,115,22,0.25)',  stripe: 'rgba(249,115,22,0.04)'  },  // orange
-  { accent: '#ec4899', accentBg: 'rgba(236,72,153,0.08)',  accentBd: 'rgba(236,72,153,0.25)',  stripe: 'rgba(236,72,153,0.04)'  },  // pink
-  { accent: '#14b8a6', accentBg: 'rgba(20,184,166,0.08)',  accentBd: 'rgba(20,184,166,0.25)',  stripe: 'rgba(20,184,166,0.04)'  },  // teal
-  { accent: '#eab308', accentBg: 'rgba(234,179,8,0.08)',   accentBd: 'rgba(234,179,8,0.25)',   stripe: 'rgba(234,179,8,0.04)'   },  // yellow
+  { accent: '#60a5fa', accentBg: 'rgba(96,165,250,0.06)', accentBd: 'rgba(96,165,250,0.20)', stripe: 'rgba(96,165,250,0.03)' },  // blue-400
+  { accent: '#38bdf8', accentBg: 'rgba(56,189,248,0.06)', accentBd: 'rgba(56,189,248,0.20)', stripe: 'rgba(56,189,248,0.03)' },  // sky-400
+  { accent: '#818cf8', accentBg: 'rgba(129,140,248,0.06)', accentBd: 'rgba(129,140,248,0.20)', stripe: 'rgba(129,140,248,0.03)' },  // indigo-400
+  { accent: '#22d3ee', accentBg: 'rgba(34,211,238,0.06)', accentBd: 'rgba(34,211,238,0.20)', stripe: 'rgba(34,211,238,0.03)' },  // cyan-400
+  { accent: '#94a3b8', accentBg: 'rgba(148,163,184,0.06)', accentBd: 'rgba(148,163,184,0.20)', stripe: 'rgba(148,163,184,0.03)' },  // slate-400
+  { accent: '#a78bfa', accentBg: 'rgba(167,139,250,0.06)', accentBd: 'rgba(167,139,250,0.20)', stripe: 'rgba(167,139,250,0.03)' },  // violet-400
+  { accent: '#7dd3fc', accentBg: 'rgba(125,211,252,0.06)', accentBd: 'rgba(125,211,252,0.20)', stripe: 'rgba(125,211,252,0.03)' },  // sky-300
 ]
 
 // ── Yamazumi summary per section ─────────────────────────────
 interface YamSummary {
+  id: string
   name: string
+  modelName: string
   taktTime: number
   stdMP: number
   theorMP: number
@@ -105,6 +111,8 @@ function calcYamSummaries(model: any, sections: string[]): YamSummary[] {
     }, 0)
     return {
       name: secName, taktTime: sec.taktTime, stdMP: sec.stdMP,
+      id: sec.id,
+      modelName: model.name,
       theorMP: parseFloat(theorMP.toFixed(1)),
       maxEffCT: parseFloat(maxEffCT.toFixed(1)),
       hourlyTarget: sec.hourlyTarget ?? null,
@@ -127,15 +135,20 @@ function calcYamSummaries(model: any, sections: string[]): YamSummary[] {
 // dari actuals hari ini. Kalau belum ada actuals, fallback ke 'Stockfit'
 // (mayoritas line di gedung G adalah Stockfit).
 function calcLine(line: LineData, sections: string[], building: string) {
-  const model   = line.assignments[0]?.model
+  const activeModels = (line.assignments ?? []).map((a: any) => a.model).filter(Boolean)
+  const model   = activeModels[0]
   const actuals = line.actuals
   const daily   = line.dailyTargets?.[0] ?? null
-  const yamSummaries = model ? calcYamSummaries(model, sections) : []
+  const yamSummaries = activeModels.flatMap((m: any) => calcYamSummaries(m, sections))
+  const usedSectionIds = new Set(actuals.map((a: any) => a.sectionId ?? a.section?.id).filter(Boolean))
+  const metricYams = usedSectionIds.size > 0
+    ? yamSummaries.filter(y => usedSectionIds.has(y.id))
+    : yamSummaries
 
   // ─── ACTIVE SECTION DETECTION (Building G only) ──────────
   const isStockfitBuilding = building === 'G'
   let activeSection: string | null = null
-  if (isStockfitBuilding && yamSummaries.length > 0) {
+  if (isStockfitBuilding && metricYams.length > 0) {
     if (actuals.length > 0) {
       const sumByName = new Map<string, number>()
       for (const a of actuals) {
@@ -148,26 +161,26 @@ function calcLine(line: LineData, sections: string[], building: string) {
         if (val > bestVal) { best = sn; bestVal = val }
       }
       // Hanya pakai hasil deteksi kalau memang section itu ada di yamSummaries
-      if (best && yamSummaries.some(y => y.name === best)) activeSection = best
+      if (best && metricYams.some(y => y.name === best)) activeSection = best
     }
     // Fallback: Stockfit kalau ada di yamSummaries, kalau tidak ambil yamSummaries pertama
     if (!activeSection) {
-      activeSection = yamSummaries.find(y => y.name === 'Stockfit')?.name
-        ?? yamSummaries[0]?.name
+      activeSection = metricYams.find(y => y.name === 'Stockfit')?.name
+        ?? metricYams[0]?.name
         ?? null
     }
   }
 
   // ─── PILIH yamSummary REFERENSI ───────────────────────────
   const activeYam = activeSection
-    ? yamSummaries.find(y => y.name === activeSection) ?? null
+    ? metricYams.find(y => y.name === activeSection) ?? null
     : null
 
   const primaryYam = activeYam ?? (
-       yamSummaries.find(y => y.name === 'Stockfit')
-    ?? yamSummaries.find(y => y.name === 'Assembly')
-    ?? yamSummaries.find(y => y.name === 'Sewing')
-    ?? yamSummaries[0] ?? null
+       metricYams.find(y => y.name === 'Stockfit')
+    ?? metricYams.find(y => y.name === 'Assembly')
+    ?? metricYams.find(y => y.name === 'Sewing')
+    ?? metricYams[0] ?? null
   )
 
   const theoPPH = primaryYam ? Math.round(3600 / primaryYam.taktTime) : 0
@@ -178,10 +191,10 @@ function calcLine(line: LineData, sections: string[], building: string) {
   // STD MP / THEO MP — section-only kalau activeSection set
   const theoMPTotal = activeYam
     ? activeYam.theorMP
-    : yamSummaries.reduce((s, y) => s + y.theorMP, 0)
+    : metricYams.reduce((s, y) => s + y.theorMP, 0)
   const stdMPTotal = activeYam
     ? activeYam.stdMP
-    : parseFloat(yamSummaries.reduce((s, y) => s + y.stdMP, 0).toFixed(1))
+    : parseFloat(metricYams.reduce((s, y) => s + y.stdMP, 0).toFixed(1))
 
   const baseEmpty = {
     model: model?.name ?? null, article: model?.article ?? null,
@@ -193,7 +206,8 @@ function calcLine(line: LineData, sections: string[], building: string) {
     avgPPH: 0, actCT: 0, avgMPActual: 0, gap: 0, totDT: 0, totDef: 0,
     hasData: false, alerts: line.alerts,
     hourlyOutputs: [] as number[],
-    yamSummaries, primaryYam,
+    hourEntries: [] as [number, number][],
+    yamSummaries: metricYams, primaryYam,
     sectionActuals: {} as Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }>,
     targetPct: 0, hoursWithData: 0,
     forecast: null as Forecast | null,
@@ -246,7 +260,7 @@ function calcLine(line: LineData, sections: string[], building: string) {
   // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
   // Pakai avgPPH (rata-rata output/jam) sebagai actualPPH supaya stabil terhadap fluktuasi 1 jam.
   const ller = (avgPPH > 0 && avgMPActual > 0 && theoPPH > 0 && theoMPTotal > 0)
-    ? Math.round((avgPPH * avgMPActual) / (theoPPH * theoMPTotal) * 100) : 0
+    ? Math.round((avgPPH * theoMPTotal) / (theoPPH * avgMPActual) * 100) : 0
 
   const gap    = lastHourOutput - dispTPH
   const totDT  = relevantActuals.reduce((s: number, a: any) => s + (a.downtime ?? 0), 0)
@@ -255,8 +269,8 @@ function calcLine(line: LineData, sections: string[], building: string) {
   // Per-section actuals — selalu hitung semua untuk informasi tambahan;
   // view yang memutuskan mana yang ditampilkan.
   const sectionActuals: Record<string, { avgMP: number; avgOut: number; lastOut: number; ller: number; mpGap: number }> = {}
-  for (const ys of yamSummaries) {
-    const sa = actuals.filter((a: any) => a.section?.name === ys.name)
+  for (const ys of metricYams) {
+    const sa = actuals.filter((a: any) => a.sectionId === ys.id || a.section?.id === ys.id)
     if (sa.length === 0) continue
     const avgMP   = sa.reduce((s: number, a: any) => s + (a.mpActual ?? 0), 0) / sa.length
     const avgOut  = sa.reduce((s: number, a: any) => s + (a.output ?? 0), 0) / sa.length
@@ -264,8 +278,8 @@ function calcLine(line: LineData, sections: string[], building: string) {
     // LLER per section pakai formula produktivitas yang sama
     const secTheoPPH = ys.taktTime > 0 ? 3600 / ys.taktTime : 0
     const secLler = (avgOut > 0 && avgMP > 0 && secTheoPPH > 0 && ys.theorMP > 0)
-      ? Math.round((avgOut * avgMP) / (secTheoPPH * ys.theorMP) * 100) : 0
-    sectionActuals[ys.name] = {
+      ? Math.round((avgOut * ys.theorMP) / (secTheoPPH * avgMP) * 100) : 0
+    sectionActuals[ys.id] = {
       avgMP: parseFloat(avgMP.toFixed(1)),
       avgOut: Math.round(avgOut),
       lastOut, ller: secLler,
@@ -282,7 +296,7 @@ function calcLine(line: LineData, sections: string[], building: string) {
     avgPPH, actCT,
     avgMPActual: parseFloat(avgMPActual.toFixed(1)),
     gap, totDT, totDef,
-    hasData: true, hourlyOutputs, sectionActuals,
+    hasData: true, hourlyOutputs, hourEntries, sectionActuals,
     targetPct, hoursWithData: hourEntries.length,
     forecast: forecastShift({
       currentOutput: totOut,
@@ -473,20 +487,30 @@ export default function TVClient({ building, lines, sections }: Props) {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta'
   }) : '\u00a0'
 
-  // ── HEADER ──
+  // ── HEADER — corporate flat: logo solid, type hierarchy bersih ──
   const Header = (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
+      paddingBottom: '12px', borderBottom: `1px solid ${C.border}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <div style={{
-          width: '42px', height: '42px', background: C.teal, borderRadius: '10px',
+          width: '40px', height: '40px', background: C.card,
+          border: `1px solid ${C.border}`, borderRadius: '6px',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '14px', fontWeight: 700, color: '#fff', flexShrink: 0,
+          fontSize: '13px', fontWeight: 700, color: C.teal, flexShrink: 0,
+          letterSpacing: '0.5px',
         }}>IE</div>
         <div>
-          <div style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '-0.4px' }}>
-            Gedung {building} — {t('tv.title')}
+          <div style={{
+            fontSize: '11px', color: C.gray, textTransform: 'uppercase',
+            letterSpacing: '1.5px', fontWeight: 600, marginBottom: '2px',
+          }}>
+            Gedung {building} · Production Monitor
           </div>
-          <div style={{ fontSize: '11px', color: C.dim }}>{t('app.title')} · {t('tv.subtitle')}</div>
+          <div style={{ fontSize: '20px', fontWeight: 700, color: C.white, letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+            {t('tv.title')}
+          </div>
         </div>
       </div>
 
@@ -567,11 +591,12 @@ export default function TVClient({ building, lines, sections }: Props) {
       display: 'flex', alignItems: 'center', gap: '12px', minHeight: '40px',
     }}>
       <div style={{
-        background: `linear-gradient(135deg, ${C.teal}, #15803d)`,
-        borderRadius: '6px', padding: '4px 10px',
-        fontSize: '11px', fontWeight: 700, color: '#fff',
+        background: C.teal,
+        borderRadius: '4px', padding: '4px 10px',
+        fontSize: '10px', fontWeight: 700, color: '#fff',
         whiteSpace: 'nowrap', flexShrink: 0,
-      }}>💡 {t('tv.autoInsight')}</div>
+        textTransform: 'uppercase', letterSpacing: '0.5px',
+      }}>{t('tv.autoInsight')}</div>
       <div style={{
         fontSize: '13px', color: C.white, flex: 1,
         opacity: fadeIn ? 1 : 0, transition: 'opacity 0.4s ease',
@@ -690,6 +715,38 @@ export default function TVClient({ building, lines, sections }: Props) {
                     <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.teal, textAlign: 'center', letterSpacing: '0.5px' }}>STANDARD</div>
                     <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.blue, textAlign: 'center', letterSpacing: '0.5px' }}>AKTUAL</div>
                     <div style={{ padding: '5px 8px', fontSize: '9px', fontWeight: 700, color: C.gray, textAlign: 'center', letterSpacing: '0.5px' }}>GAP</div>
+                  </div>
+
+                  {/* OUTPUT row — output/jam aktual vs target (yang diinput team leader) */}
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                    borderTop: `1px solid rgba(255,255,255,0.06)`, alignItems: 'center',
+                    background: 'rgba(59,130,246,0.06)',
+                  }}>
+                    <div style={{ padding: '6px 8px' }}>
+                      <div style={{ fontSize: '10px', color: C.dim, fontWeight: 600 }}>OUTPUT</div>
+                      <div style={{ fontSize: '8px', color: C.gray }}>pairs/jam</div>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '20px', fontWeight: 800, color: C.teal, lineHeight: 1 }}>
+                        {m.dispTPH > 0 ? m.dispTPH : '—'}
+                      </span>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: m.hasData ? C.white : C.gray, lineHeight: 1 }}>
+                        {m.hasData ? m.lastHourOutput : '—'}
+                      </div>
+                      <div style={{ fontSize: '8px', color: C.gray, marginTop: '2px' }}>
+                        {m.hasData && m.lastHour != null ? `jam ${m.lastHour}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ padding: '6px 8px', textAlign: 'center' }}>
+                      {m.hasData && m.dispTPH > 0 ? (
+                        <span style={{ fontSize: '16px', fontWeight: 700, color: m.gap >= 0 ? C.green : m.gap >= -m.dispTPH * 0.15 ? C.amber : C.red }}>
+                          {m.gap >= 0 ? '+' : ''}{m.gap}
+                        </span>
+                      ) : <span style={{ color: C.gray }}>—</span>}
+                    </div>
                   </div>
 
                   {/* PPH/MP row — Produktivitas per orang per jam */}
@@ -815,7 +872,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       {sectionsToShow.map(ys => {
-                        const act = m.sectionActuals[ys.name]
+                        const act = m.sectionActuals[ys.id]
                         const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
                         return (
                           <div key={ys.name} style={{
@@ -886,11 +943,45 @@ export default function TVClient({ building, lines, sections }: Props) {
                   )}
                 </div>
 
-                {/* Sparkline tren */}
-                {m.hourlyOutputs.length > 1 && (
+                {/* Tren + tracking per jam */}
+                {m.hourEntries.length > 0 && (
                   <div>
-                    <div style={{ fontSize: '9px', color: C.dim, marginBottom: '3px' }}>TREN OUTPUT/JAM · avg {m.avgPPH} prs</div>
-                    <Sparkline data={m.hourlyOutputs} color={la.accent} height={20} />
+                    <div style={{
+                      fontSize: '9px', color: C.dim, marginBottom: '4px',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                      textTransform: 'uppercase', letterSpacing: '0.5px',
+                    }}>
+                      <span>OUTPUT PER JAM</span>
+                      <span style={{ color: C.gray }}>
+                        Avg <span style={{ color: C.white, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{m.avgPPH}</span> · Target <span style={{ color: C.white, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{m.dispTPH}</span>
+                      </span>
+                    </div>
+                    {m.hourlyOutputs.length > 1 && (
+                      <Sparkline data={m.hourlyOutputs} color={la.accent} height={18} />
+                    )}
+                    {/* Strip numerik: jam | output | warna sesuai pencapaian vs target */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${m.hourEntries.length}, minmax(0, 1fr))`,
+                      gap: '2px', marginTop: '4px',
+                    }}>
+                      {m.hourEntries.map(([h, out]) => {
+                        const pct = m.dispTPH > 0 ? out / m.dispTPH : 0
+                        const c = pct >= 1 ? C.green : pct >= 0.8 ? C.amber : C.red
+                        return (
+                          <div key={h} style={{
+                            background: 'rgba(255,255,255,0.03)',
+                            borderTop: `2px solid ${c}`,
+                            borderRadius: '0 0 3px 3px',
+                            padding: '3px 2px', textAlign: 'center',
+                            minWidth: 0,
+                          }}>
+                            <div style={{ fontSize: '8px', color: C.gray, fontVariantNumeric: 'tabular-nums' }}>{h}:00</div>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{out}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1288,7 +1379,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                       }}>SECTION AKTIF:</span>
                     )}
                     {sectionsToShow.map(ys => {
-                      const act = m.sectionActuals[ys.name]
+                      const act = m.sectionActuals[ys.id]
                       const secSc = act ? statusColors(act.ller, true) : statusColors(0, false)
                       return (
                         <div key={ys.name} style={{
@@ -1557,9 +1648,10 @@ export default function TVClient({ building, lines, sections }: Props) {
 
           {/* Kartu 4: Rekomendasi */}
           <div style={{
-            background: `linear-gradient(135deg, ${C.tealBg}, ${C.card})`,
+            background: C.card,
             border: `1px solid ${C.tealBd}`,
-            borderRadius: '10px', padding: '12px',
+            borderLeft: `3px solid ${C.teal}`,
+            borderRadius: '6px', padding: '12px',
             display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

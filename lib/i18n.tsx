@@ -83,6 +83,19 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.colReport':   'Laporan',
     'history.sent':        'Terkirim',
     'history.notSent':     'Tidak',
+    'history.colSection':  'Section',
+    'history.colTarget':   'Target',
+    'history.colAch':      'Capai',
+    'history.allLines':    'Semua line',
+    'history.allShifts':   'Semua shift',
+    'history.filterDate':  'Tanggal',
+    'history.resetFilter': 'Reset',
+    'history.exportExcel': 'Export Excel',
+    'history.dHour':       'Jam',
+    'history.dOutput':     'Output',
+    'history.dStdMp':      'Std MP',
+    'history.dTheoMp':     'Theo MP',
+    'history.dMpAct':      'MP Aktual',
 
     // Forecast
     'forecast.projected':  'Proyeksi',
@@ -362,6 +375,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.processing':   'Memproses...',
     'closeShiftBtn.done':         'Selesai ✓',
     'closeShiftBtn.closeAndSend': 'Tutup Shift & Kirim Laporan',
+    'closeShiftBtn.closeOnly':    'Tutup Shift',
+    'closeShiftBtn.optional':     'opsional',
+    'leader.closeShiftHint':      'Tutup shift untuk mengunci data & masuk ke riwayat. Email manager opsional — kosongkan kalau tidak perlu kirim laporan.',
 
     // Style card
     'styleCard.noModel':         'Line belum ada model yang di-assign.',
@@ -543,6 +559,19 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.colReport':   'Report',
     'history.sent':        'Sent',
     'history.notSent':     'No',
+    'history.colSection':  'Section',
+    'history.colTarget':   'Target',
+    'history.colAch':      'Achv',
+    'history.allLines':    'All lines',
+    'history.allShifts':   'All shifts',
+    'history.filterDate':  'Date',
+    'history.resetFilter': 'Reset',
+    'history.exportExcel': 'Export Excel',
+    'history.dHour':       'Hour',
+    'history.dOutput':     'Output',
+    'history.dStdMp':      'Std MP',
+    'history.dTheoMp':     'Theo MP',
+    'history.dMpAct':      'Actual MP',
 
     // Forecast
     'forecast.projected':  'Projected',
@@ -822,6 +851,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.processing':   'Processing...',
     'closeShiftBtn.done':         'Done ✓',
     'closeShiftBtn.closeAndSend': 'Close Shift & Send Report',
+    'closeShiftBtn.closeOnly':    'Close Shift',
+    'closeShiftBtn.optional':     'optional',
+    'leader.closeShiftHint':      'Close the shift to lock data & add it to history. Manager email is optional — leave empty if no report is needed.',
 
     // Style card
     'styleCard.noModel':         'No model assigned to this line.',
@@ -1003,6 +1035,19 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.colReport':   '報告',
     'history.sent':        '已寄送',
     'history.notSent':     '否',
+    'history.colSection':  '工段',
+    'history.colTarget':   '目標',
+    'history.colAch':      '達成',
+    'history.allLines':    '所有產線',
+    'history.allShifts':   '所有班次',
+    'history.filterDate':  '日期',
+    'history.resetFilter': '重設',
+    'history.exportExcel': '匯出 Excel',
+    'history.dHour':       '時段',
+    'history.dOutput':     '產出',
+    'history.dStdMp':      '標準人數',
+    'history.dTheoMp':     '理論人數',
+    'history.dMpAct':      '實際人數',
 
     // Forecast
     'forecast.projected':  '預測',
@@ -1282,6 +1327,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.processing':   '處理中...',
     'closeShiftBtn.done':         '完成 ✓',
     'closeShiftBtn.closeAndSend': '結束班次並寄送報告',
+    'closeShiftBtn.closeOnly':    '結束班次',
+    'closeShiftBtn.optional':     '選填',
+    'leader.closeShiftHint':      '結束班次以鎖定數據並加入歷史。主管信箱為選填 — 不需報告可留空。',
 
     // Style card
     'styleCard.noModel':         '此產線尚未分配鞋型。',

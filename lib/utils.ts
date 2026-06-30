@@ -91,11 +91,14 @@ export function getGWT(op: { va: number; nvan: number; nva: number; allowance: n
 }
 
 // ─── LLER UNIFIED ─────────────────────────────────────────
-// LLER produktivitas gabungan (standardized across all pages):
-//   LLER = (actualPPH × actualMP) / (theoPPH × theoMP) × 100
-// Mengukur efisiensi gabungan: output achievement DAN manpower utilization.
-// Output rendah tapi MP juga rendah → LLER masih rendah (lebih akurat
-// dibanding rumus terpisah yang bisa misleading saat understaffed).
+// LLER (produktivitas tenaga kerja) — Labor Line Efficiency Rate:
+//   LLER = (actualPPH / actualMP) / (theoPPH / theoMP) × 100
+//        = (actualPPH × theoMP) / (theoPPH × actualMP) × 100
+// Membandingkan output PER ORANG aktual vs output per orang standar IE.
+// Overstaffing (actualMP > theoMP) MENURUNKAN LLER — sesuai definisi efisiensi.
+// Contoh: (210/39.2)/(250/36.2) × 100 = 77.6%.
+//
+// Untuk agregasi multi-section: num += avgOut × theoMP ; den += avgMP × theoPPH.
 //
 // Fallback ke stdMP jika theoMP tidak tersedia (untuk endpoint API ringan
 // yang tidak include operations).
@@ -106,7 +109,7 @@ export function calcLLER(
   theoMP: number
 ): number {
   if (actualPPH <= 0 || actualMP <= 0 || theoPPH <= 0 || theoMP <= 0) return 0
-  return Math.round((actualPPH * actualMP) / (theoPPH * theoMP) * 100)
+  return Math.round((actualPPH * theoMP) / (theoPPH * actualMP) * 100)
 }
 
 export function calcSectionMetrics(ops: any[], stdMP: number, takt: number) {

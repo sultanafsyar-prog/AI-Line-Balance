@@ -453,17 +453,29 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     // XLSX.js: col A kosong → shift -1
     // [0]=process, [1]=model#, [3]=article, [5]=workTime, [6]=target/hr, [7]=taktTime, [8]=allowance, [9]=theoMP, [11]=ieStdMP
     const r4 = data[3] ?? []
-    const modelNo  = String(r4[1] ?? sheetName).trim()
-    const article  = String(r4[3] ?? '').trim()
-    const taktTime = parseFloat(r4[7]) || 14.4
-    const ieStdMP  = parseFloat(r4[11]) || 0
+    const modelNo      = String(r4[1] ?? sheetName).trim()
+    const article      = String(r4[3] ?? '').trim()
+    const workTime     = parseFloat(r4[5]) || 0
+    const hourlyTarget = parseFloat(r4[6]) || 0
+    const taktTime     = parseFloat(r4[7]) || 14.4
+    const ieStdMP      = parseFloat(r4[11]) || 0
 
     const draft: ModelDraft = {
       name: `${modelNo}`,
       article: article ? `${article}-${modelNo}` : modelNo,
       stage: 'Production CFM',
       lineType: taktTime <= 15 ? 'MINI' : 'BIG',
-      sections: SF_SECTIONS.map(s => ({ name: s, stdMP: 0, taktTime, ops: [] })),
+      sections: SF_SECTIONS.map(s => ({
+        name: s, stdMP: 0, taktTime, ops: [],
+        hourlyTarget: hourlyTarget > 0 ? Math.round(hourlyTarget) : null,
+      })),
+    }
+
+    // Daily target = workTime(detik) × target/hr ÷ 3600
+    // Contoh: 28800s × 150 ÷ 3600 = 1200 pairs/hari
+    if (workTime > 0 && hourlyTarget > 0) {
+      draft.dailyTarget = Math.round((workTime * hourlyTarget) / 3600)
+      draft.hourlyTarget = Math.round(hourlyTarget)
     }
 
     // ── Parse operations dari row 11+ (index 10+) ──
@@ -570,23 +582,30 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
       return parseIEData(ab)
     }
 
-    // Stockfit NB Standard: sheet pertama row 4 berisi "Stockfitting"/"Stockfit"
-    try {
-      const firstSheet = wb.Sheets[wb.SheetNames[0]]
-      const data: any[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' })
-      const r4 = data[3] ?? []
-      const processName = String(r4[0] ?? '').toLowerCase()
-      if (processName.includes('stockfit')) {
-        return parseStockfitNBStandard(ab)
-      }
-      // Also check if col C has section markers (BUFFING, DEGREESER, etc.)
-      for (let i = 10; i < Math.min(data.length, 30); i++) {
-        const colC = String((data[i] ?? [])[1] ?? '').toUpperCase()
-        if (['BUFFING', 'DEGREESER', 'DEGREASER', 'UV', 'STOCKFIT'].includes(colC)) {
-          return parseStockfitNBStandard(ab)
+    // Stockfit NB Standard: scan SEMUA sheet (sheet pertama bisa jadi Time Study,
+    // data Stockfit ada di sheet "LB <model>" yg jauh di belakang).
+    // Skip sheet "TS *" (Time Study) dan "LB format manual" (template kosong).
+    for (const sn of wb.SheetNames) {
+      const sl = sn.toLowerCase()
+      if (sl.startsWith('ts ') || sl === 'lb format manual') continue
+      try {
+        const ws = wb.Sheets[sn]
+        const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+        const r4 = data[3] ?? []
+        // Tanda format Stockfit: row 4 col[0] mengandung "Stockfit"/"Stockfitting"
+        const processName = String(r4[0] ?? '').toLowerCase()
+        if (processName.includes('stockfit')) {
+          return parseStockfitNBStandard(ab, sn)
         }
-      }
-    } catch {}
+        // Atau col C punya section marker
+        for (let i = 10; i < Math.min(data.length, 30); i++) {
+          const colC = String((data[i] ?? [])[1] ?? '').toUpperCase()
+          if (['BUFFING', 'DEGREESER', 'DEGREASER', 'UV', 'STOCKFIT'].includes(colC)) {
+            return parseStockfitNBStandard(ab, sn)
+          }
+        }
+      } catch {}
+    }
 
     // IE Data: ada sheet seperti "Assembly", "Stockfit", "Prep", "Stit", "Buffing", "UV"
     if (sheetNames.some(s => s === 'assembly' || s === 'stockfit' || s === 'stit' || s === 'prep'
