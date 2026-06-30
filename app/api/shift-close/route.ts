@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     const theoMP = sec.taktTime > 0 ? totalGWT / sec.taktTime : 0
     // LLER produktivitas gabungan
     const ller = (targetPH > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
-      ? Math.round((avgOut * avgMP) / (targetPH * theoMP) * 100) : 0
+      ? Math.round((avgOut * theoMP) / (targetPH * avgMP) * 100) : 0
     const defRate   = totOut > 0 ? ((totDef / totOut) * 100).toFixed(1) : '0'
 
     return [{ name: sec.name, totOut, totDT, totDef, avgMP, totalTgt, ller, defRate, jamCount: secActuals.length }]

@@ -72,7 +72,7 @@ export async function GET() {
     const dispTph = (latestActual?.section as any)?.hourlyTarget ?? tph
     // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
     const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
-      ? Math.round((avgOut * avgMP) / (tph * theoMP) * 100) : 0
+      ? Math.round((avgOut * theoMP) / (tph * avgMP) * 100) : 0
     const gap  = latestOutput - dispTph
 
     return {

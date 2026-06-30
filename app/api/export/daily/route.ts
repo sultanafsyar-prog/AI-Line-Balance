@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
         const avgO = b.outSum / b.hours
         const avgM = b.mpSum / b.hours
         const theoPPH = 3600 / b.takt
-        if (avgO > 0 && avgM > 0) { llerNum += avgO * avgM; llerDen += theoPPH * b.theoMP }
+        if (avgO > 0 && avgM > 0) { llerNum += avgO * b.theoMP; llerDen += theoPPH * avgM }
       }
     }
     const ller = llerDen > 0 ? Math.round((llerNum / llerDen) * 100) : 0
@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
     for (const [, b] of dSecB.entries()) {
       if (b.tm > 0 && b.hrs > 0 && b.tk > 0) {
         const ao = b.outS / b.hrs, am = b.mpS / b.hrs, tp = 3600 / b.tk
-        if (ao > 0 && am > 0) { dNum += ao * am; dDen += tp * b.tm }
+        if (ao > 0 && am > 0) { dNum += ao * b.tm; dDen += tp * am }
       }
     }
     const ller = dDen > 0 ? Math.round((dNum / dDen) * 100) : 0

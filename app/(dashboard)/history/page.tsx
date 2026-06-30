@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n'
 
 type Archive = {
   id: string
+  lineId: string
   date: string
   shiftLabel: string
   building: string
@@ -20,6 +21,12 @@ type Archive = {
   totalDefect: number
   avgLler: number
   emailSent: boolean
+}
+
+type DetailRow = {
+  hour: number; section: string; output: number; target: number
+  stdMP: number; theoMP: number; mpActual: number; lller: number
+  downtime: number; dtReason: string; defect: number
 }
 
 function llerColor(ller: number) {
@@ -45,6 +52,20 @@ export default function HistoryPage() {
   const [selLine, setSelLine] = useState('ALL')
   const [selShift, setSelShift] = useState('ALL')
   const [selDate, setSelDate] = useState('') // YYYY-MM-DD; kosong = semua
+
+  // Detail modal
+  const [detail, setDetail] = useState<Archive | null>(null)
+  const [detailRows, setDetailRows] = useState<DetailRow[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  const openDetail = useCallback(async (a: Archive) => {
+    setDetail(a); setDetailRows([]); setDetailLoading(true)
+    try {
+      const res = await fetch(`/api/shift-archive/detail?lineId=${a.lineId}&date=${a.date}`)
+      if (res.ok) { const d = await res.json(); setDetailRows(d.rows ?? []) }
+    } catch {}
+    setDetailLoading(false)
+  }, [])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -190,7 +211,8 @@ export default function HistoryPage() {
               </thead>
               <tbody>
                 {filtered.map(a => (
-                  <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <tr key={a.id} onClick={() => openDetail(a)}
+                    className="border-b border-gray-50 hover:bg-blue-50/40 cursor-pointer">
                     <td className="px-3 py-2.5 whitespace-nowrap text-gray-700">
                       {new Date(a.date + 'T00:00:00+07:00').toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}
                     </td>
@@ -223,6 +245,78 @@ export default function HistoryPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Detail modal: rincian per jam ── */}
+      {detail && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-auto"
+          onClick={() => setDetail(null)}>
+          <div className="bg-white rounded-xl w-full max-w-4xl my-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <div className="text-base font-semibold text-gray-900">
+                  {t('monitor.bldg', { b: detail.building })} L{detail.lineNo} · {detail.shiftLabel}
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {new Date(detail.date + 'T00:00:00+07:00').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  {detail.target ? ` · ${t('history.colTarget')}: ${detail.target.toLocaleString()}` : ''}
+                </div>
+              </div>
+              <button onClick={() => setDetail(null)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              {detailLoading ? (
+                <div className="py-10 text-center text-gray-400 text-sm">{t('common.loading')}</div>
+              ) : detailRows.length === 0 ? (
+                <div className="py-10 text-center text-gray-400 text-sm">{t('common.noData')}</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        {[
+                          t('history.dHour'), t('history.colSection'), t('history.dOutput'), t('history.colTarget'),
+                          t('history.dStdMp'), t('history.dTheoMp'), t('history.dMpAct'), 'LLER', 'DT', t('leader.defect'),
+                        ].map(h => (
+                          <th key={h} className="text-left px-2.5 py-2 text-xs text-gray-500 font-medium uppercase whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailRows.map((r, i) => {
+                        const gap = r.output - r.target
+                        return (
+                          <tr key={i} className="border-b border-gray-50">
+                            <td className="px-2.5 py-2 whitespace-nowrap font-medium text-gray-700">{r.hour}:00</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap text-gray-500 text-xs">{r.section}</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap">
+                              <span className="font-medium">{r.output}</span>
+                              <span className={`ml-1 text-xs ${gap >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{gap >= 0 ? '+' : ''}{gap}</span>
+                            </td>
+                            <td className="px-2.5 py-2 whitespace-nowrap text-gray-500">{r.target}</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap text-gray-500">{r.stdMP}</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap text-gray-500">{r.theoMP}</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap font-medium text-gray-800">{r.mpActual}</td>
+                            <td className={`px-2.5 py-2 whitespace-nowrap font-semibold ${llerColor(r.lller)}`}>{r.lller}%</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap text-gray-500">
+                              {r.downtime > 0 ? <span className="text-amber-600">{r.downtime}m</span> : '0'}
+                              {r.dtReason ? <span className="text-gray-400 text-xs"> ({r.dtReason})</span> : ''}
+                            </td>
+                            <td className="px-2.5 py-2 whitespace-nowrap">{r.defect > 0 ? <span className="text-red-600">{r.defect}</span> : '0'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

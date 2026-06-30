@@ -63,7 +63,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
   // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
   const theoMP = metrics?.theorMP ?? 0
   const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
-    ? parseFloat(((avgOut * avgMP) / (tph * theoMP) * 100).toFixed(1)) : 0
+    ? parseFloat(((avgOut * theoMP) / (tph * avgMP) * 100).toFixed(1)) : 0
 
   // ── MP auto-fill: prefill MP dari input terakhir section ini ──
   // MP biasanya tidak berubah tiap jam, jadi prefill untuk hemat ketik
@@ -378,7 +378,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
                 const secAvgOut = sa.length > 0 ? out / sa.length : 0
                 const secAvgMP = sa.length > 0 ? sa.reduce((s: number, a: any) => s + (a.mpActual ?? 0), 0) / sa.length : 0
                 const secLler = (secAvgOut > 0 && secAvgMP > 0 && theoPPH > 0 && secTheoMP > 0)
-                  ? Math.round((secAvgOut * secAvgMP) / (theoPPH * secTheoMP) * 100) : null
+                  ? Math.round((secAvgOut * secTheoMP) / (theoPPH * secAvgMP) * 100) : null
                 return {
                   name:   secName,
                   ller:   secLler,

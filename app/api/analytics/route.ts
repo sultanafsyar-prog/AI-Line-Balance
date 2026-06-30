@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
   const avgOut = sectionActuals.length > 0
     ? sectionActuals.reduce((s, a) => s + a.output, 0) / sectionActuals.length : 0
   const llerPct = (avgOut > 0 && avgMP > 0 && targetPerHour > 0 && theorMP > 0)
-    ? Math.round((avgOut * avgMP) / (targetPerHour * theorMP) * 100) : 0
+    ? Math.round((avgOut * theorMP) / (targetPerHour * avgMP) * 100) : 0
   const lbr = ops.length > 0 && section.taktTime > 0
     ? Math.round((sumGwt / (ops.length * section.taktTime)) * 100)
     : 0

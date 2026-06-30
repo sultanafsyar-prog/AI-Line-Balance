@@ -91,6 +91,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.filterDate':  'Tanggal',
     'history.resetFilter': 'Reset',
     'history.exportExcel': 'Export Excel',
+    'history.dHour':       'Jam',
+    'history.dOutput':     'Output',
+    'history.dStdMp':      'Std MP',
+    'history.dTheoMp':     'Theo MP',
+    'history.dMpAct':      'MP Aktual',
 
     // Forecast
     'forecast.projected':  'Proyeksi',
@@ -562,6 +567,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.filterDate':  'Date',
     'history.resetFilter': 'Reset',
     'history.exportExcel': 'Export Excel',
+    'history.dHour':       'Hour',
+    'history.dOutput':     'Output',
+    'history.dStdMp':      'Std MP',
+    'history.dTheoMp':     'Theo MP',
+    'history.dMpAct':      'Actual MP',
 
     // Forecast
     'forecast.projected':  'Projected',
@@ -1033,6 +1043,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'history.filterDate':  '日期',
     'history.resetFilter': '重設',
     'history.exportExcel': '匯出 Excel',
+    'history.dHour':       '時段',
+    'history.dOutput':     '產出',
+    'history.dStdMp':      '標準人數',
+    'history.dTheoMp':     '理論人數',
+    'history.dMpAct':      '實際人數',
 
     // Forecast
     'forecast.projected':  '預測',

@@ -3,6 +3,7 @@ import type { Session } from 'next-auth'
 
 export type ShiftArchiveRow = {
   id: string
+  lineId: string
   date: string
   shiftLabel: string
   building: string
@@ -89,6 +90,7 @@ export async function getShiftArchives(
     const target = targetMap.get(k) ?? null
     return {
       id: a.id,
+      lineId: a.lineId,
       date: a.date,
       shiftLabel: a.shiftLabel,
       building: lineMap.get(a.lineId)?.building ?? '?',

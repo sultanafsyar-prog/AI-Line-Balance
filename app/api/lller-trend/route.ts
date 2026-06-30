@@ -81,8 +81,8 @@ export async function GET(req: NextRequest) {
     const theoMP = theoMPCache.get(a.sectionId) ?? 0
     const theoPPH = a.section.taktTime > 0 ? 3600 / a.section.taktTime : 0
     if (theoMP <= 0 || theoPPH <= 0 || a.mpActual <= 0 || a.output <= 0) continue
-    const num = a.output * a.mpActual
-    const den = theoPPH * theoMP
+    const num = a.output * theoMP
+    const den = theoPPH * a.mpActual
     const b = hourBuckets.get(a.hour) ?? {
       num: 0, den: 0, outputSum: 0, mpSum: 0, mpCount: 0, lineSet: new Set<string>(),
     }
@@ -114,8 +114,8 @@ export async function GET(req: NextRequest) {
     const theoMP = theoMPCache.get(a.sectionId) ?? 0
     const theoPPH = a.section.taktTime > 0 ? 3600 / a.section.taktTime : 0
     if (theoMP <= 0 || theoPPH <= 0 || a.mpActual <= 0 || a.output <= 0) continue
-    const num = a.output * a.mpActual
-    const den = theoPPH * theoMP
+    const num = a.output * theoMP
+    const den = theoPPH * a.mpActual
     const b = dayBuckets.get(a.date) ?? {
       num: 0, den: 0, outputSum: 0, mpSum: 0, mpCount: 0, lineSet: new Set<string>(),
     }

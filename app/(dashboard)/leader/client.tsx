@@ -165,7 +165,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
   const secAvgOut = todayActs.length > 0
     ? todayActs.reduce((s: number, a: any) => s + a.output, 0) / todayActs.length : 0
   const sectionLler = (secAvgOut > 0 && secAvgMP > 0 && tph > 0 && secTheo > 0)
-    ? Math.round((secAvgOut * secAvgMP) / (tph * secTheo) * 100) : 0
+    ? Math.round((secAvgOut * secTheo) / (tph * secAvgMP) * 100) : 0
 
   // Line LLER produktivitas — agregat semua section
   const allActs = line?.actuals ?? []
@@ -190,8 +190,8 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
       const secPPHTheo = secTakt > 0 ? 3600 / secTakt : 0
       const secAvgMPVal = data.mpSum / data.hours
       const secAvgOutVal = data.outSum / data.hours
-      lineNum += secAvgOutVal * secAvgMPVal
-      lineDen += secPPHTheo * theo
+      lineNum += secAvgOutVal * theo
+      lineDen += secPPHTheo * secAvgMPVal
     }
   }
   const lineLler = lineDen > 0 ? Math.round(lineNum / lineDen * 100) : 0

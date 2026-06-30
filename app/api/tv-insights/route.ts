@@ -217,7 +217,7 @@ export async function GET(req: NextRequest) {
       const totDT = acts.reduce((s, a) => s + a.downtime, 0)
       const totDef = acts.reduce((s, a) => s + a.defect, 0)
       const lller = (avgOut > 0 && avgMP > 0 && sec.theoPPH > 0 && sec.theoMP > 0)
-        ? Math.round((avgOut * avgMP) / (sec.theoPPH * sec.theoMP) * 100) : 0
+        ? Math.round((avgOut * sec.theoMP) / (sec.theoPPH * avgMP) * 100) : 0
       return {
         section: secName,
         std: { takt: sec.takt, theoMP: sec.theoMP, theoPPH: sec.theoPPH },
@@ -283,8 +283,8 @@ export async function GET(req: NextRequest) {
     if (theoMP <= 0 || theoPPH <= 0 || a.mpActual <= 0 || a.output <= 0) continue
     const key = `L${a.line.lineNo}:${a.date}`
     const cur = histMap.get(key) ?? { num: 0, den: 0 }
-    cur.num += a.output * a.mpActual
-    cur.den += theoPPH * theoMP
+    cur.num += a.output * theoMP
+    cur.den += theoPPH * a.mpActual
     histMap.set(key, cur)
   }
   const trend7Day: Record<string, number> = {}
