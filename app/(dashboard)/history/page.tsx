@@ -291,9 +291,13 @@ export default function HistoryPage() {
                     <tbody>
                       {detailRows.map((r, i) => {
                         const gap = r.output - r.target
+                        // Jam virtual shift malam (24-32) → jam asli + penanda hari berikutnya
+                        const hourLabel = r.hour < 24
+                          ? `${String(r.hour).padStart(2, '0')}:00`
+                          : `${String(r.hour - 24).padStart(2, '0')}:00 ⁺¹`
                         return (
                           <tr key={i} className="border-b border-gray-50">
-                            <td className="px-2.5 py-2 whitespace-nowrap font-medium text-gray-700">{r.hour}:00</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap font-medium text-gray-700">{hourLabel}</td>
                             <td className="px-2.5 py-2 whitespace-nowrap text-gray-500 text-xs">{r.section}</td>
                             <td className="px-2.5 py-2 whitespace-nowrap">
                               <span className="font-medium">{r.output}</span>
