@@ -104,6 +104,12 @@ export default function HistoryPage() {
   const totalDT = filtered.reduce((s, a) => s + a.totalDT, 0)
 
   const dateLocale = locale === 'id' ? 'id-ID' : locale
+
+  // Detail per jam difilter sesuai shift arsip supaya tidak tercampur:
+  // Shift 1 = jam 7-19, Shift 2 = jam 20-32 (jam virtual lintas tengah malam).
+  const detailShiftNum = detail && /2|malam|night/i.test(detail.shiftLabel) ? 2 : 1
+  const shiftDetailRows = detailRows.filter(r => detailShiftNum === 2 ? r.hour >= 20 : r.hour < 20)
+
   const hasActiveFilter = selBuilding !== 'ALL' || selLine !== 'ALL' || selShift !== 'ALL' || !!selDate
   const resetFilters = () => { setSelBuilding('ALL'); setSelLine('ALL'); setSelShift('ALL'); setSelDate('') }
 
@@ -273,7 +279,7 @@ export default function HistoryPage() {
             <div className="p-5">
               {detailLoading ? (
                 <div className="py-10 text-center text-gray-400 text-sm">{t('common.loading')}</div>
-              ) : detailRows.length === 0 ? (
+              ) : shiftDetailRows.length === 0 ? (
                 <div className="py-10 text-center text-gray-400 text-sm">{t('common.noData')}</div>
               ) : (
                 <div className="overflow-x-auto">
@@ -289,7 +295,7 @@ export default function HistoryPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {detailRows.map((r, i) => {
+                      {shiftDetailRows.map((r, i) => {
                         const gap = r.output - r.target
                         // Jam virtual shift malam (24-32) → jam asli + penanda hari berikutnya
                         const hourLabel = r.hour < 24
