@@ -4,7 +4,10 @@ import bcrypt from 'bcryptjs'
 import { prisma } from './db'
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: 'jwt', maxAge: 8 * 60 * 60 }, // 1 shift = 8 jam
+  // Sesi 16 jam + rolling (updateAge 1 jam): cukup untuk shift penuh + lembur
+  // (shift bisa 12 jam) dan diperpanjang otomatis selama leader aktif, supaya
+  // tidak "Unauthorized" di tengah shift.
+  session: { strategy: 'jwt', maxAge: 16 * 60 * 60, updateAge: 60 * 60 },
   pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({

@@ -490,6 +490,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'leader.errOutput':         'Output wajib diisi',
     'leader.errMp':             'MP hadir wajib diisi',
     'leader.errSave':           'Gagal simpan, coba lagi',
+    'leader.sessionExpired':    'Sesi login berakhir. Mengarahkan ke halaman login...',
     'leader.confirmOverwrite':  'Jam {hour} sudah ada data (output: {output}). Overwrite?',
   },
 
@@ -967,6 +968,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'leader.errOutput':         'Output is required',
     'leader.errMp':             'MP present is required',
     'leader.errSave':           'Failed to save, try again',
+    'leader.sessionExpired':    'Session expired. Redirecting to login...',
     'leader.confirmOverwrite':  'Hour {hour} already has data (output: {output}). Overwrite?',
   },
 
@@ -1444,6 +1446,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'leader.errOutput':         '產出為必填',
     'leader.errMp':             '出勤人數為必填',
     'leader.errSave':           '儲存失敗，請重試',
+    'leader.sessionExpired':    '登入階段已過期，正在導向登入頁...',
     'leader.confirmOverwrite':  '{hour} 已有數據（產出：{output}）。要覆蓋嗎？',
   },
 }
