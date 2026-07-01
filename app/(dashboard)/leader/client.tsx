@@ -615,6 +615,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       lineLabel={`Gedung ${line.building} — Line ${line.lineNo}`}
                       workDate={getWorkDate(shift)}
                       fixedShiftLabel={shift === 1 ? 'Shift 1' : 'Shift 2'}
+                      hideEmail
                       onClosed={() => window.location.reload()}
                     />
                   </div>
