@@ -370,6 +370,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.infoAnd':      'dan',
     'closeShiftBtn.infoReset':    'mereset semua alert aktif',
     'closeShiftBtn.info2':        'di line ini. Data aktual tetap tersimpan untuk laporan historis.',
+    'closeShiftBtn.infoNoEmail':  'Menutup shift akan mereset semua alert aktif di line ini dan mengunci data (masuk ke riwayat). Data aktual tetap tersimpan.',
     'closeShiftBtn.shiftToClose': 'Shift yang ditutup',
     'closeShiftBtn.managerEmail': 'Email manager (penerima laporan)',
     'closeShiftBtn.processing':   'Memproses...',
@@ -377,7 +378,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.closeAndSend': 'Tutup Shift & Kirim Laporan',
     'closeShiftBtn.closeOnly':    'Tutup Shift',
     'closeShiftBtn.optional':     'opsional',
-    'leader.closeShiftHint':      'Tutup shift untuk mengunci data & masuk ke riwayat. Email manager opsional — kosongkan kalau tidak perlu kirim laporan.',
+    'leader.closeShiftHint':      'Tutup shift untuk mengunci data & masuk ke riwayat. Alert aktif line ini juga di-reset.',
 
     // Style card
     'styleCard.noModel':         'Line belum ada model yang di-assign.',
@@ -489,6 +490,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'leader.errOutput':         'Output wajib diisi',
     'leader.errMp':             'MP hadir wajib diisi',
     'leader.errSave':           'Gagal simpan, coba lagi',
+    'leader.sessionExpired':    'Sesi login berakhir. Mengarahkan ke halaman login...',
     'leader.confirmOverwrite':  'Jam {hour} sudah ada data (output: {output}). Overwrite?',
   },
 
@@ -846,6 +848,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.infoAnd':      'and',
     'closeShiftBtn.infoReset':    'reset all active alerts',
     'closeShiftBtn.info2':        'on this line. Actual data remains stored for historical reports.',
+    'closeShiftBtn.infoNoEmail':  'Closing the shift resets all active alerts on this line and locks the data (added to history). Actual data stays stored.',
     'closeShiftBtn.shiftToClose': 'Shift to close',
     'closeShiftBtn.managerEmail': 'Manager email (report recipient)',
     'closeShiftBtn.processing':   'Processing...',
@@ -853,7 +856,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.closeAndSend': 'Close Shift & Send Report',
     'closeShiftBtn.closeOnly':    'Close Shift',
     'closeShiftBtn.optional':     'optional',
-    'leader.closeShiftHint':      'Close the shift to lock data & add it to history. Manager email is optional — leave empty if no report is needed.',
+    'leader.closeShiftHint':      'Close the shift to lock data & add it to history. Active alerts on this line are also reset.',
 
     // Style card
     'styleCard.noModel':         'No model assigned to this line.',
@@ -965,6 +968,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'leader.errOutput':         'Output is required',
     'leader.errMp':             'MP present is required',
     'leader.errSave':           'Failed to save, try again',
+    'leader.sessionExpired':    'Session expired. Redirecting to login...',
     'leader.confirmOverwrite':  'Hour {hour} already has data (output: {output}). Overwrite?',
   },
 
@@ -1322,6 +1326,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.infoAnd':      '並',
     'closeShiftBtn.infoReset':    '重置所有啟用中的警報',
     'closeShiftBtn.info2':        '。實際數據仍會保留供歷史報告使用。',
+    'closeShiftBtn.infoNoEmail':  '結束班次會重置此產線所有啟用中的警報並鎖定數據（加入歷史）。實際數據仍會保留。',
     'closeShiftBtn.shiftToClose': '要結束的班次',
     'closeShiftBtn.managerEmail': '主管信箱（報告收件人）',
     'closeShiftBtn.processing':   '處理中...',
@@ -1329,7 +1334,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'closeShiftBtn.closeAndSend': '結束班次並寄送報告',
     'closeShiftBtn.closeOnly':    '結束班次',
     'closeShiftBtn.optional':     '選填',
-    'leader.closeShiftHint':      '結束班次以鎖定數據並加入歷史。主管信箱為選填 — 不需報告可留空。',
+    'leader.closeShiftHint':      '結束班次以鎖定數據並加入歷史。此產線的啟用警報也會重置。',
 
     // Style card
     'styleCard.noModel':         '此產線尚未分配鞋型。',
@@ -1441,6 +1446,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'leader.errOutput':         '產出為必填',
     'leader.errMp':             '出勤人數為必填',
     'leader.errSave':           '儲存失敗，請重試',
+    'leader.sessionExpired':    '登入階段已過期，正在導向登入頁...',
     'leader.confirmOverwrite':  '{hour} 已有數據（產出：{output}）。要覆蓋嗎？',
   },
 }

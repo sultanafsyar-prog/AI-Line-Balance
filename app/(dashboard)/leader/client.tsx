@@ -269,6 +269,10 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
         setForm(f => ({ ...f, output: '', downtime: '0', dtReason: '', defect: '0' }))
       }
       setTimeout(() => setSaved(false), 3000)
+    } else if (result.error === 'Unauthorized') {
+      // Sesi login berakhir — beri tahu & arahkan login ulang (bukan "Unauthorized" mentah)
+      setError(t('leader.sessionExpired'))
+      setTimeout(() => signOut({ callbackUrl: '/login' }), 1500)
     } else {
       setError(result.error ?? t('leader.errSave'))
     }
@@ -615,6 +619,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       lineLabel={`Gedung ${line.building} — Line ${line.lineNo}`}
                       workDate={getWorkDate(shift)}
                       fixedShiftLabel={shift === 1 ? 'Shift 1' : 'Shift 2'}
+                      hideEmail
                       onClosed={() => window.location.reload()}
                     />
                   </div>

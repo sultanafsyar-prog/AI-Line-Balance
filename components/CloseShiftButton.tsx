@@ -8,6 +8,7 @@ interface Props {
   onClosed?: () => void
   workDate?: string         // override tanggal kerja (leader kirim getWorkDate(shift))
   fixedShiftLabel?: string  // kalau diisi, label shift dikunci (tanpa dropdown)
+  hideEmail?: boolean       // sembunyikan field email (lantai produksi tanpa laporan email)
 }
 
 const SHIFTS = [
@@ -16,7 +17,7 @@ const SHIFTS = [
   { key: 'closeShiftBtn.shiftNight', value: 'Shift Malam (23:00–07:00)' },
 ]
 
-export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate, fixedShiftLabel }: Props) {
+export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate, fixedShiftLabel, hideEmail }: Props) {
   const { t } = useI18n()
   const [open,    setOpen]    = useState(false)
   const [shift,   setShift]   = useState(fixedShiftLabel ?? SHIFTS[0].value)
@@ -121,7 +122,9 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
               borderRadius: '8px', marginBottom: '16px',
               fontSize: '12px', color: '#475569', lineHeight: 1.6,
             }}>
-              {t('closeShiftBtn.info1')} <strong>{t('closeShiftBtn.infoSend')}</strong> {t('closeShiftBtn.infoAnd')} <strong>{t('closeShiftBtn.infoReset')}</strong> {t('closeShiftBtn.info2')}
+              {hideEmail
+                ? t('closeShiftBtn.infoNoEmail')
+                : <>{t('closeShiftBtn.info1')} <strong>{t('closeShiftBtn.infoSend')}</strong> {t('closeShiftBtn.infoAnd')} <strong>{t('closeShiftBtn.infoReset')}</strong> {t('closeShiftBtn.info2')}</>}
             </div>
 
             {/* Pilih shift — dikunci kalau fixedShiftLabel diberikan (mis. dari leader) */}
@@ -150,23 +153,25 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
               )}
             </div>
 
-            {/* Email manager (opsional) */}
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                {t('closeShiftBtn.managerEmail')} <span style={{ color: '#9CA3AF', fontWeight: 400 }}>({t('closeShiftBtn.optional')})</span>
-              </label>
-              <input
-                type="email"
-                placeholder="manager@diamond.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                style={{
-                  width: '100%', padding: '8px 12px', borderRadius: '8px',
-                  border: '1px solid #E5E7EB', fontSize: '13px',
-                  color: '#111827', boxSizing: 'border-box',
-                }}
-              />
-            </div>
+            {/* Email manager (opsional) — disembunyikan di lantai produksi */}
+            {!hideEmail && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                  {t('closeShiftBtn.managerEmail')} <span style={{ color: '#9CA3AF', fontWeight: 400 }}>({t('closeShiftBtn.optional')})</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="manager@diamond.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: '8px',
+                    border: '1px solid #E5E7EB', fontSize: '13px',
+                    color: '#111827', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            )}
 
             {/* Result message */}
             {result && (
