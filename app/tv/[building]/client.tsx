@@ -139,6 +139,11 @@ function calcLine(line: LineData, sections: string[], building: string) {
   const model   = activeModels[0]
   const actuals = line.actuals
   const daily   = line.dailyTargets?.[0] ?? null
+  // Style yang BENAR-BENAR dijalankan hari ini (dari model milik tiap actual).
+  // Mixed-model: 1 line bisa jalan >1 style → tampilkan semua.
+  const runningStyles = [...new Set(
+    actuals.map((a: any) => a.section?.model?.name).filter(Boolean),
+  )] as string[]
   const yamSummaries = activeModels.flatMap((m: any) => calcYamSummaries(m, sections))
   const usedSectionIds = new Set(actuals.map((a: any) => a.sectionId ?? a.section?.id).filter(Boolean))
   const metricYams = usedSectionIds.size > 0
@@ -198,6 +203,7 @@ function calcLine(line: LineData, sections: string[], building: string) {
 
   const baseEmpty = {
     model: model?.name ?? null, article: model?.article ?? null,
+    runningStyles,
     imageUrl: model?.imageUrl ?? null, dailyTarget: daily,
     taktStd, theoPPH, dispTPH,
     theoMPTotal: parseFloat(theoMPTotal.toFixed(1)),
@@ -673,7 +679,18 @@ export default function TVClient({ building, lines, sections }: Props) {
                   }}>{line.lineNo}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '10px', color: la.accent, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Line {line.lineNo}</div>
-                    {m.model ? (
+                    {m.runningStyles.length > 0 ? (
+                      // Style yang benar-benar dijalankan hari ini (bisa >1 = mixed-model)
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '1px' }}>
+                        {m.runningStyles.map((s: string) => (
+                          <span key={s} style={{
+                            fontSize: '12px', fontWeight: 700, color: C.white,
+                            background: la.accentBg, border: `1px solid ${la.accentBd}`,
+                            borderRadius: '5px', padding: '1px 7px', whiteSpace: 'nowrap',
+                          }}>{s}</span>
+                        ))}
+                      </div>
+                    ) : m.model ? (
                       <>
                         <div style={{ fontSize: '14px', fontWeight: 700, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.model}</div>
                         <div style={{ fontSize: '10px', color: C.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.article}</div>
@@ -1108,10 +1125,10 @@ export default function TVClient({ building, lines, sections }: Props) {
 
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '14px', fontWeight: 600, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {m.model ?? '—'}
+                      {m.runningStyles.length > 0 ? m.runningStyles.join(' + ') : (m.model ?? '—')}
                     </div>
                     <div style={{ fontSize: '10px', color: C.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {m.article ?? '—'}
+                      {m.runningStyles.length > 1 ? `${m.runningStyles.length} style` : (m.article ?? '—')}
                     </div>
                   </div>
 

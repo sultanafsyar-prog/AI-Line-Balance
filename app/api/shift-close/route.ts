@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       },
       actuals: {
         where: { date: workDate },
-        include: { section: true },
+        include: { section: { include: { operations: true } } },
         orderBy: { hour: 'asc' },
       },
       alerts: {
@@ -76,16 +76,23 @@ export async function POST(req: NextRequest) {
   if (!line) return jsonError('Line tidak ditemukan.', 404)
 
   const model    = line.assignments[0]?.model
-  const sections = model?.sections ?? []
   const actuals  = line.actuals
 
   if (actuals.length === 0) {
     return jsonError('Belum ada data aktual yang diinput hari ini.', 400)
   }
 
-  const sectionSummaries: SectionSummary[] = sections.flatMap(sec => {
-    const secActuals = actuals.filter(a => a.sectionId === sec.id)
-    if (secActuals.length === 0) return []
+  // Kelompokkan actuals per SECTION MILIKNYA SENDIRI (mixed-model aman:
+  // 1 line bisa jalan >1 style, tiap actual bawa section+model-nya via sectionId).
+  const secGroups = new Map<string, typeof actuals>()
+  for (const a of actuals) {
+    const arr = secGroups.get(a.sectionId) ?? []
+    arr.push(a)
+    secGroups.set(a.sectionId, arr)
+  }
+
+  const sectionSummaries: SectionSummary[] = [...secGroups.values()].map(secActuals => {
+    const sec = secActuals[0].section as any
 
     const totOut    = secActuals.reduce((s, a) => s + a.output, 0)
     const totDT     = secActuals.reduce((s, a) => s + a.downtime, 0)
@@ -104,7 +111,7 @@ export async function POST(req: NextRequest) {
       ? Math.round((avgOut * theoMP) / (targetPH * avgMP) * 100) : 0
     const defRate   = totOut > 0 ? ((totDef / totOut) * 100).toFixed(1) : '0'
 
-    return [{ name: sec.name, totOut, totDT, totDef, avgMP, totalTgt, ller, defRate, jamCount: secActuals.length }]
+    return { name: sec.name, totOut, totDT, totDef, avgMP, totalTgt, ller, defRate, jamCount: secActuals.length }
   })
 
   const totalOut     = actuals.reduce((s, a) => s + a.output, 0)
@@ -235,30 +242,35 @@ export async function POST(req: NextRequest) {
 
   // Archive sungguhan: catat di ShiftArchive, tandai Actual sebagai closed,
   // dan resolve alerts yang masih aktif. Semua dalam 1 transaksi supaya konsisten.
-  await prisma.$transaction([
-    prisma.shiftArchive.create({
-      data: {
-        lineId,
-        date: workDate,
-        shiftLabel,
-        closedBy: session.user.id,
-        totalOutput: totalOut,
-        totalDT,
-        totalDefect: totalDef,
-        avgLler,
-        managerEmail,
-        emailSent,
-      },
-    }),
-    prisma.actual.updateMany({
-      where: { lineId, date: workDate, shiftClosed: false },
-      data:  { shiftClosed: true },
-    }),
-    prisma.alert.updateMany({
-      where: { lineId, resolved: false },
-      data:  { resolved: true, resolvedAt: new Date() },
-    }),
-  ])
+  try {
+    await prisma.$transaction([
+      prisma.shiftArchive.create({
+        data: {
+          lineId,
+          date: workDate,
+          shiftLabel,
+          closedBy: session.user.id,
+          totalOutput: totalOut,
+          totalDT,
+          totalDefect: totalDef,
+          avgLler,
+          managerEmail: managerEmail || null,
+          emailSent,
+        },
+      }),
+      prisma.actual.updateMany({
+        where: { lineId, date: workDate, shiftClosed: false },
+        data:  { shiftClosed: true },
+      }),
+      prisma.alert.updateMany({
+        where: { lineId, resolved: false },
+        data:  { resolved: true, resolvedAt: new Date() },
+      }),
+    ])
+  } catch (err) {
+    console.error('[shift-close] gagal simpan arsip:', err)
+    return jsonError('Gagal menyimpan arsip shift. Coba lagi.', 500)
+  }
 
   return NextResponse.json({
     success: true,
