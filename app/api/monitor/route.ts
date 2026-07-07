@@ -3,11 +3,16 @@ import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { today } from '@/lib/utils'
 import { requireSession } from '@/lib/api-helpers'
+import { getSectionStdMap } from '@/lib/std-cache'
 
 export async function GET() {
   const auth = await requireSession()
   if (auth instanceof NextResponse) return auth
   const session = auth
+
+  // Data standar section (takt/stdMP/hourlyTarget/theoMP) dari cache —
+  // endpoint ini di-poll tiap 60 dtk, jangan tarik operations dari DB terus.
+  const stdMap = await getSectionStdMap()
 
   // Same scope logic as /api/lines
   const where: Prisma.LineWhereInput = { active: true }
@@ -32,7 +37,7 @@ export async function GET() {
       },
       actuals: {
         where: { date: today() },
-        include: { section: { select: { name: true, taktTime: true, stdMP: true, hourlyTarget: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
+        select: { id: true, sectionId: true, hour: true, output: true, mpActual: true, downtime: true, defect: true },
         orderBy: { hour: 'desc' },
       },
       alerts: { where: { resolved: false, triggeredAt: { gte: new Date(today() + 'T00:00:00+07:00') } } },
@@ -44,8 +49,9 @@ export async function GET() {
     const model = line.assignments[0]?.model ?? null
     const actuals = line.actuals
     const latestActual = actuals[0] ?? null
-    // TPH dari taktTime section terakhir yang ada data
-    const latestTakt = latestActual?.section?.taktTime ?? 0
+    // Data standar section terakhir dari cache (bukan query operations per poll)
+    const latestStd = latestActual ? stdMap[latestActual.sectionId] : undefined
+    const latestTakt = latestStd?.taktTime ?? 0
     const tph = latestTakt > 0 ? Math.round(3600 / latestTakt) : 0
 
     const totalOutput   = actuals.reduce((s, a) => s + a.output, 0)
@@ -58,18 +64,11 @@ export async function GET() {
       ? actuals.reduce((s, a) => s + a.output, 0) / actuals.length
       : 0
 
-    // theoMP dari operations section terakhir
-    const latestSec = latestActual?.section as any
-    let theoMP = 0
-    if (latestSec?.operations && latestSec.taktTime > 0) {
-      const totalGWT = latestSec.operations.reduce((s: number, op: any) =>
-        s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
-      theoMP = totalGWT / latestSec.taktTime
-    }
+    const theoMP = latestStd?.theoMP ?? 0
 
     const latestOutput = latestActual?.output ?? 0
     // Target tampilan: target manual IE kalau di-set, else teoretis
-    const dispTph = (latestActual?.section as any)?.hourlyTarget ?? tph
+    const dispTph = latestStd?.hourlyTarget ?? tph
     // LLER produktivitas gabungan: (actualPPH × actualMP) / (theoPPH × theoMP) × 100
     const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
       ? Math.round((avgOut * theoMP) / (tph * avgMP) * 100) : 0
@@ -85,7 +84,7 @@ export async function GET() {
         output: latestActual.output,
         mpActual: latestActual.mpActual,
         hour: latestActual.hour,
-        section: latestActual.section?.name ?? '',
+        section: latestStd?.name ?? '',
       } : null,
       todayTotals: {
         output: totalOutput, downtime: totalDowntime,

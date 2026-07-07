@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
+import { revalidateTag } from 'next/cache'
 import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
 import { ModelCreateSchema } from '@/lib/validation'
 import { saveSectionsPreservingActuals } from '@/lib/save-sections'
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
         }
       })
       await saveSectionsPreservingActuals(existing.id, validSections)
+      revalidateTag('sections-std') // segarkan cache standar (TV/monitor)
 
       // Auto-set daily target jika ada di upload
       if (dailyTarget && dailyTarget > 0) {
@@ -97,6 +99,7 @@ export async function POST(req: NextRequest) {
       }
     })
     await saveSectionsPreservingActuals(model.id, validSections)
+    revalidateTag('sections-std')
 
     const created = await prisma.shoeModel.findUnique({
       where: { id: model.id },

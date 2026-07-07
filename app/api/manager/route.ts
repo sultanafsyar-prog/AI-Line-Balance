@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
 import { requireRole } from '@/lib/api-helpers'
+import { getSectionStdMap } from '@/lib/std-cache'
 
 type LineStatus = 'no_model' | 'no_input' | 'good' | 'warning' | 'critical'
 
@@ -45,6 +46,9 @@ export async function GET(req: NextRequest) {
 
   const buildingFilter = userBuilding ?? filterBuilding ?? null
 
+  // Standar section dari cache — endpoint di-poll 60 dtk, hemat egress
+  const stdMap = await getSectionStdMap()
+
   const lines = await prisma.line.findMany({
     where: {
       active: true,
@@ -58,7 +62,7 @@ export async function GET(req: NextRequest) {
       },
       actuals: {
         where: { date: today() },
-        include: { section: { select: { name: true, taktTime: true, stdMP: true, hourlyTarget: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } } },
+        select: { id: true, sectionId: true, hour: true, output: true, mpActual: true, downtime: true, defect: true },
         orderBy: { hour: 'desc' },
       },
       alerts: { where: { resolved: false } },
@@ -70,10 +74,11 @@ export async function GET(req: NextRequest) {
 
   for (const line of lines) {
     const model = line.assignments[0]?.model ?? null
-    const latestTakt = line.actuals[0]?.section?.taktTime ?? 0
+    const latestStd = line.actuals[0] ? stdMap[line.actuals[0].sectionId] : undefined
+    const latestTakt = latestStd?.taktTime ?? 0
     const tph   = latestTakt > 0 ? Math.round(3600 / latestTakt) : 0
     // Target tampilan untuk gap di client (LLER tetap pakai tph teoretis)
-    const dispTph = (line.actuals[0]?.section as any)?.hourlyTarget ?? tph
+    const dispTph = latestStd?.hourlyTarget ?? tph
     const actuals = line.actuals
 
     const totalOutput   = actuals.reduce((s, a) => s + a.output, 0)
@@ -86,14 +91,8 @@ export async function GET(req: NextRequest) {
     const avgOut = actuals.length > 0
       ? actuals.reduce((s, a) => s + a.output, 0) / actuals.length : 0
 
-    // theoMP dari section terakhir
-    const latestSec = lastActual?.section as any
-    let theoMP = 0
-    if (latestSec?.operations && latestSec.taktTime > 0) {
-      const totalGWT = latestSec.operations.reduce((s: number, op: any) =>
-        s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0)
-      theoMP = totalGWT / latestSec.taktTime
-    }
+    // theoMP dari cache standar section
+    const theoMP = latestStd?.theoMP ?? 0
 
     // LLER produktivitas gabungan
     const ller = (tph > 0 && avgOut > 0 && avgMP > 0 && theoMP > 0)
@@ -153,17 +152,11 @@ export async function GET(req: NextRequest) {
             let num = 0, den = 0
             const secBuckets = new Map<string, { mpSum: number; outSum: number; hours: number; theoMP: number; takt: number }>()
             for (const a of acts) {
-              const sec = (a as any).section
-              const secName = sec?.name ?? ''
-              if (!secBuckets.has(secName)) {
-                let tm = 0
-                if (sec?.operations && sec.taktTime > 0) {
-                  tm = sec.operations.reduce((s: number, op: any) =>
-                    s + (op.va + op.nvan + op.nva) * (1 + (op.allowance ?? 0.15)), 0) / sec.taktTime
-                }
-                secBuckets.set(secName, { mpSum: 0, outSum: 0, hours: 0, theoMP: tm, takt: sec?.taktTime ?? 0 })
+              const std = stdMap[a.sectionId]
+              if (!secBuckets.has(a.sectionId)) {
+                secBuckets.set(a.sectionId, { mpSum: 0, outSum: 0, hours: 0, theoMP: std?.theoMP ?? 0, takt: std?.taktTime ?? 0 })
               }
-              const b = secBuckets.get(secName)!
+              const b = secBuckets.get(a.sectionId)!
               b.mpSum += a.mpActual; b.outSum += a.output; b.hours += 1
             }
             for (const [, b] of secBuckets.entries()) {

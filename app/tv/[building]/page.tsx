@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { today, SECTIONS, SF_SECTIONS } from '@/lib/utils'
+import { getTvStdLines } from '@/lib/std-cache'
 import TVClient from './client'
 import { notFound } from 'next/navigation'
 
@@ -13,36 +14,35 @@ export default async function TVPage({ params }: Props) {
   const building = params.building.toUpperCase()
   if (!BUILDINGS[building]) notFound()
 
-  const lines = await prisma.line.findMany({
-    where: { building },
-    orderBy: { lineNo: 'asc' },
-    include: {
-      assignments: {
-        where: { active: true }, orderBy: { assignedAt: 'desc' },
-        include: {
-          model: {
-            include: {
-              sections: { include: { operations: true } }
-            }
-          }
-        }
+  // ── Hemat egress: struktur line+model+operasi (BERAT, jarang berubah)
+  // dari cache 10 menit; hanya data dinamis (actuals/alerts/target) yang
+  // di-query fresh tiap auto-refresh 60 detik.
+  const stdLines = await getTvStdLines(building)
+  const lineIds = stdLines.map(l => l.id)
+
+  const [actuals, alerts, dailyTargets] = await Promise.all([
+    prisma.actual.findMany({
+      where: { lineId: { in: lineIds }, date: today() },
+      include: {
+        section: { select: { id: true, name: true, model: { select: { name: true } } } },
       },
-      actuals: {
-        where: { date: today() },
-        include: { section: { include: { operations: true, model: true } } },
-        orderBy: { hour: 'asc' }
-      },
-      alerts: {
-        where: { resolved: false },
-        orderBy: { triggeredAt: 'desc' },
-        take: 3
-      },
-      dailyTargets: {
-        where: { date: today() },
-        take: 1,
-      },
-    }
-  })
+      orderBy: { hour: 'asc' },
+    }),
+    prisma.alert.findMany({
+      where: { lineId: { in: lineIds }, resolved: false },
+      orderBy: { triggeredAt: 'desc' },
+    }),
+    prisma.dailyTarget.findMany({
+      where: { lineId: { in: lineIds }, date: today() },
+    }),
+  ])
+
+  const lines = stdLines.map(l => ({
+    ...l,
+    actuals: actuals.filter(a => a.lineId === l.id),
+    alerts: alerts.filter(a => a.lineId === l.id).slice(0, 3),
+    dailyTargets: dailyTargets.filter(d => d.lineId === l.id).slice(0, 1),
+  }))
 
   const sections = building === 'G' ? SF_SECTIONS : SECTIONS
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
+import { revalidateTag } from 'next/cache'
 import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
 import { ModelPatchSchema } from '@/lib/validation'
 import { saveSectionsPreservingActuals } from '@/lib/save-sections'
@@ -84,6 +85,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Rebuild sections jika dikirim, tanpa menghapus section lama
     if (sections && sections.length > 0) {
       await saveSectionsPreservingActuals(params.id, sections)
+      revalidateTag('sections-std') // segarkan cache standar (TV/monitor)
     }
 
     // Update daily target untuk semua line yang assign model ini
