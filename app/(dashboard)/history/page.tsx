@@ -12,6 +12,7 @@ type Archive = {
   building: string
   lineNo: number
   sections: string[]
+  models: string[]
   target: number | null
   achievement: number | null
   closedByName: string
@@ -24,7 +25,7 @@ type Archive = {
 }
 
 type DetailRow = {
-  hour: number; section: string; output: number; target: number
+  hour: number; model: string; section: string; output: number; target: number
   stdMP: number; theoMP: number; mpActual: number; lller: number
   downtime: number; dtReason: string; defect: number
 }
@@ -61,7 +62,7 @@ export default function HistoryPage() {
   const openDetail = useCallback(async (a: Archive) => {
     setDetail(a); setDetailRows([]); setDetailLoading(true)
     try {
-      const res = await fetch(`/api/shift-archive/detail?lineId=${a.lineId}&date=${a.date}`)
+      const res = await fetch(`/api/shift-archive/detail?lineId=${a.lineId}&date=${a.date}&shift=${encodeURIComponent(a.shiftLabel)}`)
       if (res.ok) { const d = await res.json(); setDetailRows(d.rows ?? []) }
     } catch {}
     setDetailLoading(false)
@@ -105,10 +106,8 @@ export default function HistoryPage() {
 
   const dateLocale = locale === 'id' ? 'id-ID' : locale
 
-  // Detail per jam difilter sesuai shift arsip supaya tidak tercampur:
-  // Shift 1 = jam 7-19, Shift 2 = jam 20-32 (jam virtual lintas tengah malam).
-  const detailShiftNum = detail && /2|malam|night/i.test(detail.shiftLabel) ? 2 : 1
-  const shiftDetailRows = detailRows.filter(r => detailShiftNum === 2 ? r.hour >= 20 : r.hour < 20)
+  // API detail sudah memfilter per shift; client hanya menampilkan hasilnya.
+  const shiftDetailRows = detailRows
 
   const hasActiveFilter = selBuilding !== 'ALL' || selLine !== 'ALL' || selShift !== 'ALL' || !!selDate
   const resetFilters = () => { setSelBuilding('ALL'); setSelLine('ALL'); setSelShift('ALL'); setSelDate('') }
@@ -207,7 +206,7 @@ export default function HistoryPage() {
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   {[
-                    t('history.colDate'), t('history.colLine'), t('history.colShift'), t('history.colSection'),
+                    t('history.colDate'), t('history.colLine'), t('history.colShift'), 'Model', t('history.colSection'),
                     t('history.colOutput'), t('history.colTarget'), t('history.colAch'), 'LLER', 'DT', t('leader.defect'),
                     t('history.colClosedBy'), t('history.colReport'),
                   ].map(h => (
@@ -226,6 +225,13 @@ export default function HistoryPage() {
                       {t('monitor.bldg', { b: a.building })} L{a.lineNo}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">{a.shiftLabel}</td>
+                    <td className="px-3 py-2.5 text-gray-600 text-xs">
+                      {a.models.length > 0
+                        ? <div className="flex flex-wrap gap-1">{a.models.map(m => (
+                            <span key={m} className="inline-block px-1.5 py-0.5 bg-violet-50 text-violet-700 rounded">{m}</span>
+                          ))}</div>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-3 py-2.5 text-gray-600 text-xs">
                       {a.sections.length > 0
                         ? <div className="flex flex-wrap gap-1">{a.sections.map(s => (
@@ -270,6 +276,13 @@ export default function HistoryPage() {
                   {new Date(detail.date + 'T00:00:00+07:00').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                   {detail.target ? ` · ${t('history.colTarget')}: ${detail.target.toLocaleString()}` : ''}
                 </div>
+                {detail.models.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {detail.models.map(m => (
+                      <span key={m} className="px-2 py-0.5 rounded bg-violet-50 text-violet-700 text-xs">{m}</span>
+                    ))}
+                  </div>
+                )}
               </div>
               <button onClick={() => setDetail(null)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
                 <X className="w-5 h-5" />
@@ -287,7 +300,7 @@ export default function HistoryPage() {
                     <thead className="bg-gray-50 border-b border-gray-100">
                       <tr>
                         {[
-                          t('history.dHour'), t('history.colSection'), t('history.dOutput'), t('history.colTarget'),
+                          t('history.dHour'), 'Model', t('history.colSection'), t('history.dOutput'), t('history.colTarget'),
                           t('history.dStdMp'), t('history.dTheoMp'), t('history.dMpAct'), 'LLER', 'DT', t('leader.defect'),
                         ].map(h => (
                           <th key={h} className="text-left px-2.5 py-2 text-xs text-gray-500 font-medium uppercase whitespace-nowrap">{h}</th>
@@ -304,6 +317,7 @@ export default function HistoryPage() {
                         return (
                           <tr key={i} className="border-b border-gray-50">
                             <td className="px-2.5 py-2 whitespace-nowrap font-medium text-gray-700">{hourLabel}</td>
+                            <td className="px-2.5 py-2 whitespace-nowrap text-violet-700 text-xs font-medium">{r.model}</td>
                             <td className="px-2.5 py-2 whitespace-nowrap text-gray-500 text-xs">{r.section}</td>
                             <td className="px-2.5 py-2 whitespace-nowrap">
                               <span className="font-medium">{r.output}</span>

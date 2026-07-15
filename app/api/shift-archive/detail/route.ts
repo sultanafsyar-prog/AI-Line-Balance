@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireSession, hasLineAccess } from '@/lib/api-helpers'
 import { calcLLER } from '@/lib/utils'
+import { shiftNumberFromLabel } from '@/lib/shifts'
 
 // GET /api/shift-archive/detail?lineId=xxx&date=YYYY-MM-DD
 // Rincian per jam dari satu shift yang sudah ditutup.
@@ -12,6 +13,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const lineId = searchParams.get('lineId')
   const date = searchParams.get('date')
+  const shiftLabel = searchParams.get('shift')
   if (!lineId || !date) return NextResponse.json({ error: 'lineId & date wajib' }, { status: 400 })
 
   if (!(await hasLineAccess(auth, lineId))) {
@@ -19,9 +21,21 @@ export async function GET(req: NextRequest) {
   }
 
   const actuals = await prisma.actual.findMany({
-    where: { lineId, date },
+    where: {
+      lineId,
+      date,
+      ...(shiftLabel
+        ? { hour: shiftNumberFromLabel(shiftLabel) === 2 ? { gte: 20 } : { lt: 20 } }
+        : {}),
+    },
     include: {
-      section: { select: { name: true, taktTime: true, stdMP: true, hourlyTarget: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } },
+      section: {
+        select: {
+          name: true, taktTime: true, stdMP: true, hourlyTarget: true,
+          model: { select: { name: true } },
+          operations: { select: { va: true, nvan: true, nva: true, allowance: true } },
+        },
+      },
     },
     orderBy: [{ hour: 'asc' }],
   })
@@ -41,6 +55,7 @@ export async function GET(req: NextRequest) {
     const lller = calcLLER(a.output, a.mpActual, theoPPH, theoMP)
     return {
       hour: a.hour,
+      model: sec?.model?.name ?? '—',
       section: sec?.name ?? '—',
       output: a.output,
       target,

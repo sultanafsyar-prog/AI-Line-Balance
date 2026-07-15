@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
 import { requireSession, requireRole, parseBody, hasLineAccess } from '@/lib/api-helpers'
 import { ActualUpsertSchema } from '@/lib/validation'
+import { archiveMatchesShift, shiftNumberFromHour } from '@/lib/shifts'
 
 // GET /api/actuals?lineId=X&date=YYYY-MM-DD
 export async function GET(req: NextRequest) {
@@ -60,15 +61,17 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Cek apakah shift sudah di-close untuk line+date ini — kalau iya, tolak semua edit/create
+  // Arsip shift adalah sumber status penguncian. Jangan memakai satu flag
+  // tanggal untuk memblokir shift lain pada tanggal kerja yang sama.
   const workDate = date ?? today()
-  const closedRecord = await prisma.actual.findFirst({
-    where: { lineId, date: workDate, shiftClosed: true },
-    select: { id: true },
+  const inputShift = shiftNumberFromHour(hour)
+  const closedArchives = await prisma.shiftArchive.findMany({
+    where: { lineId, date: workDate },
+    select: { shiftLabel: true },
   })
-  if (closedRecord) {
+  if (closedArchives.some(a => archiveMatchesShift(a.shiftLabel, inputShift))) {
     return NextResponse.json(
-      { error: 'Data ini sudah dikunci karena shift sudah ditutup. Hubungi IE Admin jika perlu koreksi.' },
+      { error: `Data Shift ${inputShift} sudah dikunci karena shift tersebut sudah ditutup. Hubungi IE Admin jika perlu koreksi.` },
       { status: 409 }
     )
   }

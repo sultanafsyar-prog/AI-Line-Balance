@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
 import { jsonError, parseBody, requireRole, hasLineAccess } from '@/lib/api-helpers'
 import { ShiftCloseSchema } from '@/lib/validation'
+import { archiveMatchesShift, shiftNumberFromLabel } from '@/lib/shifts'
 
 export const maxDuration = 60
 
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
   const data = await parseBody(req, ShiftCloseSchema)
   if (data instanceof NextResponse) return data
   const { lineId, shiftLabel, managerEmail } = data
+  const shiftNumber = shiftNumberFromLabel(shiftLabel)
 
   // Cek akses line
   if (!(await hasLineAccess(auth, lineId))) {
@@ -48,11 +50,22 @@ export async function POST(req: NextRequest) {
   // Actual shift 2 disimpan dengan tanggal kerja kemarin, jadi today() bisa salah.
   // Ambil tanggal actual TERBUKA terbaru untuk line ini (atau override eksplisit).
   const openActual = await prisma.actual.findFirst({
-    where: { lineId, shiftClosed: false },
+    where: {
+      lineId,
+      hour: shiftNumber === 2 ? { gte: 20 } : { lt: 20 },
+    },
     orderBy: [{ date: 'desc' }, { hour: 'desc' }],
     select: { date: true },
   })
   const workDate = data.date ?? openActual?.date ?? today()
+
+  const existingArchives = await prisma.shiftArchive.findMany({
+    where: { lineId, date: workDate },
+    select: { shiftLabel: true },
+  })
+  if (existingArchives.some(a => archiveMatchesShift(a.shiftLabel, shiftNumber))) {
+    return jsonError(`Shift ${shiftNumber} untuk tanggal kerja ${workDate} sudah ditutup.`, 409)
+  }
 
   const line = await prisma.line.findUnique({
     where: { id: lineId },
@@ -62,8 +75,11 @@ export async function POST(req: NextRequest) {
         include: { model: { include: { sections: { include: { operations: true } } } } },
       },
       actuals: {
-        where: { date: workDate },
-        include: { section: { include: { operations: true } } },
+        where: {
+          date: workDate,
+          hour: shiftNumber === 2 ? { gte: 20 } : { lt: 20 },
+        },
+        include: { section: { include: { operations: true, model: true } } },
         orderBy: { hour: 'asc' },
       },
       alerts: {
@@ -75,11 +91,10 @@ export async function POST(req: NextRequest) {
 
   if (!line) return jsonError('Line tidak ditemukan.', 404)
 
-  const model    = line.assignments[0]?.model
   const actuals  = line.actuals
 
   if (actuals.length === 0) {
-    return jsonError('Belum ada data aktual yang diinput hari ini.', 400)
+    return jsonError(`Belum ada data aktual Shift ${shiftNumber} pada tanggal kerja ${workDate}.`, 400)
   }
 
   // Kelompokkan actuals per SECTION MILIKNYA SENDIRI (mixed-model aman:
@@ -127,7 +142,8 @@ export async function POST(req: NextRequest) {
   const tanggal    = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   const jamTutup   = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
   const lineLabel  = `Gedung ${line.building} — Line ${line.lineNo}`
-  const modelLabel = model ? `${model.name} (${model.article ?? ''})` : 'Belum ada model'
+  const runningModels = [...new Set(actuals.map(a => a.section.model.name))]
+  const modelLabel = runningModels.length > 0 ? runningModels.join(', ') : 'Belum ada model'
 
   const emailHtml = `
 <!DOCTYPE html>
@@ -259,7 +275,11 @@ export async function POST(req: NextRequest) {
         },
       }),
       prisma.actual.updateMany({
-        where: { lineId, date: workDate, shiftClosed: false },
+        where: {
+          lineId,
+          date: workDate,
+          hour: shiftNumber === 2 ? { gte: 20 } : { lt: 20 },
+        },
         data:  { shiftClosed: true },
       }),
       prisma.alert.updateMany({
