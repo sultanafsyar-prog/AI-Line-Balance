@@ -179,6 +179,7 @@ model ShiftArchive {
   id           String   @id @default(cuid())
   lineId       String
   date         String
+  shift        Int
   shiftLabel   String
   closedBy     String   // user id IE Admin yang tutup shift
   closedAt     DateTime @default(now())
@@ -189,7 +190,7 @@ model ShiftArchive {
   managerEmail String?
   emailSent    Boolean  @default(false)
 
-  @@index([lineId, date])
+  @@unique([lineId, date, shift])
   @@index([closedAt])
 }
 

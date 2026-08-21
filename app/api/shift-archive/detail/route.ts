@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireSession, hasLineAccess } from '@/lib/api-helpers'
-import { calcLLER } from '@/lib/utils'
-import { shiftNumberFromLabel } from '@/lib/shifts'
+import { calcLLER, isFridayWIB } from '@/lib/utils'
+import { getShiftSlots, type ShiftNumber } from '@/lib/shifts'
 
 // GET /api/shift-archive/detail?lineId=xxx&date=YYYY-MM-DD
 // Rincian per jam dari satu shift yang sudah ditutup.
@@ -13,8 +13,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const lineId = searchParams.get('lineId')
   const date = searchParams.get('date')
-  const shiftLabel = searchParams.get('shift')
-  if (!lineId || !date) return NextResponse.json({ error: 'lineId & date wajib' }, { status: 400 })
+  const shift = Number(searchParams.get('shift'))
+  if (!lineId || !date || (shift !== 1 && shift !== 2)) {
+    return NextResponse.json({ error: 'lineId, date & shift wajib' }, { status: 400 })
+  }
 
   if (!(await hasLineAccess(auth, lineId))) {
     return NextResponse.json({ error: 'Tidak punya akses ke line ini' }, { status: 403 })
@@ -24,9 +26,7 @@ export async function GET(req: NextRequest) {
     where: {
       lineId,
       date,
-      ...(shiftLabel
-        ? { hour: shiftNumberFromLabel(shiftLabel) === 2 ? { gte: 20 } : { lt: 20 } }
-        : {}),
+      hour: { in: getShiftSlots(shift as ShiftNumber, { friday: isFridayWIB(date), overtimeHours: 3 }) },
     },
     include: {
       section: {
