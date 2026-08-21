@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
-import { today } from '@/lib/utils'
+import { isFridayWIB, today } from '@/lib/utils'
 import { jsonError, parseBody, requireRole, hasLineAccess } from '@/lib/api-helpers'
 import { ShiftCloseSchema } from '@/lib/validation'
+import { getShiftSlots } from '@/lib/shifts'
 
 export const maxDuration = 60
 
@@ -37,7 +39,8 @@ export async function POST(req: NextRequest) {
 
   const data = await parseBody(req, ShiftCloseSchema)
   if (data instanceof NextResponse) return data
-  const { lineId, shiftLabel, managerEmail } = data
+  const { lineId, shift, managerEmail } = data
+  const shiftLabel = `Shift ${shift}`
 
   // Cek akses line
   if (!(await hasLineAccess(auth, lineId))) {
@@ -48,11 +51,30 @@ export async function POST(req: NextRequest) {
   // Actual shift 2 disimpan dengan tanggal kerja kemarin, jadi today() bisa salah.
   // Ambil tanggal actual TERBUKA terbaru untuk line ini (atau override eksplisit).
   const openActual = await prisma.actual.findFirst({
-    where: { lineId, shiftClosed: false },
+    where: {
+      lineId,
+      shiftClosed: false,
+      hour: { in: shift === 2
+        ? getShiftSlots(2, { overtimeHours: 3 })
+        : [...new Set([
+            ...getShiftSlots(1, { overtimeHours: 3 }),
+            ...getShiftSlots(1, { friday: true, overtimeHours: 3 }),
+          ])],
+      },
+    },
     orderBy: [{ date: 'desc' }, { hour: 'desc' }],
     select: { date: true },
   })
   const workDate = data.date ?? openActual?.date ?? today()
+  const shiftSlots = getShiftSlots(shift, { friday: isFridayWIB(workDate), overtimeHours: 3 })
+
+  const existingArchive = await prisma.shiftArchive.findUnique({
+    where: { lineId_date_shift: { lineId, date: workDate, shift } },
+    select: { id: true },
+  })
+  if (existingArchive) {
+    return jsonError(`Shift ${shift} untuk tanggal kerja ${workDate} sudah ditutup.`, 409)
+  }
 
   const line = await prisma.line.findUnique({
     where: { id: lineId },
@@ -62,8 +84,11 @@ export async function POST(req: NextRequest) {
         include: { model: { include: { sections: { include: { operations: true } } } } },
       },
       actuals: {
-        where: { date: workDate },
-        include: { section: true },
+        where: {
+          date: workDate,
+          hour: { in: shiftSlots },
+        },
+        include: { section: { include: { operations: true, model: true } } },
         orderBy: { hour: 'asc' },
       },
       alerts: {
@@ -75,17 +100,23 @@ export async function POST(req: NextRequest) {
 
   if (!line) return jsonError('Line tidak ditemukan.', 404)
 
-  const model    = line.assignments[0]?.model
-  const sections = model?.sections ?? []
   const actuals  = line.actuals
 
   if (actuals.length === 0) {
-    return jsonError('Belum ada data aktual yang diinput hari ini.', 400)
+    return jsonError(`Belum ada data aktual Shift ${shift} pada tanggal kerja ${workDate}.`, 400)
   }
 
-  const sectionSummaries: SectionSummary[] = sections.flatMap(sec => {
-    const secActuals = actuals.filter(a => a.sectionId === sec.id)
-    if (secActuals.length === 0) return []
+  // Kelompokkan actuals per SECTION MILIKNYA SENDIRI (mixed-model aman:
+  // 1 line bisa jalan >1 style, tiap actual bawa section+model-nya via sectionId).
+  const secGroups = new Map<string, typeof actuals>()
+  for (const a of actuals) {
+    const arr = secGroups.get(a.sectionId) ?? []
+    arr.push(a)
+    secGroups.set(a.sectionId, arr)
+  }
+
+  const sectionSummaries: SectionSummary[] = [...secGroups.values()].map(secActuals => {
+    const sec = secActuals[0].section as any
 
     const totOut    = secActuals.reduce((s, a) => s + a.output, 0)
     const totDT     = secActuals.reduce((s, a) => s + a.downtime, 0)
@@ -104,7 +135,7 @@ export async function POST(req: NextRequest) {
       ? Math.round((avgOut * theoMP) / (targetPH * avgMP) * 100) : 0
     const defRate   = totOut > 0 ? ((totDef / totOut) * 100).toFixed(1) : '0'
 
-    return [{ name: sec.name, totOut, totDT, totDef, avgMP, totalTgt, ller, defRate, jamCount: secActuals.length }]
+    return { name: sec.name, totOut, totDT, totDef, avgMP, totalTgt, ller, defRate, jamCount: secActuals.length }
   })
 
   const totalOut     = actuals.reduce((s, a) => s + a.output, 0)
@@ -120,7 +151,8 @@ export async function POST(req: NextRequest) {
   const tanggal    = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   const jamTutup   = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
   const lineLabel  = `Gedung ${line.building} — Line ${line.lineNo}`
-  const modelLabel = model ? `${model.name} (${model.article ?? ''})` : 'Belum ada model'
+  const runningModels = [...new Set(actuals.map(a => a.section.model.name))]
+  const modelLabel = runningModels.length > 0 ? runningModels.join(', ') : 'Belum ada model'
 
   const emailHtml = `
 <!DOCTYPE html>
@@ -213,6 +245,43 @@ export async function POST(req: NextRequest) {
   const resendApiKey = process.env.RESEND_API_KEY
   const fromEmail    = process.env.EMAIL_FROM ?? 'noreply@ielinebalance.com'
 
+  // Arsip dan penguncian harus commit sebelum efek eksternal (email).
+  let archiveId = ''
+  try {
+    const [archive] = await prisma.$transaction([
+      prisma.shiftArchive.create({
+        data: {
+          lineId,
+          date: workDate,
+          shift,
+          shiftLabel,
+          closedBy: session.user.id,
+          totalOutput: totalOut,
+          totalDT,
+          totalDefect: totalDef,
+          avgLler,
+          managerEmail: managerEmail || null,
+          emailSent: false,
+        },
+      }),
+      prisma.actual.updateMany({
+        where: {
+          lineId,
+          date: workDate,
+          hour: { in: shiftSlots },
+        },
+        data:  { shiftClosed: true },
+      }),
+    ])
+    archiveId = archive.id
+  } catch (err) {
+    console.error('[shift-close] gagal simpan arsip:', err)
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return jsonError(`Shift ${shift} untuk tanggal kerja ${workDate} sudah ditutup.`, 409)
+    }
+    return jsonError('Gagal menyimpan arsip shift. Coba lagi.', 500)
+  }
+
   let emailSent = false
   if (resendApiKey && managerEmail) {
     try {
@@ -230,35 +299,13 @@ export async function POST(req: NextRequest) {
         }),
       })
       emailSent = emailRes.ok
-    } catch {}
+      if (emailSent) {
+        await prisma.shiftArchive.update({ where: { id: archiveId }, data: { emailSent: true } })
+      }
+    } catch (err) {
+      console.error('[shift-close] email gagal:', err)
+    }
   }
-
-  // Archive sungguhan: catat di ShiftArchive, tandai Actual sebagai closed,
-  // dan resolve alerts yang masih aktif. Semua dalam 1 transaksi supaya konsisten.
-  await prisma.$transaction([
-    prisma.shiftArchive.create({
-      data: {
-        lineId,
-        date: workDate,
-        shiftLabel,
-        closedBy: session.user.id,
-        totalOutput: totalOut,
-        totalDT,
-        totalDefect: totalDef,
-        avgLler,
-        managerEmail,
-        emailSent,
-      },
-    }),
-    prisma.actual.updateMany({
-      where: { lineId, date: workDate, shiftClosed: false },
-      data:  { shiftClosed: true },
-    }),
-    prisma.alert.updateMany({
-      where: { lineId, resolved: false },
-      data:  { resolved: true, resolvedAt: new Date() },
-    }),
-  ])
 
   return NextResponse.json({
     success: true,

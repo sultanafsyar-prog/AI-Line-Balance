@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     { h: 'Gedung',          w: 9,  key: 'building' },
     { h: 'Line',            w: 8,  key: 'lineNo' },
     { h: 'Shift',           w: 10, key: 'shift' },
+    { h: 'Model / Style',   w: 24, key: 'models' },
     { h: 'Section / Style', w: 28, key: 'sections' },
     { h: 'Output',          w: 11, key: 'output' },
     { h: 'Target',          w: 11, key: 'target' },
@@ -133,15 +134,16 @@ export async function GET(req: NextRequest) {
       2: r.building,
       3: r.lineNo,
       4: r.shiftLabel,
-      5: r.sections.length ? r.sections.join(', ') : '—',
-      6: r.totalOutput,
-      7: r.target ?? '—',
-      8: r.achievement !== null ? r.achievement / 100 : '—',
-      9: r.avgLler / 100,
-      10: r.totalDT,
-      11: r.totalDefect,
-      12: r.closedByName,
-      13: r.emailSent ? 'Terkirim' : 'Tidak',
+      5: r.models.length ? r.models.join(', ') : '—',
+      6: r.sections.length ? r.sections.join(', ') : '—',
+      7: r.totalOutput,
+      8: r.target ?? '—',
+      9: r.achievement !== null ? r.achievement / 100 : '—',
+      10: r.avgLler / 100,
+      11: r.totalDT,
+      12: r.totalDefect,
+      13: r.closedByName,
+      14: r.emailSent ? 'Terkirim' : 'Tidak',
     }
     Object.entries(cells).forEach(([k, v]) => {
       const cell = row.getCell(Number(k))
@@ -156,28 +158,28 @@ export async function GET(req: NextRequest) {
     row.getCell(1).alignment = { horizontal: 'left' }
     row.getCell(2).alignment = { horizontal: 'center' }
     row.getCell(3).alignment = { horizontal: 'center' }
-    row.getCell(6).numFmt = '#,##0'; row.getCell(6).alignment = { horizontal: 'right' }
-    if (typeof cells[7] === 'number') { row.getCell(7).numFmt = '#,##0' }
-    row.getCell(7).alignment = { horizontal: 'right' }
-    if (typeof cells[8] === 'number') row.getCell(8).numFmt = '0"%"'
-    row.getCell(8).alignment = { horizontal: 'center' }
-    row.getCell(9).numFmt = '0"%"'; row.getCell(9).alignment = { horizontal: 'center' }
-    row.getCell(10).alignment = { horizontal: 'center' }
+    row.getCell(7).numFmt = '#,##0'; row.getCell(7).alignment = { horizontal: 'right' }
+    if (typeof cells[8] === 'number') { row.getCell(8).numFmt = '#,##0' }
+    row.getCell(8).alignment = { horizontal: 'right' }
+    if (typeof cells[9] === 'number') row.getCell(9).numFmt = '0"%"'
+    row.getCell(9).alignment = { horizontal: 'center' }
+    row.getCell(10).numFmt = '0"%"'; row.getCell(10).alignment = { horizontal: 'center' }
     row.getCell(11).alignment = { horizontal: 'center' }
+    row.getCell(12).alignment = { horizontal: 'center' }
 
     // Conditional color — Capai %
     if (r.achievement !== null) {
       const col = r.achievement >= 100 ? GREEN : r.achievement >= 85 ? AMBER : RED
-      row.getCell(8).font = { name: 'Calibri', size: 10, bold: true, color: { argb: col } }
+      row.getCell(9).font = { name: 'Calibri', size: 10, bold: true, color: { argb: col } }
     }
     // Conditional color — LLER
     const lc = r.avgLler >= 90 ? GREEN : r.avgLler >= 75 ? AMBER : RED
-    row.getCell(9).font = { name: 'Calibri', size: 10, bold: true, color: { argb: lc } }
+    row.getCell(10).font = { name: 'Calibri', size: 10, bold: true, color: { argb: lc } }
     // Defect merah kalau ada
-    if (r.totalDefect > 0) row.getCell(11).font = { name: 'Calibri', size: 10, color: { argb: RED } }
+    if (r.totalDefect > 0) row.getCell(12).font = { name: 'Calibri', size: 10, color: { argb: RED } }
     // Laporan
-    row.getCell(13).font = { name: 'Calibri', size: 10, color: { argb: r.emailSent ? GREEN : MUTED } }
-    row.getCell(13).alignment = { horizontal: 'center' }
+    row.getCell(14).font = { name: 'Calibri', size: 10, color: { argb: r.emailSent ? GREEN : MUTED } }
+    row.getCell(14).alignment = { horizontal: 'center' }
 
     // Zebra stripe
     if (idx % 2 === 1) {

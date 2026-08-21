@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
 import { requireRole } from '@/lib/api-helpers'
+import { getSectionStdMap } from '@/lib/std-cache'
 
 // ─── LLER TREND ENDPOINT ──────────────────────────────────────
 // Return:
@@ -41,32 +42,28 @@ export async function GET(req: NextRequest) {
   const todayStr = today()
   const startDate = daysAgo(13) // 14 hari termasuk hari ini
 
-  // ── 1. Fetch actuals 14 hari ke belakang dengan section + ops ──
+  // ── 1. Fetch actuals 14 hari ke belakang (TANPA operations — hemat egress;
+  //       endpoint ini di-poll manager page tiap 60 dtk) ──
   const actuals = await prisma.actual.findMany({
     where: {
       date: { gte: startDate, lte: todayStr },
       ...(buildingFilter ? { line: { building: buildingFilter } } : {}),
     },
-    include: {
-      section: {
-        select: {
-          name: true, taktTime: true,
-          operations: { select: { va: true, nvan: true, nva: true, allowance: true } },
-        },
-      },
+    select: {
+      sectionId: true, date: true, hour: true, output: true, mpActual: true,
       line: { select: { id: true, building: true, lineNo: true } },
     },
   })
 
-  // ── Pre-compute theoMP per section (cache pakai sectionId) ──
-  // Section yang sama selalu punya operations + takt sama
+  // ── theoMP + takt per section dari cache standar ──
+  const stdMap = await getSectionStdMap()
   const theoMPCache = new Map<string, number>()
+  const taktCache = new Map<string, number>()
   for (const a of actuals) {
     if (theoMPCache.has(a.sectionId)) continue
-    const sec = a.section
-    if (!sec.operations || sec.taktTime <= 0) { theoMPCache.set(a.sectionId, 0); continue }
-    const totalGWT = sec.operations.reduce((s, op) => s + getGWT(op), 0)
-    theoMPCache.set(a.sectionId, totalGWT / sec.taktTime)
+    const std = stdMap[a.sectionId]
+    theoMPCache.set(a.sectionId, std?.theoMP ?? 0)
+    taktCache.set(a.sectionId, std?.taktTime ?? 0)
   }
 
   // ── 2. AGGREGATE HOURLY (hari ini) ─────────────────────────
@@ -79,7 +76,8 @@ export async function GET(req: NextRequest) {
   }>()
   for (const a of todayActs) {
     const theoMP = theoMPCache.get(a.sectionId) ?? 0
-    const theoPPH = a.section.taktTime > 0 ? 3600 / a.section.taktTime : 0
+    const takt = taktCache.get(a.sectionId) ?? 0
+    const theoPPH = takt > 0 ? 3600 / takt : 0
     if (theoMP <= 0 || theoPPH <= 0 || a.mpActual <= 0 || a.output <= 0) continue
     const num = a.output * theoMP
     const den = theoPPH * a.mpActual
@@ -112,7 +110,8 @@ export async function GET(req: NextRequest) {
   }>()
   for (const a of actuals) {
     const theoMP = theoMPCache.get(a.sectionId) ?? 0
-    const theoPPH = a.section.taktTime > 0 ? 3600 / a.section.taktTime : 0
+    const takt = taktCache.get(a.sectionId) ?? 0
+    const theoPPH = takt > 0 ? 3600 / takt : 0
     if (theoMP <= 0 || theoPPH <= 0 || a.mpActual <= 0 || a.output <= 0) continue
     const num = a.output * theoMP
     const den = theoPPH * a.mpActual

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
+import { revalidateTag } from 'next/cache'
 import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
 import { LineAssignSchema } from '@/lib/validation'
 
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
       where: { lineId, active: true },
       data: { active: false }
     })
+    revalidateTag('sections-std') // TV std cache berisi assignments
     return NextResponse.json({ message: 'Assignment removed' })
   }
 
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
       where: { lineId, modelId, active: true },
       data: { active: false },
     })
+    revalidateTag('sections-std')
     return NextResponse.json({ message: 'Assignment removed' })
   }
 
@@ -91,5 +94,6 @@ export async function POST(req: NextRequest) {
     data: { lineId, modelId, assignedBy: auth.user.id },
     include: { model: true, line: true },
   })
+  revalidateTag('sections-std')
   return NextResponse.json(assignment, { status: 201 })
 }

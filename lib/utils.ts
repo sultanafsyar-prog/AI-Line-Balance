@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { displayShiftSlot, getShiftSlots } from './shifts'
 
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }
 
@@ -69,20 +70,19 @@ export function isFridayWIB(dateStr?: string): boolean {
 // Ambil jam kerja Shift 1 (array of hour numbers)
 export function getShift1Hours(friday?: boolean): number[] {
   const f = friday ?? isFridayWIB()
-  return Object.keys(f ? SHIFT1_FRIDAY : SHIFT1_REGULAR).map(Number)
+  return getShiftSlots(1, { friday: f })
 }
 
 export function getShift1OTHours(friday?: boolean): number[] {
   const f = friday ?? isFridayWIB()
-  return Object.keys(f ? SHIFT1_OT_FRIDAY : SHIFT1_OT).map(Number)
+  const normal = getShiftSlots(1, { friday: f })
+  return getShiftSlots(1, { friday: f, overtimeHours: 3 }).slice(normal.length)
 }
 
 // Display label untuk jam tertentu (aware hari Jumat)
 export function displayHourLabel(h: number, friday?: boolean): string {
   const f = friday ?? isFridayWIB()
-  const regular = f ? SHIFT1_FRIDAY : SHIFT1_REGULAR
-  const ot = f ? SHIFT1_OT_FRIDAY : SHIFT1_OT
-  return regular[h] ?? ot[h] ?? `${String(h > 23 ? h - 24 : h).padStart(2, '0')}:00`
+  return displayShiftSlot(h, { friday: f })
 }
 
 

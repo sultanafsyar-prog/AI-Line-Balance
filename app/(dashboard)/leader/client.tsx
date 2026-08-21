@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
-import { SF_SECTIONS as UTIL_SF_SECTIONS, getShift1Hours, getShift1OTHours, displayHourLabel, isFridayWIB } from '@/lib/utils'
+import { SF_SECTIONS as UTIL_SF_SECTIONS, isFridayWIB } from '@/lib/utils'
+import { displayShiftSlot, getShiftSlots, getWorkDate, type OvertimeHours } from '@/lib/shifts'
 import { useI18n } from '@/lib/i18n'
 import { postActual } from '@/lib/offline-queue'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
@@ -15,30 +16,6 @@ const DT_REASONS_I18N: Record<string, { id: string; en: string; 'zh-TW': string 
   operator: { id: 'Operator kurang',   en: 'Operator shortage',  'zh-TW': '人員不足' },
   other:    { id: 'Lainnya',           en: 'Others',             'zh-TW': '其他' },
 }
-// Shift 2: 20:00-06:00 | OT s/d 09:00
-const SHIFT2_HOURS    = [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
-const SHIFT2_OT_HOURS = [30, 31, 32]
-
-function displayHour(h: number): string {
-  if (h <= 19) return displayHourLabel(h)
-  if (h <= 23) return `${h}:00`
-  return `${String(h - 24).padStart(2,'0')}:00*`
-}
-
-// Work date — timezone Asia/Jakarta (UTC+7)
-// Shift 2 melewati tengah malam: jam 00:00-07:59 WIB masih dihitung hari kemarin
-function getWorkDate(shiftNum: 1 | 2): string {
-  const now = new Date()
-  // Jam sekarang di WIB
-  const wibHour = parseInt(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta', hour: 'numeric', hour12: false }))
-  if (shiftNum === 2 && wibHour < 8) {
-    // Jam 00-07 WIB: masih bagian shift 2 kemarin
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    return yesterday.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
-  }
-  return now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
-}
-
 // Auto-detect shift dari jam sekarang (WIB)
 function detectShift(): 1 | 2 {
   const h = parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta', hour: 'numeric', hour12: false }))
@@ -53,14 +30,13 @@ interface Props { lines: any[]; userId: string; userName: string }
 export default function LeaderClient({ lines, userId, userName }: Props) {
   const { t, locale } = useI18n()
   const [selLineId, setSelLineId] = useState(lines[0]?.id ?? '')
-  const [showOT, setShowOT]   = useState(false)
+  const [overtimeHours, setOvertimeHours] = useState<OvertimeHours>(0)
   const [shift, setShift]     = useState<1|2>(detectShift())
   const friday = isFridayWIB()
-  const SHIFT1_HOURS = getShift1Hours(friday)
-  const SHIFT1_OT_HOURS = getShift1OTHours(friday)
-  const activeHours = shift === 1
-    ? (showOT ? [...SHIFT1_HOURS, ...SHIFT1_OT_HOURS] : SHIFT1_HOURS)
-    : (showOT ? [...SHIFT2_HOURS, ...SHIFT2_OT_HOURS] : SHIFT2_HOURS)
+  const normalHours = getShiftSlots(shift, { friday })
+  const activeHours = getShiftSlots(shift, { friday, overtimeHours })
+  const overtimeSlots = activeHours.slice(normalHours.length)
+  const displayHour = (hour: number) => displayShiftSlot(hour, { friday })
   const [selSec, setSelSec]       = useState('Assembly')
   const [tab, setTab]             = useState<'input' | 'status' | 'std' | 'ai'>('input')
   const [saving, setSaving]       = useState(false)
@@ -418,22 +394,26 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       </button>
                     ))}
                   </div>
-                  <button onClick={() => setShowOT(!showOT)}
-                    style={{
-                      padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                      background: showOT ? '#FEF3C7' : '#F3F4F6',
-                      color: showOT ? '#92400E' : '#6B7280',
-                      border: showOT ? '1px solid #FCD34D' : '1px solid #E5E7EB',
-                    }}>
-                    {showOT ? t('leader.overtimeActive') : t('leader.overtime')}
-                  </button>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {([0, 1, 2, 3] as const).map(hours => (
+                      <button key={hours} type="button" onClick={() => setOvertimeHours(hours)}
+                        style={{
+                          padding: '8px 9px', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          background: overtimeHours === hours ? '#FEF3C7' : '#F3F4F6',
+                          color: overtimeHours === hours ? '#92400E' : '#6B7280',
+                          border: overtimeHours === hours ? '1px solid #FCD34D' : '1px solid #E5E7EB',
+                        }}>
+                        {hours === 0 ? 'Normal' : `OT ${hours} jam`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Info range jam */}
                 <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 12, padding: '8px 12px', background: '#F9FAFB', borderRadius: 10 }}>
                   {shift === 1
-                    ? `Shift 1: 07:00 – 16:00${showOT ? ' + Lembur 17:00 – 19:00' : ''}`
-                    : `Shift 2: 20:00 – 05:00${showOT ? ' + Lembur 06:00 – 08:00' : ''}`
+                    ? `Shift 1: 07:30 – ${friday ? '17:00' : '16:30'}${overtimeHours ? ` + OT ${overtimeHours} jam` : ''}`
+                    : `Shift 2: 20:30 – 05:30${overtimeHours ? ` + OT ${overtimeHours} jam` : ''}`
                   }
                 </div>
 
@@ -464,9 +444,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                   </div>
                   <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
                     {activeHours.map((h: number) => {
-                      const isOT = shift === 1
-                        ? SHIFT1_OT_HOURS.includes(h)
-                        : SHIFT2_OT_HOURS.includes(h)
+                      const isOT = overtimeSlots.includes(h)
                       const isFilled = filledHours.has(h)
                       return (
                         <button key={h} onClick={() => {
@@ -618,7 +596,7 @@ export default function LeaderClient({ lines, userId, userName }: Props) {
                       lineId={line.id}
                       lineLabel={`Gedung ${line.building} — Line ${line.lineNo}`}
                       workDate={getWorkDate(shift)}
-                      fixedShiftLabel={shift === 1 ? 'Shift 1' : 'Shift 2'}
+                      fixedShift={shift}
                       hideEmail
                       onClosed={() => window.location.reload()}
                     />

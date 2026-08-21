@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
-import { requireSession, requireRole, parseBody, hasLineAccess } from '@/lib/api-helpers'
+import { requireSession, requireRole, parseBody, hasLineAccess, jsonError } from '@/lib/api-helpers'
 import { ActualUpsertSchema } from '@/lib/validation'
+import { shiftNumberFromHour } from '@/lib/shifts'
 
 // GET /api/actuals?lineId=X&date=YYYY-MM-DD
 export async function GET(req: NextRequest) {
@@ -60,17 +61,29 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Cek apakah shift sudah di-close untuk line+date ini — kalau iya, tolak semua edit/create
+  // Arsip shift adalah sumber status penguncian. Jangan memakai satu flag
+  // tanggal untuk memblokir shift lain pada tanggal kerja yang sama.
   const workDate = date ?? today()
-  const closedRecord = await prisma.actual.findFirst({
-    where: { lineId, date: workDate, shiftClosed: true },
+  const inputShift = shiftNumberFromHour(hour)
+  const closedArchive = await prisma.shiftArchive.findUnique({
+    where: { lineId_date_shift: { lineId, date: workDate, shift: inputShift } },
     select: { id: true },
   })
-  if (closedRecord) {
+  if (closedArchive) {
     return NextResponse.json(
-      { error: 'Data ini sudah dikunci karena shift sudah ditutup. Hubungi IE Admin jika perlu koreksi.' },
+      { error: `Data Shift ${inputShift} sudah dikunci karena shift tersebut sudah ditutup. Hubungi IE Admin jika perlu koreksi.` },
       { status: 409 }
     )
+  }
+
+  const section = await prisma.section.findFirst({
+    where: {
+      id: sectionId,
+      model: { assignments: { some: { lineId, active: true } } },
+    },
+  })
+  if (!section) {
+    return jsonError('Section/model tidak aktif pada line ini.', 400)
   }
 
   const actual = await prisma.actual.upsert({
@@ -84,49 +97,43 @@ export async function POST(req: NextRequest) {
   })
 
   // ─── Auto-generate alerts (dedup: cek alert serupa yang masih aktif) ──
-  const section = await prisma.section.findUnique({
-    where: { id: sectionId },
-    include: { model: true },
-  })
-  if (section) {
-    const tph = section.hourlyTarget ?? (section.taktTime > 0 ? Math.round(3600 / section.taktTime) : 0)
-    const secName = section.name
+  const tph = section.hourlyTarget ?? (section.taktTime > 0 ? Math.round(3600 / section.taktTime) : 0)
+  const secName = section.name
 
-    async function ensureAlert(type: 'OUTPUT_LOW' | 'DOWNTIME_HIGH' | 'DEFECT_HIGH', message: string) {
-      // Dedup: cari alert aktif per line+type yang sudah mengandung section name
-      const existing = await prisma.alert.findFirst({
-        where: { lineId, type, resolved: false },
+  async function ensureAlert(type: 'OUTPUT_LOW' | 'DOWNTIME_HIGH' | 'DEFECT_HIGH', message: string) {
+    // Dedup: cari alert aktif per line+type yang sudah mengandung section name
+    const existing = await prisma.alert.findFirst({
+      where: { lineId, type, resolved: false },
+    })
+    if (existing) {
+      await prisma.alert.update({
+        where: { id: existing.id },
+        data: { message: `[${secName}] ${message}`, triggeredAt: new Date() },
       })
-      if (existing) {
-        await prisma.alert.update({
-          where: { id: existing.id },
-          data: { message: `[${secName}] ${message}`, triggeredAt: new Date() },
-        })
-      } else {
-        await prisma.alert.create({ data: { lineId, type, message: `[${secName}] ${message}` } })
-      }
+    } else {
+      await prisma.alert.create({ data: { lineId, type, message: `[${secName}] ${message}` } })
     }
+  }
 
-    if (tph > 0 && output < tph * 0.8) {
-      await ensureAlert(
-        'OUTPUT_LOW',
-        `Output ${output} pairs (${Math.round((output / tph) * 100)}% dari target ${tph})`
-      )
-    } else if (tph === 0 && output === 0) {
-      await ensureAlert('OUTPUT_LOW', `Output 0 — tidak ada produksi`)
-    }
-    if (downtime > 15) {
-      await ensureAlert(
-        'DOWNTIME_HIGH',
-        `Downtime ${downtime} menit${dtReason ? ` — ${dtReason}` : ''}`
-      )
-    }
-    if (output > 0 && defect / output > 0.02) {
-      await ensureAlert(
-        'DEFECT_HIGH',
-        `Defect ${defect} pairs (${((defect / output) * 100).toFixed(1)}%)`
-      )
-    }
+  if (tph > 0 && output < tph * 0.8) {
+    await ensureAlert(
+      'OUTPUT_LOW',
+      `Output ${output} pairs (${Math.round((output / tph) * 100)}% dari target ${tph})`
+    )
+  } else if (tph === 0 && output === 0) {
+    await ensureAlert('OUTPUT_LOW', `Output 0 — tidak ada produksi`)
+  }
+  if (downtime > 15) {
+    await ensureAlert(
+      'DOWNTIME_HIGH',
+      `Downtime ${downtime} menit${dtReason ? ` — ${dtReason}` : ''}`
+    )
+  }
+  if (output > 0 && defect / output > 0.02) {
+    await ensureAlert(
+      'DEFECT_HIGH',
+      `Defect ${defect} pairs (${((defect / output) * 100).toFixed(1)}%)`
+    )
   }
 
   return NextResponse.json(actual, { status: 201 })

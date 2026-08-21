@@ -5,10 +5,12 @@ export type ShiftArchiveRow = {
   id: string
   lineId: string
   date: string
+  shift: number
   shiftLabel: string
   building: string
   lineNo: number
   sections: string[]
+  models: string[]
   target: number | null
   achievement: number | null
   closedByName: string
@@ -72,30 +74,42 @@ export async function getShiftArchives(
     }),
     prisma.actual.findMany({
       where: { lineId: { in: lineIds }, date: { in: dates } },
-      select: { lineId: true, date: true, section: { select: { name: true } } },
+      select: {
+        lineId: true,
+        date: true,
+        hour: true,
+        section: { select: { name: true, model: { select: { name: true } } } },
+      },
     }),
   ])
   const lineMap = new Map(lines.map(l => [l.id, l]))
   const userMap = new Map(users.map(u => [u.id, u.name]))
   const targetMap = new Map(dailyTargets.map(d => [`${d.lineId}|${d.date}`, d.targetPairs]))
   const secMap = new Map<string, Set<string>>()
+  const modelMap = new Map<string, Set<string>>()
   for (const a of actualSecs) {
-    const k = `${a.lineId}|${a.date}`
+    const shift = a.hour >= 20 ? 2 : 1
+    const k = `${a.lineId}|${a.date}|${shift}`
     if (!secMap.has(k)) secMap.set(k, new Set())
+    if (!modelMap.has(k)) modelMap.set(k, new Set())
     if (a.section?.name) secMap.get(k)!.add(a.section.name)
+    if (a.section?.model?.name) modelMap.get(k)!.add(a.section.model.name)
   }
 
   return archives.map(a => {
-    const k = `${a.lineId}|${a.date}`
-    const target = targetMap.get(k) ?? null
+    const targetKey = `${a.lineId}|${a.date}`
+    const k = `${targetKey}|${a.shift}`
+    const target = targetMap.get(targetKey) ?? null
     return {
       id: a.id,
       lineId: a.lineId,
       date: a.date,
+      shift: a.shift,
       shiftLabel: a.shiftLabel,
       building: lineMap.get(a.lineId)?.building ?? '?',
       lineNo: lineMap.get(a.lineId)?.lineNo ?? 0,
       sections: [...(secMap.get(k) ?? [])],
+      models: [...(modelMap.get(k) ?? [])],
       target,
       achievement: target && target > 0 ? Math.round((a.totalOutput / target) * 100) : null,
       closedByName: userMap.get(a.closedBy) ?? '—',

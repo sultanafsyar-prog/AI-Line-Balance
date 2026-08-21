@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
+import { revalidateTag } from 'next/cache'
 import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
 import { ModelPatchSchema } from '@/lib/validation'
 import { saveSectionsPreservingActuals } from '@/lib/save-sections'
@@ -90,6 +91,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (dailyTarget && dailyTarget > 0) {
       await setDailyTargetForModel(params.id, dailyTarget, auth.user.id)
     }
+    revalidateTag('sections-std')
 
     const updated = await prisma.shoeModel.findUnique({
       where: { id: params.id },
@@ -125,6 +127,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       where: { id: params.id },
       data: { active: false }
     })
+    revalidateTag('sections-std')
     return NextResponse.json({ success: true })
 
   } catch (error: unknown) {
