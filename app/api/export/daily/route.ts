@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import * as XLSX from 'xlsx'
 import { today } from '@/lib/utils'
-import { jsonError, requireSession } from '@/lib/api-helpers'
+import { getAccessibleLineWhere, jsonError, requireSession } from '@/lib/api-helpers'
 
 export async function GET(req: NextRequest) {
   const auth = await requireSession()
@@ -14,11 +14,11 @@ export async function GET(req: NextRequest) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return jsonError('Format tanggal harus YYYY-MM-DD')
   }
-  const userBuilding = session.user.building
+  const lineWhere = await getAccessibleLineWhere(session)
 
   // Ambil semua data
   const lines = await prisma.line.findMany({
-    where: { active: true, ...(userBuilding ? { building: userBuilding } : {}) },
+    where: { active: true, ...lineWhere },
     include: {
       assignments: {
         where: { active: true }, take: 1,
@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
   const alerts = await prisma.alert.findMany({
     where: {
       triggeredAt: { gte: new Date(date + 'T00:00:00+07:00'), lte: new Date(date + 'T23:59:59+07:00') },
-      ...(userBuilding ? { line: { building: userBuilding } } : {}),
+      line: lineWhere,
     },
     include: { line: { select: { building: true, lineNo: true } } },
     orderBy: { triggeredAt: 'desc' },
