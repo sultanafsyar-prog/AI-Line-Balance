@@ -10,6 +10,7 @@ declare module 'next-auth' {
       email?: string | null
       role: Role
       building: string | null
+      companyId: string
     }
   }
 
@@ -19,6 +20,7 @@ declare module 'next-auth' {
     email: string
     role: Role
     building: string | null
+    companyId: string
   }
 }
 
@@ -27,5 +29,6 @@ declare module 'next-auth/jwt' {
     id: string
     role: Role
     building: string | null
+    companyId: string
   }
 }

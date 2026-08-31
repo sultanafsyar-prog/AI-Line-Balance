@@ -9,11 +9,13 @@ interface Props { params: { building: string; line: string } }
 
 export default async function LineDetailPage({ params }: Props) {
   const session = await getServerSession(authOptions)
+  if (!session?.user) notFound()
+  const companyId = session.user.companyId
   const building = params.building.toUpperCase()
   const lineNo = parseInt(params.line)
 
   const line = await prisma.line.findUnique({
-    where: { building_lineNo: { building, lineNo } },
+    where: { companyId_building_lineNo: { companyId, building, lineNo } },
     include: {
       assignments: {
         where: { active: true }, orderBy: { assignedAt: 'desc' },
@@ -30,7 +32,7 @@ export default async function LineDetailPage({ params }: Props) {
 
   const allModels = isIE(session?.user?.role)
     ? await prisma.shoeModel.findMany({
-        where: { active: true },
+        where: { active: true, companyId },
         select: { id: true, name: true, article: true, lineType: true, sections: { select: { taktTime: true } } },
         orderBy: { name: 'asc' },
       })

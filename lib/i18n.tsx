@@ -358,8 +358,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'yamazumi.allEfficient':   'Semua jam beroperasi di bawah Takt Time — lini berjalan efisien hari ini.',
 
     // Close shift button
-    'closeShiftBtn.shift1':       'Shift 1 (07:00–15:00)',
-    'closeShiftBtn.shift2':       'Shift 2 (15:00–23:00)',
+    'closeShiftBtn.shift1':       'Shift 1 (07:30–16:30)',
+    'closeShiftBtn.shift2':       'Shift 2 (20:30–05:30)',
     'closeShiftBtn.shiftNight':   'Shift Malam (23:00–07:00)',
     'closeShiftBtn.invalidEmail': 'Email manager tidak valid.',
     'closeShiftBtn.closed':       'Shift berhasil ditutup.',
@@ -836,8 +836,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'yamazumi.allEfficient':   'All hours operating below Takt Time — line running efficiently today.',
 
     // Close shift button
-    'closeShiftBtn.shift1':       'Shift 1 (07:00–15:00)',
-    'closeShiftBtn.shift2':       'Shift 2 (15:00–23:00)',
+    'closeShiftBtn.shift1':       'Shift 1 (07:30–16:30)',
+    'closeShiftBtn.shift2':       'Shift 2 (20:30–05:30)',
     'closeShiftBtn.shiftNight':   'Night Shift (23:00–07:00)',
     'closeShiftBtn.invalidEmail': 'Manager email is invalid.',
     'closeShiftBtn.closed':       'Shift closed successfully.',
@@ -1314,8 +1314,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'yamazumi.allEfficient':   '所有時段均低於節拍時間 — 今日產線運作高效。',
 
     // Close shift button
-    'closeShiftBtn.shift1':       '日班（07:00–15:00）',
-    'closeShiftBtn.shift2':       '中班（15:00–23:00）',
+    'closeShiftBtn.shift1':       '日班（07:30–16:30）',
+    'closeShiftBtn.shift2':       '夜班（20:30–05:30）',
     'closeShiftBtn.shiftNight':   '夜班（23:00–07:00）',
     'closeShiftBtn.invalidEmail': '主管信箱格式錯誤。',
     'closeShiftBtn.closed':       '班次已成功結束。',

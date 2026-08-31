@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
   const data = await parseBody(req, ShiftCloseSchema)
   if (data instanceof NextResponse) return data
   const { lineId, shiftLabel, managerEmail } = data
+  const companyId = session.user.companyId
   const shiftNumber = shiftNumberFromLabel(shiftLabel)
 
   // Cek akses line
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
   const openActual = await prisma.actual.findFirst({
     where: {
       lineId,
+      companyId,
       hour: shiftNumber === 2 ? { gte: 20 } : { lt: 20 },
     },
     orderBy: [{ date: 'desc' }, { hour: 'desc' }],
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
   const workDate = data.date ?? openActual?.date ?? today()
 
   const existingArchives = await prisma.shiftArchive.findMany({
-    where: { lineId, date: workDate },
+    where: { lineId, date: workDate, companyId },
     select: { shiftLabel: true },
   })
   if (existingArchives.some(a => archiveMatchesShift(a.shiftLabel, shiftNumber))) {
@@ -68,7 +70,7 @@ export async function POST(req: NextRequest) {
   }
 
   const line = await prisma.line.findUnique({
-    where: { id: lineId },
+    where: { id: lineId, companyId },
     include: {
       assignments: {
         where: { active: true }, take: 1, orderBy: { assignedAt: 'desc' },
@@ -262,7 +264,7 @@ export async function POST(req: NextRequest) {
     await prisma.$transaction([
       prisma.shiftArchive.create({
         data: {
-          lineId,
+          companyId, lineId,
           date: workDate,
           shiftLabel,
           closedBy: session.user.id,
@@ -277,13 +279,14 @@ export async function POST(req: NextRequest) {
       prisma.actual.updateMany({
         where: {
           lineId,
+          companyId,
           date: workDate,
           hour: shiftNumber === 2 ? { gte: 20 } : { lt: 20 },
         },
         data:  { shiftClosed: true },
       }),
       prisma.alert.updateMany({
-        where: { lineId, resolved: false },
+        where: { lineId, resolved: false, companyId },
         data:  { resolved: true, resolvedAt: new Date() },
       }),
     ])

@@ -10,6 +10,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { t } = useI18n()
   const [email, setEmail] = useState('')
+  const [companyCode, setCompanyCode] = useState('DEFAULT')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,7 +18,7 @@ export default function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
-    const res = await signIn('credentials', { email, password, redirect: false })
+    const res = await signIn('credentials', { companyCode, email, password, redirect: false })
     if (res?.error) { setError(t('login.error')); setLoading(false) }
     else router.push('/')
   }
@@ -52,6 +53,17 @@ export default function LoginPage() {
 
         <div className="card p-6">
           <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="label">Kode perusahaan</label>
+              <div className="relative">
+                <Factory className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={companyCode} onChange={e => setCompanyCode(e.target.value.toUpperCase())}
+                  className="input pl-9 uppercase" placeholder="DEFAULT" required
+                  autoComplete="organization"
+                />
+              </div>
+            </div>
             <div>
               <label className="label">{t('login.email')}</label>
               <div className="relative">

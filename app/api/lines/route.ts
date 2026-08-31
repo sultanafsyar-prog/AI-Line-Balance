@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { today } from '@/lib/utils'
 import { revalidateTag } from 'next/cache'
-import { requireSession, requireRole, parseBody } from '@/lib/api-helpers'
+import { requireSession, requireRole, parseBody, hasLineAccess } from '@/lib/api-helpers'
 import { LineAssignSchema } from '@/lib/validation'
 
 // GET /api/lines?building=D
@@ -18,11 +18,12 @@ export async function GET(req: NextRequest) {
   // - Team Leader: hanya line yang di-assign ke user via UserLine
   // - Management dengan building scope: filter by building
   // - IE/IT Admin: bisa lihat semua, atau filter by building param
-  let where: Record<string, unknown> = { active: true }
+  const companyId = session.user.companyId
+  let where: Record<string, unknown> = { active: true, companyId }
 
   if (session.user.role === 'TEAM_LEADER') {
     const lineIds = await prisma.userLine.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, companyId },
       select: { lineId: true },
     }).then(rows => rows.map(r => r.lineId))
     where = { ...where, id: { in: lineIds } }
@@ -63,12 +64,16 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, LineAssignSchema)
   if (parsed instanceof NextResponse) return parsed
   const { lineId, modelId, mode } = parsed
+  const companyId = auth.user.companyId
+  if (!(await hasLineAccess(auth, lineId))) {
+    return NextResponse.json({ error: 'Line tidak ditemukan' }, { status: 404 })
+  }
 
   // Fase mixed-model: assignment aktif = daftar style yang boleh dijalankan
   // pada line ini. Actual tetap terikat ke style lewat sectionId.
   if (!modelId || mode === 'clear') {
     await prisma.lineAssignment.updateMany({
-      where: { lineId, active: true },
+      where: { lineId, active: true, companyId },
       data: { active: false }
     })
     revalidateTag('sections-std') // TV std cache berisi assignments
@@ -77,21 +82,26 @@ export async function POST(req: NextRequest) {
 
   if (mode === 'remove') {
     await prisma.lineAssignment.updateMany({
-      where: { lineId, modelId, active: true },
+      where: { lineId, modelId, active: true, companyId },
       data: { active: false },
     })
     revalidateTag('sections-std')
     return NextResponse.json({ message: 'Assignment removed' })
   }
 
+  const model = await prisma.shoeModel.findFirst({
+    where: { id: modelId, companyId, active: true }, select: { id: true },
+  })
+  if (!model) return NextResponse.json({ error: 'Model tidak ditemukan' }, { status: 404 })
+
   const existing = await prisma.lineAssignment.findFirst({
-    where: { lineId, modelId, active: true },
+    where: { lineId, modelId, active: true, companyId },
     include: { model: true, line: true },
   })
   if (existing) return NextResponse.json(existing)
 
   const assignment = await prisma.lineAssignment.create({
-    data: { lineId, modelId, assignedBy: auth.user.id },
+    data: { companyId, lineId, modelId, assignedBy: auth.user.id },
     include: { model: true, line: true },
   })
   revalidateTag('sections-std')

@@ -44,8 +44,10 @@ export async function GET(req: NextRequest) {
 
   // ── 1. Fetch actuals 14 hari ke belakang (TANPA operations — hemat egress;
   //       endpoint ini di-poll manager page tiap 60 dtk) ──
+  const companyId = session.user.companyId
   const actuals = await prisma.actual.findMany({
     where: {
+      companyId,
       date: { gte: startDate, lte: todayStr },
       ...(buildingFilter ? { line: { building: buildingFilter } } : {}),
     },
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest) {
   })
 
   // ── theoMP + takt per section dari cache standar ──
-  const stdMap = await getSectionStdMap()
+  const stdMap = await getSectionStdMap(companyId)
   const theoMPCache = new Map<string, number>()
   const taktCache = new Map<string, number>()
   for (const a of actuals) {

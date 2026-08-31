@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   const actuals = await prisma.actual.findMany({
     where: {
       lineId,
+      companyId: auth.user.companyId,
       date,
       ...(shiftLabel
         ? { hour: shiftNumberFromLabel(shiftLabel) === 2 ? { gte: 20 } : { lt: 20 } }

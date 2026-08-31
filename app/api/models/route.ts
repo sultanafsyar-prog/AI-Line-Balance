@@ -7,17 +7,17 @@ import { ModelCreateSchema } from '@/lib/validation'
 import { saveSectionsPreservingActuals } from '@/lib/save-sections'
 
 // Helper: set daily target untuk semua line yang assign model ini
-async function setDailyTargetForModel(modelId: string, targetPairs: number, setBy: string) {
+async function setDailyTargetForModel(companyId: string, modelId: string, targetPairs: number, setBy: string) {
   const todayDate = today()
   const activeAssignments = await prisma.lineAssignment.findMany({
-    where: { modelId, active: true },
+    where: { companyId, modelId, active: true },
     select: { lineId: true },
   })
   for (const { lineId } of activeAssignments) {
     await prisma.dailyTarget.upsert({
       where: { lineId_date: { lineId, date: todayDate } },
       update: { targetPairs, setBy, note: 'Auto-set dari upload model' },
-      create: { lineId, date: todayDate, targetPairs, setBy, note: 'Auto-set dari upload model' },
+      create: { companyId, lineId, date: todayDate, targetPairs, setBy, note: 'Auto-set dari upload model' },
     })
   }
 }
@@ -27,7 +27,7 @@ export async function GET() {
   if (auth instanceof NextResponse) return auth
 
   const models = await prisma.shoeModel.findMany({
-    where: { active: true },
+    where: { active: true, companyId: auth.user.companyId },
     include: {
       sections: {
         include: { operations: { orderBy: { seq: 'asc' } } },
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, ModelCreateSchema)
   if (parsed instanceof NextResponse) return parsed
   const { name, article, stage, lineType, uploadedFrom, dailyTarget, sections } = parsed
+  const companyId = auth.user.companyId
 
   // Saring section yang punya ops (skema sudah validasi minimal 1 section,
   // tapi belum tentu semua section punya ops)
@@ -59,7 +60,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const existing = await prisma.shoeModel.findUnique({ where: { name } })
+    const existing = await prisma.shoeModel.findUnique({
+      where: { companyId_name: { companyId, name } },
+    })
 
     if (existing) {
       await prisma.shoeModel.update({
@@ -72,12 +75,12 @@ export async function POST(req: NextRequest) {
           active: true,
         }
       })
-      await saveSectionsPreservingActuals(existing.id, validSections)
+      await saveSectionsPreservingActuals(companyId, existing.id, validSections)
       revalidateTag('sections-std') // segarkan cache standar (TV/monitor)
 
       // Auto-set daily target jika ada di upload
       if (dailyTarget && dailyTarget > 0) {
-        await setDailyTargetForModel(existing.id, dailyTarget, auth.user.id)
+        await setDailyTargetForModel(companyId, existing.id, dailyTarget, auth.user.id)
       }
 
       const updated = await prisma.shoeModel.findUnique({
@@ -90,7 +93,7 @@ export async function POST(req: NextRequest) {
     // Model baru
     const model = await prisma.shoeModel.create({
       data: {
-        name,
+        companyId, name,
         article:      article      ?? name,
         stage:        stage        ?? 'Production CFM',
         lineType:     lineType     ?? 'MINI',
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
         active: true,
       }
     })
-    await saveSectionsPreservingActuals(model.id, validSections)
+    await saveSectionsPreservingActuals(companyId, model.id, validSections)
     revalidateTag('sections-std')
 
     const created = await prisma.shoeModel.findUnique({

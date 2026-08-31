@@ -29,6 +29,7 @@ type SectionInput = {
  *    (caller can soft-delete or rename if needed; we never destroy actuals)
  */
 export async function saveSectionsPreservingActuals(
+  companyId: string,
   modelId: string,
   newSections: SectionInput[],
 ): Promise<void> {
@@ -37,7 +38,7 @@ export async function saveSectionsPreservingActuals(
     if (!secName) continue
 
     const existing = await prisma.section.findUnique({
-      where: { modelId_name: { modelId, name: secName } },
+      where: { modelId_name: { modelId, name: secName }, companyId },
     })
 
     let secId: string
@@ -51,12 +52,12 @@ export async function saveSectionsPreservingActuals(
           hourlyTarget: s.hourlyTarget ?? null,
         },
       })
-      await prisma.operation.deleteMany({ where: { sectionId: existing.id } })
+      await prisma.operation.deleteMany({ where: { sectionId: existing.id, companyId } })
       secId = existing.id
     } else {
       const created = await prisma.section.create({
         data: {
-          modelId,
+          companyId, modelId,
           name: secName,
           stdMP: s.stdMP ?? 0,
           taktTime: s.taktTime ?? 36,
@@ -67,7 +68,7 @@ export async function saveSectionsPreservingActuals(
     }
 
     const ops = (s.ops ?? []).map((op, i) => ({
-      sectionId: secId,
+      companyId, sectionId: secId,
       seq:       i + 1,
       name:      String(op.name ?? '').slice(0, 200),
       va:        Number(op.va)        || 0,

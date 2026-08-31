@@ -17,7 +17,9 @@ export default async function TVPage({ params }: Props) {
   // ── Hemat egress: struktur line+model+operasi (BERAT, jarang berubah)
   // dari cache 10 menit; hanya data dinamis (actuals/alerts/target) yang
   // di-query fresh tiap auto-refresh 60 detik.
-  const stdLines = await getTvStdLines(building)
+  // Legacy TV URL remains scoped to the original company until company code
+  // becomes part of the TV route.
+  const stdLines = await getTvStdLines('company_default', building)
   const lineIds = stdLines.map(l => l.id)
 
   const [actuals, alerts, dailyTargets] = await Promise.all([

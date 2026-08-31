@@ -7,17 +7,17 @@ import { ModelPatchSchema } from '@/lib/validation'
 import { saveSectionsPreservingActuals } from '@/lib/save-sections'
 
 // Helper: set daily target untuk semua line yang assign model ini
-async function setDailyTargetForModel(modelId: string, targetPairs: number, setBy: string) {
+async function setDailyTargetForModel(companyId: string, modelId: string, targetPairs: number, setBy: string) {
   const todayDate = today()
   const activeAssignments = await prisma.lineAssignment.findMany({
-    where: { modelId, active: true },
+    where: { companyId, modelId, active: true },
     select: { lineId: true },
   })
   for (const { lineId } of activeAssignments) {
     await prisma.dailyTarget.upsert({
       where: { lineId_date: { lineId, date: todayDate } },
       update: { targetPairs, setBy, note: 'Update dari edit model' },
-      create: { lineId, date: todayDate, targetPairs, setBy, note: 'Update dari edit model' },
+      create: { companyId, lineId, date: todayDate, targetPairs, setBy, note: 'Update dari edit model' },
     })
   }
 }
@@ -29,7 +29,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   try {
     const model = await prisma.shoeModel.findUnique({
-      where: { id: params.id },
+      where: { id: params.id, companyId: auth.user.companyId },
       include: {
         sections: {
           include: { operations: { orderBy: { seq: 'asc' } } },
@@ -64,16 +64,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const parsed = await parseBody(req, ModelPatchSchema)
   if (parsed instanceof NextResponse) return parsed
   const { name, article, stage, lineType, dailyTarget, sections } = parsed
+  const companyId = auth.user.companyId
 
   try {
-    const existing = await prisma.shoeModel.findUnique({ where: { id: params.id } })
+    const existing = await prisma.shoeModel.findUnique({ where: { id: params.id, companyId } })
     if (!existing) {
       return NextResponse.json({ error: 'Model not found' }, { status: 404 })
     }
 
     // Update metadata — buang null supaya tidak menabrak field non-null di schema
     await prisma.shoeModel.update({
-      where: { id: params.id },
+      where: { id: params.id, companyId },
       data: {
         ...(name     !== undefined          && { name }),
         ...(article  !== undefined && article  !== null && { article }),
@@ -84,17 +85,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     // Rebuild sections jika dikirim, tanpa menghapus section lama
     if (sections && sections.length > 0) {
-      await saveSectionsPreservingActuals(params.id, sections)
+      await saveSectionsPreservingActuals(companyId, params.id, sections)
       revalidateTag('sections-std') // segarkan cache standar (TV/monitor)
     }
 
     // Update daily target untuk semua line yang assign model ini
     if (dailyTarget && dailyTarget > 0) {
-      await setDailyTargetForModel(params.id, dailyTarget, auth.user.id)
+      await setDailyTargetForModel(companyId, params.id, dailyTarget, auth.user.id)
     }
 
     const updated = await prisma.shoeModel.findUnique({
-      where: { id: params.id },
+      where: { id: params.id, companyId },
       include: {
         sections: {
           include: { operations: { orderBy: { seq: 'asc' } } },
@@ -118,7 +119,8 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   if (auth instanceof NextResponse) return auth
 
   try {
-    const existing = await prisma.shoeModel.findUnique({ where: { id: params.id } })
+    const companyId = auth.user.companyId
+    const existing = await prisma.shoeModel.findUnique({ where: { id: params.id, companyId } })
     if (!existing) {
       return NextResponse.json({ error: 'Model not found' }, { status: 404 })
     }

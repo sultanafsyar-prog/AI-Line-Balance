@@ -31,12 +31,13 @@ export async function getShiftArchives(
   const since = new Date()
   since.setDate(since.getDate() - days)
   const sinceStr = since.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+  const companyId = session.user.companyId
 
   // Scope line per role
   let allowedLineIds: string[] | null = null
   if (session.user.role === 'TEAM_LEADER') {
     const access = await prisma.userLine.findMany({
-      where: { userId: session.user.id }, select: { lineId: true },
+      where: { userId: session.user.id, companyId }, select: { lineId: true },
     })
     allowedLineIds = access.map(a => a.lineId)
     if (allowedLineIds.length === 0) return []
@@ -44,7 +45,7 @@ export async function getShiftArchives(
     const effectiveBuilding =
       session.user.building ?? (opts.building && opts.building !== 'ALL' ? opts.building : null)
     if (effectiveBuilding) {
-      const lines = await prisma.line.findMany({ where: { building: effectiveBuilding }, select: { id: true } })
+      const lines = await prisma.line.findMany({ where: { companyId, building: effectiveBuilding }, select: { id: true } })
       allowedLineIds = lines.map(l => l.id)
       if (allowedLineIds.length === 0) return []
     }
@@ -53,6 +54,7 @@ export async function getShiftArchives(
   const archives = await prisma.shiftArchive.findMany({
     where: {
       date: { gte: sinceStr },
+      companyId,
       ...(allowedLineIds ? { lineId: { in: allowedLineIds } } : {}),
     },
     orderBy: [{ closedAt: 'desc' }],
@@ -65,14 +67,14 @@ export async function getShiftArchives(
   const dates   = [...new Set(archives.map(a => a.date))]
 
   const [lines, users, dailyTargets, actualSecs] = await Promise.all([
-    prisma.line.findMany({ where: { id: { in: lineIds } }, select: { id: true, building: true, lineNo: true } }),
-    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }),
+    prisma.line.findMany({ where: { id: { in: lineIds }, companyId }, select: { id: true, building: true, lineNo: true } }),
+    prisma.user.findMany({ where: { id: { in: userIds }, companyId }, select: { id: true, name: true } }),
     prisma.dailyTarget.findMany({
-      where: { lineId: { in: lineIds }, date: { in: dates } },
+      where: { lineId: { in: lineIds }, date: { in: dates }, companyId },
       select: { lineId: true, date: true, targetPairs: true },
     }),
     prisma.actual.findMany({
-      where: { lineId: { in: lineIds }, date: { in: dates } },
+      where: { lineId: { in: lineIds }, date: { in: dates }, companyId },
       select: {
         lineId: true,
         date: true,

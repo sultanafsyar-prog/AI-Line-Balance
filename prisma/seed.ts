@@ -18,36 +18,41 @@ async function main() {
   console.log('🌱 Seeding database...')
 
   const password = await bcrypt.hash('password123', 12)
+  const company = await prisma.company.upsert({
+    where: { code: 'DEFAULT' }, update: {},
+    create: { id: 'company_default', code: 'DEFAULT', name: 'Perusahaan Utama' },
+  })
+  const companyId = company.id
 
   // ─── USERS ─────────────────────────────────────────────────────
   // Semua role menggunakan enum Role yang sesuai dengan schema.prisma
   // Role yang valid: IE_ADMIN | IE_OPERATOR | TEAM_LEADER | MANAGEMENT | IT_ADMIN
   const users = await Promise.all([
     prisma.user.upsert({
-      where: { email: 'ie.admin@factory.com' },
+      where: { companyId_email: { companyId, email: 'ie.admin@factory.com' } },
       update: {},
       create: {
-        name: 'IE Admin',
+        companyId, name: 'IE Admin',
         email: 'ie.admin@factory.com',
         password,
         role: Role.IE_ADMIN,
       },
     }),
     prisma.user.upsert({
-      where: { email: 'ie.operator@factory.com' },
+      where: { companyId_email: { companyId, email: 'ie.operator@factory.com' } },
       update: {},
       create: {
-        name: 'IE Operator',
+        companyId, name: 'IE Operator',
         email: 'ie.operator@factory.com',
         password,
         role: Role.IE_OPERATOR,
       },
     }),
     prisma.user.upsert({
-      where: { email: 'leader.d1@factory.com' },
+      where: { companyId_email: { companyId, email: 'leader.d1@factory.com' } },
       update: {},
       create: {
-        name: 'Team Leader D-1',
+        companyId, name: 'Team Leader D-1',
         email: 'leader.d1@factory.com',
         password,
         role: Role.TEAM_LEADER,
@@ -55,20 +60,20 @@ async function main() {
       },
     }),
     prisma.user.upsert({
-      where: { email: 'manager@factory.com' },
+      where: { companyId_email: { companyId, email: 'manager@factory.com' } },
       update: {},
       create: {
-        name: 'Factory Manager',
+        companyId, name: 'Factory Manager',
         email: 'manager@factory.com',
         password,
         role: Role.MANAGEMENT,
       },
     }),
     prisma.user.upsert({
-      where: { email: 'it.admin@factory.com' },
+      where: { companyId_email: { companyId, email: 'it.admin@factory.com' } },
       update: {},
       create: {
-        name: 'IT Admin',
+        companyId, name: 'IT Admin',
         email: 'it.admin@factory.com',
         password,
         role: Role.IT_ADMIN,
@@ -82,10 +87,10 @@ async function main() {
   for (const [building, count] of Object.entries(BUILDINGS)) {
     for (let i = 1; i <= count; i++) {
       await prisma.line.upsert({
-        where: { building_lineNo: { building, lineNo: i } },
+        where: { companyId_building_lineNo: { companyId, building, lineNo: i } },
         update: {},
         create: {
-          building,
+          companyId, building,
           lineNo: i,
           lineType: LineType.MINI,
         },
@@ -96,14 +101,14 @@ async function main() {
   console.log(`✅ ${lineCount} lines created`)
 
   // ─── ASSIGN LEADER D-1 KE LINE D-1 ────────────────────────────
-  const leaderD1 = await prisma.user.findUnique({ where: { email: 'leader.d1@factory.com' } })
-  const lineD1   = await prisma.line.findFirst({ where: { building: 'D', lineNo: 1 } })
+  const leaderD1 = await prisma.user.findUnique({ where: { companyId_email: { companyId, email: 'leader.d1@factory.com' } } })
+  const lineD1   = await prisma.line.findFirst({ where: { companyId, building: 'D', lineNo: 1 } })
 
   if (leaderD1 && lineD1) {
     await prisma.userLine.upsert({
       where: { userId_lineId: { userId: leaderD1.id, lineId: lineD1.id } },
       update: {},
-      create: { userId: leaderD1.id, lineId: lineD1.id },
+      create: { companyId, userId: leaderD1.id, lineId: lineD1.id },
     })
     console.log('✅ Leader D-1 assigned to line D-1')
   }

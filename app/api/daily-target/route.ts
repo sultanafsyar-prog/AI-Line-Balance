@@ -15,16 +15,17 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const lineId = searchParams.get('lineId')
   const date   = searchParams.get('date') ?? today()
+  const companyId = auth.user.companyId
 
   if (lineId) {
     const target = await prisma.dailyTarget.findUnique({
-      where: { lineId_date: { lineId, date } }
+      where: { lineId_date: { lineId, date }, companyId }
     })
     return NextResponse.json({ target: target ?? null })
   }
 
   const targets = await prisma.dailyTarget.findMany({
-    where: { date },
+    where: { date, companyId },
     include: {
       line: { select: { building: true, lineNo: true } }
     },
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
   if (parsed instanceof NextResponse) return parsed
   const { lineId, targetPairs, note } = parsed
   const date = parsed.date ?? today()
+  const companyId = auth.user.companyId
 
   // Cek akses line — Manager dengan scope gedung tidak boleh set target line gedung lain
   if (!(await hasLineAccess(auth, lineId))) {
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
   const target = await prisma.dailyTarget.upsert({
     where:  { lineId_date: { lineId, date } },
     update: { targetPairs, setBy, note: note ?? null },
-    create: { lineId, date, targetPairs, setBy, note: note ?? null },
+    create: { companyId, lineId, date, targetPairs, setBy, note: note ?? null },
   })
   return NextResponse.json({ success: true, target })
 }
@@ -66,6 +68,7 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const lineId = searchParams.get('lineId')
   const date   = searchParams.get('date') ?? today()
+  const companyId = auth.user.companyId
 
   if (!lineId) return NextResponse.json({ error: 'lineId wajib.' }, { status: 400 })
 
@@ -76,7 +79,7 @@ export async function DELETE(req: NextRequest) {
 
   try {
     await prisma.dailyTarget.delete({
-      where: { lineId_date: { lineId, date } }
+      where: { lineId_date: { lineId, date }, companyId }
     })
     return NextResponse.json({ success: true })
   } catch {

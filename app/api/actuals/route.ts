@@ -14,13 +14,14 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const lineId = searchParams.get('lineId')
   const date = searchParams.get('date') ?? today()
+  const companyId = session.user.companyId
 
   // Team Leader: hanya line miliknya
   // Management dengan building scope: hanya line di gedungnya
   let lineFilter: Record<string, unknown> = {}
   if (session.user.role === 'TEAM_LEADER') {
     const accessibleLineIds = await prisma.userLine.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, companyId },
       select: { lineId: true },
     }).then(rows => rows.map(r => r.lineId))
 
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
 
   const actuals = await prisma.actual.findMany({
-    where: { ...lineFilter, date },
+    where: { ...lineFilter, date, companyId },
     include: { section: true },
     orderBy: [{ hour: 'asc' }],
   })
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, ActualUpsertSchema)
   if (parsed instanceof NextResponse) return parsed
   const { lineId, sectionId, date, hour, output, mpActual, downtime, dtReason, defect } = parsed
+  const companyId = auth.user.companyId
 
   // Cek akses line sesuai role
   if (!(await hasLineAccess(auth, lineId))) {
@@ -61,12 +63,24 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const section = await prisma.section.findFirst({
+    where: {
+      id: sectionId,
+      companyId,
+      model: { assignments: { some: { companyId, lineId, active: true } } },
+    },
+    include: { model: true },
+  })
+  if (!section) {
+    return NextResponse.json({ error: 'Section/model tidak aktif pada line ini' }, { status: 400 })
+  }
+
   // Arsip shift adalah sumber status penguncian. Jangan memakai satu flag
   // tanggal untuk memblokir shift lain pada tanggal kerja yang sama.
   const workDate = date ?? today()
   const inputShift = shiftNumberFromHour(hour)
   const closedArchives = await prisma.shiftArchive.findMany({
-    where: { lineId, date: workDate },
+    where: { lineId, date: workDate, companyId },
     select: { shiftLabel: true },
   })
   if (closedArchives.some(a => archiveMatchesShift(a.shiftLabel, inputShift))) {
@@ -80,17 +94,13 @@ export async function POST(req: NextRequest) {
     where: { lineId_sectionId_date_hour: { lineId, sectionId, date: workDate, hour } },
     update: { output, mpActual, downtime, dtReason: dtReason ?? null, defect },
     create: {
-      lineId, sectionId, date: workDate, hour, output, mpActual,
+      companyId, lineId, sectionId, date: workDate, hour, output, mpActual,
       downtime, dtReason: dtReason ?? null, defect,
       inputBy: auth.user.id,
     },
   })
 
   // ─── Auto-generate alerts (dedup: cek alert serupa yang masih aktif) ──
-  const section = await prisma.section.findUnique({
-    where: { id: sectionId },
-    include: { model: true },
-  })
   if (section) {
     const tph = section.hourlyTarget ?? (section.taktTime > 0 ? Math.round(3600 / section.taktTime) : 0)
     const secName = section.name
@@ -98,7 +108,7 @@ export async function POST(req: NextRequest) {
     async function ensureAlert(type: 'OUTPUT_LOW' | 'DOWNTIME_HIGH' | 'DEFECT_HIGH', message: string) {
       // Dedup: cari alert aktif per line+type yang sudah mengandung section name
       const existing = await prisma.alert.findFirst({
-        where: { lineId, type, resolved: false },
+        where: { lineId, type, resolved: false, companyId },
       })
       if (existing) {
         await prisma.alert.update({
@@ -106,7 +116,7 @@ export async function POST(req: NextRequest) {
           data: { message: `[${secName}] ${message}`, triggeredAt: new Date() },
         })
       } else {
-        await prisma.alert.create({ data: { lineId, type, message: `[${secName}] ${message}` } })
+        await prisma.alert.create({ data: { companyId, lineId, type, message: `[${secName}] ${message}` } })
       }
     }
 

@@ -12,9 +12,8 @@ interface Props {
 }
 
 const SHIFTS = [
-  { key: 'closeShiftBtn.shift1',     value: 'Shift 1 (07:00–15:00)' },
-  { key: 'closeShiftBtn.shift2',     value: 'Shift 2 (15:00–23:00)' },
-  { key: 'closeShiftBtn.shiftNight', value: 'Shift Malam (23:00–07:00)' },
+  { key: 'closeShiftBtn.shift1', value: 'Shift 1 (07:30–16:30)' },
+  { key: 'closeShiftBtn.shift2', value: 'Shift 2 (20:30–05:30)' },
 ]
 
 export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate, fixedShiftLabel, hideEmail }: Props) {

@@ -14,7 +14,7 @@ export default async function LeaderPage() {
 
   // Ambil semua line yang di-assign ke team leader ini
   const userLines = await prisma.userLine.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, companyId: user.companyId },
     include: {
       line: {
         include: {

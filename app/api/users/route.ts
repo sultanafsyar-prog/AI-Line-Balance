@@ -12,6 +12,7 @@ export async function GET() {
   if (auth instanceof NextResponse) return auth
 
   const users = await prisma.user.findMany({
+    where: { companyId: auth.user.companyId },
     select: {
       id: true, name: true, email: true, role: true,
       building: true, active: true, createdAt: true,
@@ -33,17 +34,21 @@ export async function POST(req: NextRequest) {
   if (parsed instanceof NextResponse) return parsed
   const { name, email, password, role, building, lineIds } = parsed
 
-  const exists = await prisma.user.findUnique({ where: { email } })
+  const companyId = auth.user.companyId
+  const normalizedEmail = email.trim().toLowerCase()
+  const exists = await prisma.user.findUnique({
+    where: { companyId_email: { companyId, email: normalizedEmail } },
+  })
   if (exists) return NextResponse.json({ error: 'Email sudah terdaftar' }, { status: 409 })
 
   const hashed = await bcrypt.hash(password, 12)
 
   const user = await prisma.user.create({
     data: {
-      name, email, password: hashed, role,
+      companyId, name, email: normalizedEmail, password: hashed, role,
       building: building || null,
       lineAccess: lineIds && lineIds.length > 0 ? {
-        create: lineIds.map((lineId: string) => ({ lineId }))
+        create: lineIds.map((lineId: string) => ({ companyId, lineId }))
       } : undefined,
     },
     select: {
@@ -65,6 +70,9 @@ export async function PATCH(req: NextRequest) {
   const parsed = await parseBody(req, UserPatchSchema)
   if (parsed instanceof NextResponse) return parsed
   const { id, name, role, building, active, password, lineIds } = parsed
+  const companyId = auth.user.companyId
+  const owned = await prisma.user.findFirst({ where: { id, companyId }, select: { id: true } })
+  if (!owned) return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 })
 
   const data: Record<string, unknown> = {}
   if (name     !== undefined) data.name     = name
@@ -76,17 +84,17 @@ export async function PATCH(req: NextRequest) {
   // Update line access dalam transaksi supaya konsisten
   if (lineIds !== undefined) {
     await prisma.$transaction([
-      prisma.userLine.deleteMany({ where: { userId: id } }),
+      prisma.userLine.deleteMany({ where: { userId: id, companyId } }),
       ...(lineIds.length > 0
         ? [prisma.userLine.createMany({
-            data: lineIds.map((lineId: string) => ({ userId: id, lineId })),
+            data: lineIds.map((lineId: string) => ({ companyId, userId: id, lineId })),
           })]
         : []),
     ])
   }
 
   const user = await prisma.user.update({
-    where: { id }, data,
+    where: { id, companyId }, data,
     select: {
       id: true, name: true, email: true, role: true,
       building: true, active: true, createdAt: true,

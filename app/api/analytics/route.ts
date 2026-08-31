@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const line = await prisma.line.findUnique({
-    where: { id: lineId },
+    where: { id: lineId, companyId: auth.user.companyId },
     include: {
       assignments: {
         where: { active: true }, take: 1, orderBy: { assignedAt: 'desc' },

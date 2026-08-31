@@ -15,10 +15,11 @@ export async function GET(req: NextRequest) {
     return jsonError('Format tanggal harus YYYY-MM-DD')
   }
   const userBuilding = session.user.building
+  const companyId = session.user.companyId
 
   // Ambil semua data
   const lines = await prisma.line.findMany({
-    where: { active: true, ...(userBuilding ? { building: userBuilding } : {}) },
+    where: { active: true, companyId, ...(userBuilding ? { building: userBuilding } : {}) },
     include: {
       assignments: {
         where: { active: true }, take: 1,
@@ -186,6 +187,7 @@ export async function GET(req: NextRequest) {
   // ─── SHEET: ALERTS ───────────────────────────────────────
   const alerts = await prisma.alert.findMany({
     where: {
+      companyId,
       triggeredAt: { gte: new Date(date + 'T00:00:00+07:00'), lte: new Date(date + 'T23:59:59+07:00') },
       ...(userBuilding ? { line: { building: userBuilding } } : {}),
     },

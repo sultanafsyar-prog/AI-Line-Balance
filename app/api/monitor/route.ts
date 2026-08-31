@@ -12,14 +12,15 @@ export async function GET() {
 
   // Data standar section (takt/stdMP/hourlyTarget/theoMP) dari cache —
   // endpoint ini di-poll tiap 60 dtk, jangan tarik operations dari DB terus.
-  const stdMap = await getSectionStdMap()
+  const companyId = session.user.companyId
+  const stdMap = await getSectionStdMap(companyId)
 
   // Same scope logic as /api/lines
-  const where: Prisma.LineWhereInput = { active: true }
+  const where: Prisma.LineWhereInput = { active: true, companyId }
 
   if (session.user.role === 'TEAM_LEADER') {
     const access = await prisma.userLine.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, companyId },
       select: { lineId: true },
     })
     where.id = { in: access.map(a => a.lineId) }

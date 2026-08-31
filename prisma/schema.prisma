@@ -8,11 +8,45 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Company {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  setting        CompanySetting?
+  users          User[]
+  userLines      UserLine[]
+  models         ShoeModel[]
+  dailyTargets   DailyTarget[]
+  sections       Section[]
+  operations     Operation[]
+  lines          Line[]
+  assignments    LineAssignment[]
+  actuals        Actual[]
+  shiftArchives  ShiftArchive[]
+  alerts         Alert[]
+}
+
+model CompanySetting {
+  companyId  String   @id
+  timezone   String   @default("Asia/Jakarta")
+  locale     String   @default("id-ID")
+  dateFormat String   @default("dd/MM/yyyy")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
 // ─── USERS & AUTH ───────────────────────────────────────────
 model User {
   id        String   @id @default(cuid())
+  companyId String
   name      String
-  email     String   @unique
+  email     String
   password  String
   role      Role     @default(TEAM_LEADER)
   building  String?  // untuk Manager: akses 1 gedung, null = semua gedung
@@ -22,18 +56,25 @@ model User {
 
   actuals   Actual[]
   lineAccess UserLine[] // Team Leader: line yang bisa diakses
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, email])
+  @@index([companyId])
 }
 
 // Relasi User ↔ Line (untuk Team Leader)
 model UserLine {
   id     String @id @default(cuid())
+  companyId String
   userId String
   lineId String
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   line Line @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@unique([userId, lineId])
+  @@index([companyId])
 }
 
 enum Role {
@@ -48,7 +89,8 @@ enum Role {
 // ─── MODEL SEPATU ───────────────────────────────────────────
 model ShoeModel {
   id           String   @id @default(cuid())
-  name         String   @unique
+  companyId    String
+  name         String
   article      String
   stage        String   @default("Production CFM")
   lineType     LineType @default(MINI)
@@ -60,6 +102,10 @@ model ShoeModel {
 
   sections    Section[]
   assignments LineAssignment[]
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 enum LineType {
@@ -69,6 +115,7 @@ enum LineType {
 
 model DailyTarget {
   id          String   @id @default(cuid())
+  companyId   String
   lineId      String
   line        Line     @relation(fields: [lineId], references: [id], onDelete: Cascade)
   date        String
@@ -77,14 +124,17 @@ model DailyTarget {
   note        String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@unique([lineId, date])
   @@index([date])
+  @@index([companyId])
 }
 
 // ─── SECTION PER MODEL ───────────────────────────────────────
 model Section {
   id           String @id @default(cuid())
+  companyId    String
   modelId      String
   name         String
   stdMP        Float
@@ -94,13 +144,16 @@ model Section {
   model      ShoeModel   @relation(fields: [modelId], references: [id], onDelete: Cascade)
   operations Operation[]
   actuals    Actual[]
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@unique([modelId, name])
+  @@index([companyId])
 }
 
 // ─── OPERASI PER SECTION ─────────────────────────────────────
 model Operation {
   id        String @id @default(cuid())
+  companyId String
   sectionId String
   seq       Int
   name      String
@@ -111,13 +164,16 @@ model Operation {
   allowance Float  @default(0.15)
 
   section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@index([sectionId, seq])
+  @@index([companyId])
 }
 
 // ─── LINI PRODUKSI ───────────────────────────────────────────
 model Line {
   id       String   @id @default(cuid())
+  companyId String
   building String
   lineNo   Int
   lineType LineType @default(MINI)
@@ -128,14 +184,18 @@ model Line {
   alerts      Alert[]
   userAccess  UserLine[]
   dailyTargets DailyTarget[] 
+  shiftArchives ShiftArchive[]
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
-  @@unique([building, lineNo])
+  @@unique([companyId, building, lineNo])
   @@index([building])
+  @@index([companyId])
 }
 
 // ─── ASSIGNMENT MODEL KE LINE ────────────────────────────────
 model LineAssignment {
   id         String   @id @default(cuid())
+  companyId  String
   lineId     String
   modelId    String
   assignedAt DateTime @default(now())
@@ -144,13 +204,16 @@ model LineAssignment {
 
   line  Line      @relation(fields: [lineId], references: [id])
   model ShoeModel @relation(fields: [modelId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@index([lineId, active])
+  @@index([companyId])
 }
 
 // ─── DATA AKTUAL PRODUKSI (per jam) ──────────────────────────
 model Actual {
   id          String   @id @default(cuid())
+  companyId   String
   lineId      String
   sectionId   String
   date        String
@@ -168,15 +231,18 @@ model Actual {
   line    Line    @relation(fields: [lineId], references: [id])
   section Section @relation(fields: [sectionId], references: [id])
   user    User    @relation(fields: [inputBy], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@unique([lineId, sectionId, date, hour])
   @@index([lineId, date])
   @@index([lineId, date, shiftClosed])
+  @@index([companyId])
 }
 
 // ─── ARSIP SHIFT (audit log untuk shift yang ditutup) ─────
 model ShiftArchive {
   id           String   @id @default(cuid())
+  companyId    String
   lineId       String
   date         String
   shiftLabel   String
@@ -188,14 +254,18 @@ model ShiftArchive {
   avgLler      Int
   managerEmail String?
   emailSent    Boolean  @default(false)
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  line         Line     @relation(fields: [lineId], references: [id], onDelete: Restrict)
 
   @@index([lineId, date])
   @@index([closedAt])
+  @@index([companyId])
 }
 
 // ─── ALERT ───────────────────────────────────────────────────
 model Alert {
   id          String    @id @default(cuid())
+  companyId   String
   lineId      String
   type        AlertType
   message     String
@@ -204,8 +274,10 @@ model Alert {
   resolved    Boolean   @default(false)
 
   line Line @relation(fields: [lineId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@index([lineId, resolved])
+  @@index([companyId])
 }
 
 enum AlertType {

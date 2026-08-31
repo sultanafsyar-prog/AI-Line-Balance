@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { BUILDINGS, today } from '@/lib/utils'
+import { BUILDINGS, displayHourLabel, getShift1Hours, getShift1OTHours, today } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n'
 
 type Model = {
@@ -19,8 +19,11 @@ const DT_REASONS = [
   { value: 'Operator kurang', key: 'inputPage.dtOperator' },
   { value: 'Lainnya',         key: 'inputPage.dtOther' },
 ]
-const SHIFT_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-const OT_HOURS    = [17, 18, 19]
+const SHIFT_HOURS = getShift1Hours()
+const OT_HOURS = getShift1OTHours()
+const SHIFT2_HOURS = [20, 21, 22, 23, 24, 25, 26, 27, 28]
+const SHIFT2_OT_HOURS = [29, 30, 31]
+const nightLabel = (h: number) => `${String(h % 24).padStart(2, '0')}:30 – ${String((h + 1) % 24).padStart(2, '0')}:30`
 
 export default function InputPage() {
   const { t, locale } = useI18n()
@@ -236,7 +239,12 @@ export default function InputPage() {
             <div>
               <label className="label">{t('inputPage.hourLabel')}</label>
               <select className="input" value={form.hour} onChange={e => setForm(f => ({ ...f, hour: e.target.value }))}>
-                {[...SHIFT_HOURS, ...OT_HOURS].map(h => <option key={h} value={h}>{h}:00 – {h+1}:00</option>)}
+                <optgroup label="Shift 1">
+                  {[...SHIFT_HOURS, ...OT_HOURS].map(h => <option key={h} value={h}>{displayHourLabel(h)}</option>)}
+                </optgroup>
+                <optgroup label="Shift 2">
+                  {[...SHIFT2_HOURS, ...SHIFT2_OT_HOURS].map(h => <option key={h} value={h}>{nightLabel(h)}</option>)}
+                </optgroup>
               </select>
             </div>
             <div>

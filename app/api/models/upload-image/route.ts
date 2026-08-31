@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
   const modelId = searchParams.get('modelId')
   if (!modelId) return jsonError('modelId wajib diisi.', 400)
 
-  const model = await prisma.shoeModel.findUnique({ where: { id: modelId } })
+  const companyId = auth.user.companyId
+  const model = await prisma.shoeModel.findUnique({ where: { id: modelId, companyId } })
   if (!model) return jsonError('Model tidak ditemukan.', 404)
 
   try {
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-    const fileName = `${modelId}.${ext}`
+    const fileName = `${companyId}/${modelId}.${ext}`
     const buffer = Buffer.from(await file.arrayBuffer())
 
     const supabase = getSupabase()
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     // Sekarang sudah typed di Prisma — tidak perlu $executeRaw lagi
     await prisma.shoeModel.update({
-      where: { id: modelId },
+      where: { id: modelId, companyId },
       data: { imageUrl },
     })
 
@@ -80,13 +81,14 @@ export async function DELETE(req: NextRequest) {
   if (!modelId) return jsonError('modelId wajib.', 400)
 
   try {
+    const companyId = auth.user.companyId
     const model = await prisma.shoeModel.findUnique({
-      where: { id: modelId },
+      where: { id: modelId, companyId },
       select: { imageUrl: true },
     })
 
     if (model?.imageUrl) {
-      const fileName = model.imageUrl.split('/').pop()
+      const fileName = model.imageUrl.split('/model-images/').pop()
       if (fileName) {
         const supabase = getSupabase()
         await supabase.storage.from('model-images').remove([fileName])
@@ -94,7 +96,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     await prisma.shoeModel.update({
-      where: { id: modelId },
+      where: { id: modelId, companyId },
       data: { imageUrl: null },
     })
 

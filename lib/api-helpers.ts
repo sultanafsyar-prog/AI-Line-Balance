@@ -73,21 +73,23 @@ export async function hasLineAccess(
   lineId: string,
 ): Promise<boolean> {
   const role = session.user.role
+  const companyId = session.user.companyId
+  const line = await prisma.line.findFirst({
+    where: { id: lineId, companyId },
+    select: { building: true },
+  })
+  if (!line) return false
   if (['IE_ADMIN', 'IE_OPERATOR', 'IT_ADMIN', 'PPIC'].includes(role)) {
     return true
   }
   if (role === 'TEAM_LEADER') {
     const access = await prisma.userLine.findUnique({
-      where: { userId_lineId: { userId: session.user.id, lineId } },
+      where: { userId_lineId: { userId: session.user.id, lineId }, companyId },
     })
     return !!access
   }
   if (role === 'MANAGEMENT') {
     if (!session.user.building) return true // Manager global
-    const line = await prisma.line.findUnique({
-      where: { id: lineId },
-      select: { building: true },
-    })
     return line?.building === session.user.building
   }
   return false

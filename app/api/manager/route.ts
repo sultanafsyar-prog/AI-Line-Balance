@@ -47,11 +47,13 @@ export async function GET(req: NextRequest) {
   const buildingFilter = userBuilding ?? filterBuilding ?? null
 
   // Standar section dari cache — endpoint di-poll 60 dtk, hemat egress
-  const stdMap = await getSectionStdMap()
+  const companyId = session.user.companyId
+  const stdMap = await getSectionStdMap(companyId)
 
   const lines = await prisma.line.findMany({
     where: {
       active: true,
+      companyId,
       ...(buildingFilter ? { building: buildingFilter } : {}),
     },
     include: {

@@ -114,8 +114,9 @@ export async function GET(req: NextRequest) {
 
   // ─── 1. Fetch lines + actuals hari ini ────────────────────
   const todayStr = today()
+  const companyId = auth.user.companyId
   const lines = await prisma.line.findMany({
-    where: { building, active: true },
+    where: { companyId, building, active: true },
     include: {
       assignments: {
         where: { active: true }, take: 1, orderBy: { assignedAt: 'desc' },
@@ -261,6 +262,7 @@ export async function GET(req: NextRequest) {
   const lineIds = linesWithData.map(l => l.id)
   const histActuals = await prisma.actual.findMany({
     where: {
+      companyId,
       lineId: { in: lineIds },
       date: { gte: daysAgo(7), lt: todayStr },
     },

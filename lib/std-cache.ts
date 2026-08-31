@@ -17,8 +17,9 @@ export type SectionStd = {
 
 // Map sectionId → data standar + theoMP (dihitung dari GWT operasi)
 export const getSectionStdMap = unstable_cache(
-  async (): Promise<Record<string, SectionStd>> => {
+  async (companyId: string): Promise<Record<string, SectionStd>> => {
     const sections = await prisma.section.findMany({
+      where: { companyId },
       select: {
         id: true, name: true, taktTime: true, stdMP: true, hourlyTarget: true,
         operations: { select: { va: true, nvan: true, nva: true, allowance: true } },
@@ -46,9 +47,9 @@ export const getSectionStdMap = unstable_cache(
 // query TV: assignments → model → sections → operations). Actuals/alerts/
 // target harian TIDAK di sini — itu di-query fresh tiap refresh.
 export const getTvStdLines = unstable_cache(
-  async (building: string) =>
+  async (companyId: string, building: string) =>
     prisma.line.findMany({
-      where: { building },
+      where: { companyId, building },
       orderBy: { lineNo: 'asc' },
       include: {
         assignments: {

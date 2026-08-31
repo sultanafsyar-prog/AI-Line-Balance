@@ -35,6 +35,12 @@ export async function GET(req: NextRequest) {
   try {
     const results: string[] = []
     const password = await bcrypt.hash('password123', 12)
+    const company = await prisma.company.upsert({
+      where: { code: 'DEFAULT' },
+      update: {},
+      create: { id: 'company_default', code: 'DEFAULT', name: 'Perusahaan Utama' },
+    })
+    const companyId = company.id
 
     const usersData = [
       { name: 'IE Admin',        email: 'ie.admin@factory.com',    role: 'IE_ADMIN'    as const, building: null },
@@ -46,9 +52,9 @@ export async function GET(req: NextRequest) {
 
     for (const u of usersData) {
       await prisma.user.upsert({
-        where:  { email: u.email },
+        where:  { companyId_email: { companyId, email: u.email } },
         update: {},
-        create: { name: u.name, email: u.email, password, role: u.role, building: u.building },
+        create: { companyId, name: u.name, email: u.email, password, role: u.role, building: u.building },
       })
     }
     results.push(`✅ ${usersData.length} users created`)
@@ -57,22 +63,22 @@ export async function GET(req: NextRequest) {
     for (const [building, count] of Object.entries(BUILDINGS)) {
       for (let i = 1; i <= count; i++) {
         await prisma.line.upsert({
-          where:  { building_lineNo: { building, lineNo: i } },
+          where:  { companyId_building_lineNo: { companyId, building, lineNo: i } },
           update: {},
-          create: { building, lineNo: i, lineType: 'MINI' },
+          create: { companyId, building, lineNo: i, lineType: 'MINI' },
         })
         lineCount++
       }
     }
     results.push(`✅ ${lineCount} lines created`)
 
-    const leaderD1 = await prisma.user.findUnique({ where: { email: 'leader.d1@factory.com' } })
-    const lineD1   = await prisma.line.findFirst({ where: { building: 'D', lineNo: 1 } })
+    const leaderD1 = await prisma.user.findUnique({ where: { companyId_email: { companyId, email: 'leader.d1@factory.com' } } })
+    const lineD1   = await prisma.line.findFirst({ where: { companyId, building: 'D', lineNo: 1 } })
     if (leaderD1 && lineD1) {
       await prisma.userLine.upsert({
         where:  { userId_lineId: { userId: leaderD1.id, lineId: lineD1.id } },
         update: {},
-        create: { userId: leaderD1.id, lineId: lineD1.id },
+        create: { companyId, userId: leaderD1.id, lineId: lineD1.id },
       })
       results.push('✅ Leader assigned to D-1')
     }

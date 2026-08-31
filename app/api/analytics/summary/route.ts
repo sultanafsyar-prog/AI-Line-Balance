@@ -23,10 +23,12 @@ export async function GET(req: NextRequest) {
 
   const effectiveBuilding =
     userBuilding ?? (buildingParam && buildingParam !== 'ALL' ? buildingParam : null)
+  const companyId = session.user.companyId
 
   const actuals = await prisma.actual.findMany({
     where: {
       date: { in: dateList },
+      companyId,
       ...(effectiveBuilding ? { line: { building: effectiveBuilding } } : {}),
     },
     include: {
@@ -129,6 +131,7 @@ export async function GET(req: NextRequest) {
     by: ['type'],
     _count: { id: true },
     where: {
+      companyId,
       triggeredAt: {
         gte: new Date(dateList[0] + 'T00:00:00+07:00'),
         lte: new Date(dateList[dateList.length - 1] + 'T23:59:59+07:00'),

@@ -11,9 +11,10 @@ export default async function DashboardPage() {
 
   const user = session.user
   const userBuilding = user.building ?? null
+  const companyId = user.companyId
 
   const lines = await prisma.line.findMany({
-    where: userBuilding ? { building: userBuilding } : {},
+    where: { companyId, ...(userBuilding ? { building: userBuilding } : {}) },
     include: {
       assignments: {
         where: { active: true },
@@ -39,7 +40,7 @@ export default async function DashboardPage() {
     orderBy: [{ building: 'asc' }, { lineNo: 'asc' }],
   })
 
-  const models = await prisma.shoeModel.count({ where: { active: true } })
+  const models = await prisma.shoeModel.count({ where: { active: true, companyId } })
 
   // Hitung theorMP per section (server-side)
   const serialized = lines.map(l => {
