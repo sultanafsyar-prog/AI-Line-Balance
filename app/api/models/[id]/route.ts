@@ -63,7 +63,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const parsed = await parseBody(req, ModelPatchSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { name, article, stage, lineType, dailyTarget, sections } = parsed
+  const { name, article, brand, stage, lineType, dailyTarget, sections } = parsed
   const companyId = auth.user.companyId
 
   try {
@@ -78,6 +78,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data: {
         ...(name     !== undefined          && { name }),
         ...(article  !== undefined && article  !== null && { article }),
+        ...(brand    !== undefined && { brand: brand?.trim() || null }),
         ...(stage    !== undefined && stage    !== null && { stage }),
         ...(lineType !== undefined          && { lineType }),
       },

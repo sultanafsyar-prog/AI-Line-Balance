@@ -62,6 +62,7 @@ const SectionSchema = z.object({
 export const ModelCreateSchema = z.object({
   name:         z.string().min(1).max(100),
   article:      z.string().max(100).optional().nullable(),
+  brand:        z.string().max(100).optional().nullable(),
   stage:        z.string().max(100).optional().nullable(),
   lineType:     LineTypeSchema.optional(),
   uploadedFrom: z.string().max(200).optional().nullable(),
@@ -74,6 +75,7 @@ export type ModelCreateInput = z.infer<typeof ModelCreateSchema>
 export const ModelPatchSchema = z.object({
   name:         z.string().min(1).max(100).optional(),
   article:      z.string().max(100).optional().nullable(),
+  brand:        z.string().max(100).optional().nullable(),
   stage:        z.string().max(100).optional().nullable(),
   lineType:     LineTypeSchema.optional(),
   dailyTarget:  z.number().int().min(0).max(100000).optional(),

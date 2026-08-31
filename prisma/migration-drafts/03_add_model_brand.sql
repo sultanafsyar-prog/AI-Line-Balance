@@ -1,0 +1,1 @@
+ALTER TABLE "ShoeModel" ADD COLUMN IF NOT EXISTS "brand" TEXT;

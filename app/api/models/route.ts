@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = await parseBody(req, ModelCreateSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { name, article, stage, lineType, uploadedFrom, dailyTarget, sections } = parsed
+  const { name, article, brand, stage, lineType, uploadedFrom, dailyTarget, sections } = parsed
   const companyId = auth.user.companyId
 
   // Saring section yang punya ops (skema sudah validasi minimal 1 section,
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
         where: { id: existing.id },
         data: {
           article:      article      ?? existing.article,
+          brand:        brand        ?? existing.brand,
           stage:        stage        ?? existing.stage,
           lineType:     lineType     ?? existing.lineType,
           uploadedFrom: uploadedFrom ?? existing.uploadedFrom,
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
       data: {
         companyId, name,
         article:      article      ?? name,
+        brand:        brand?.trim() || null,
         stage:        stage        ?? 'Production CFM',
         lineType:     lineType     ?? 'MINI',
         uploadedFrom: uploadedFrom ?? 'Upload',

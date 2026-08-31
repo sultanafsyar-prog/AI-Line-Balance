@@ -92,6 +92,7 @@ model ShoeModel {
   companyId    String
   name         String
   article      String
+  brand        String?
   stage        String   @default("Production CFM")
   lineType     LineType @default(MINI)
   active       Boolean  @default(true)

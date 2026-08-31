@@ -80,7 +80,7 @@ export async function getShiftArchives(
         lineId: true,
         date: true,
         hour: true,
-        section: { select: { name: true, model: { select: { name: true } } } },
+        section: { select: { name: true, model: { select: { name: true, brand: true } } } },
       },
     }),
   ])
@@ -95,7 +95,7 @@ export async function getShiftArchives(
     if (!secMap.has(k)) secMap.set(k, new Set())
     if (!modelMap.has(k)) modelMap.set(k, new Set())
     if (a.section?.name) secMap.get(k)!.add(a.section.name)
-    if (a.section?.model?.name) modelMap.get(k)!.add(a.section.model.name)
+    if (a.section?.model?.name) modelMap.get(k)!.add(a.section.model.brand ? `${a.section.model.brand} — ${a.section.model.name}` : a.section.model.name)
   }
 
   return archives.map(a => {

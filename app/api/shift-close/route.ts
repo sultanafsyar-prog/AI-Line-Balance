@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
   const tanggal    = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   const jamTutup   = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
   const lineLabel  = `Gedung ${line.building} — Line ${line.lineNo}`
-  const runningModels = [...new Set(actuals.map(a => a.section.model.name))]
+  const runningModels = [...new Set(actuals.map(a => a.section.model.brand ? `${a.section.model.brand} — ${a.section.model.name}` : a.section.model.name))]
   const modelLabel = runningModels.length > 0 ? runningModels.join(', ') : 'Belum ada model'
 
   const emailHtml = `

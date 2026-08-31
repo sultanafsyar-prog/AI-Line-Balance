@@ -8,13 +8,13 @@ import { useI18n } from '@/lib/i18n'
 // ─── TYPES ───────────────────────────────────────────────────
 type Op = { id: string; name: string; va: number; nvan: number; nva: number; mcCT: number; allowance: number }
 type Sec = { name: string; stdMP: number; taktTime: number; hourlyTarget?: number | null; ops: Op[] }
-type ModelDraft = { name: string; article: string; stage: string; lineType: 'MINI' | 'BIG'; sections: Sec[]; dailyTarget?: number; hourlyTarget?: number }
+type ModelDraft = { name: string; article: string; brand: string; stage: string; lineType: 'MINI' | 'BIG'; sections: Sec[]; dailyTarget?: number; hourlyTarget?: number }
 
 const ALL_SECTIONS = [...SECTIONS, ...SF_SECTIONS]
 const STAGES = ['PTR', 'Pre-Production', 'Production CFM']
 const newOp = (): Op => ({ id: Math.random().toString(36).slice(2), name: '', va: 0, nvan: 0, nva: 0, mcCT: 0, allowance: 15 })
 const emptyDraft = (): ModelDraft => ({
-  name: '', article: '', stage: 'Production CFM', lineType: 'MINI',
+  name: '', article: '', brand: '', stage: 'Production CFM', lineType: 'MINI',
   sections: ALL_SECTIONS.map(s => ({ name: s, stdMP: 0, taktTime: s === 'Stockfit' ? 14.4 : 36, ops: [] }))
 })
 
@@ -463,6 +463,7 @@ function parseNBStandard(ab: ArrayBuffer): ModelDraft {
     const draft: ModelDraft = {
       name: `${modelNo}`,
       article: article ? `${article}-${modelNo}` : modelNo,
+      brand: '',
       stage: 'Production CFM',
       lineType: taktTime <= 15 ? 'MINI' : 'BIG',
       sections: SF_SECTIONS.map(s => ({
@@ -715,6 +716,10 @@ function ModelEditor({ draft: init, onSave, onCancel }: { draft: ModelDraft; onS
               <input className="input text-sm" value={draft.article} onChange={e => updModel('article', e.target.value)} placeholder="U-740" />
             </div>
             <div>
+              <label className="label">Brand</label>
+              <input className="input text-sm" value={draft.brand} onChange={e => updModel('brand', e.target.value)} placeholder="NB" />
+            </div>
+            <div>
               <label className="label">Stage</label>
               <select className="input text-sm" value={draft.stage} onChange={e => updModel('stage', e.target.value)}>
                 {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -917,7 +922,7 @@ export default function ModelsPage() {
   async function saveModel(draft: ModelDraft) {
     const existingId = (draft as any)._id
     const payload = {
-      name: draft.name, article: draft.article,
+      name: draft.name, article: draft.article, brand: draft.brand,
       stage: draft.stage, lineType: draft.lineType,
       uploadedFrom: existingId ? undefined : 'NB Standard + manual review',
       dailyTarget: draft.dailyTarget,
@@ -953,7 +958,7 @@ export default function ModelsPage() {
     if (!res.ok) return
     const m = await res.json()
     const draft: ModelDraft = {
-      name: m.name, article: m.article, stage: m.stage, lineType: m.lineType,
+      name: m.name, article: m.article, brand: m.brand ?? '', stage: m.stage, lineType: m.lineType,
       sections: ALL_SECTIONS.map(secName => {
         const dbSec = m.sections?.find((s: any) => s.name === secName)
         return {
