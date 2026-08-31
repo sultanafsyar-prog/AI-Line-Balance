@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   archiveMatchesShift,
   displayShiftSlot,
+  getAutoCloseShift,
   getShiftSlots,
   getWorkDate,
   shiftNumberFromHour,
@@ -42,4 +43,10 @@ test('slot labels preserve half-hour factory schedule', () => {
 test('Shift 2 after midnight keeps the previous production date', () => {
   assert.equal(getWorkDate(2, new Date('2026-08-21T01:00:00+07:00')), '2026-08-20')
   assert.equal(getWorkDate(1, new Date('2026-08-21T08:00:00+07:00')), '2026-08-21')
+})
+
+test('automatic close waits for the maximum overtime window', () => {
+  assert.deepEqual(getAutoCloseShift(new Date('2026-08-31T12:45:00Z')), { shift: 1, date: '2026-08-31' })
+  assert.deepEqual(getAutoCloseShift(new Date('2026-09-01T01:45:00Z')), { shift: 2, date: '2026-08-31' })
+  assert.equal(getAutoCloseShift(new Date('2026-08-31T10:00:00Z')), null)
 })

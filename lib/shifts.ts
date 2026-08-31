@@ -35,6 +35,23 @@ export function getWorkDate(shift: ShiftNumber, now = new Date()) {
   return workDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
 }
 
+/** Aman untuk lembur: otomatis ditutup setelah jendela lembur 3 jam berlalu. */
+export function getAutoCloseShift(now = new Date()): { shift: ShiftNumber; date: string } | null {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now).reduce<Record<string, string>>((result, part) => {
+    result[part.type] = part.value
+    return result
+  }, {})
+  const time = Number(parts.hour) * 60 + Number(parts.minute)
+  const date = `${parts.year}-${parts.month}-${parts.day}`
+  if (time >= 510 && time < 540) return { shift: 2, date: getWorkDate(2, now) }
+  if (parts.weekday === 'Fri' && time >= 1230 && time < 1260) return { shift: 1, date }
+  if (['Mon', 'Tue', 'Wed', 'Thu'].includes(parts.weekday) && time >= 1170 && time < 1200) return { shift: 1, date }
+  return null
+}
+
 /** Shift 2 memakai jam virtual 20-32 untuk produksi lintas tengah malam. */
 export function shiftNumberFromLabel(label: string): ShiftNumber {
   return /(?:\b2\b|malam|night)/i.test(label) ? 2 : 1

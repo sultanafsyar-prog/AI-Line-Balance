@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/auto-close-shifts", "schedule": "45 12 * * 1-4" },
+    { "path": "/api/cron/auto-close-shifts", "schedule": "45 13 * * 5" },
+    { "path": "/api/cron/auto-close-shifts", "schedule": "45 1 * * 2-6" }
+  ]
+}
