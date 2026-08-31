@@ -5,6 +5,7 @@ export type ShiftArchiveRow = {
   id: string
   lineId: string
   date: string
+  shift: number
   shiftLabel: string
   building: string
   lineNo: number
@@ -99,13 +100,13 @@ export async function getShiftArchives(
 
   return archives.map(a => {
     const targetKey = `${a.lineId}|${a.date}`
-    const shift = /(?:\b2\b|malam|night)/i.test(a.shiftLabel) ? 2 : 1
-    const k = `${targetKey}|${shift}`
+    const k = `${targetKey}|${a.shift}`
     const target = targetMap.get(targetKey) ?? null
     return {
       id: a.id,
       lineId: a.lineId,
       date: a.date,
+      shift: a.shift,
       shiftLabel: a.shiftLabel,
       building: lineMap.get(a.lineId)?.building ?? '?',
       lineNo: lineMap.get(a.lineId)?.lineNo ?? 0,

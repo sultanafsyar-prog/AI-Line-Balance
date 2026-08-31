@@ -1,25 +1,26 @@
 'use client'
 import { useState } from 'react'
 import { useI18n } from '@/lib/i18n'
+import type { ShiftNumber } from '@/lib/shifts'
 
 interface Props {
   lineId:    string
   lineLabel: string
   onClosed?: () => void
   workDate?: string         // override tanggal kerja (leader kirim getWorkDate(shift))
-  fixedShiftLabel?: string  // kalau diisi, label shift dikunci (tanpa dropdown)
+  fixedShift?: ShiftNumber  // kalau diisi, shift dikunci (tanpa dropdown)
   hideEmail?: boolean       // sembunyikan field email (lantai produksi tanpa laporan email)
 }
 
-const SHIFTS = [
-  { key: 'closeShiftBtn.shift1', value: 'Shift 1 (07:30–16:30)' },
-  { key: 'closeShiftBtn.shift2', value: 'Shift 2 (20:30–05:30)' },
+const SHIFTS: { key: string; value: ShiftNumber }[] = [
+  { key: 'closeShiftBtn.shift1', value: 1 },
+  { key: 'closeShiftBtn.shift2', value: 2 },
 ]
 
-export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate, fixedShiftLabel, hideEmail }: Props) {
+export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate, fixedShift, hideEmail }: Props) {
   const { t } = useI18n()
   const [open,    setOpen]    = useState(false)
-  const [shift,   setShift]   = useState(fixedShiftLabel ?? SHIFTS[0].value)
+  const [shift,   setShift]   = useState<ShiftNumber>(SHIFTS[0].value)
   const [email,   setEmail]   = useState('')
   const [loading, setLoading] = useState(false)
   const [result,  setResult]  = useState<{ ok: boolean; msg: string } | null>(null)
@@ -36,7 +37,7 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
       const res  = await fetch('/api/shift-close', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ lineId, shiftLabel: shift, managerEmail: email, ...(workDate ? { date: workDate } : {}) }),
+        body:    JSON.stringify({ lineId, shift: fixedShift ?? shift, managerEmail: email, ...(workDate ? { date: workDate } : {}) }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -126,21 +127,21 @@ export default function CloseShiftButton({ lineId, lineLabel, onClosed, workDate
                 : <>{t('closeShiftBtn.info1')} <strong>{t('closeShiftBtn.infoSend')}</strong> {t('closeShiftBtn.infoAnd')} <strong>{t('closeShiftBtn.infoReset')}</strong> {t('closeShiftBtn.info2')}</>}
             </div>
 
-            {/* Pilih shift — dikunci kalau fixedShiftLabel diberikan (mis. dari leader) */}
+            {/* Pilih shift — dikunci kalau fixedShift diberikan (mis. dari leader) */}
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#475569', display: 'block', marginBottom: '6px' }}>
                 {t('closeShiftBtn.shiftToClose')}
               </label>
-              {fixedShiftLabel ? (
+              {fixedShift ? (
                 <div style={{
                   width: '100%', padding: '8px 12px', borderRadius: '8px',
                   border: '1px solid #E5E7EB', fontSize: '13px',
                   background: '#F9FAFB', color: '#111827', fontWeight: 600,
-                }}>{fixedShiftLabel}</div>
+                }}>Shift {fixedShift}</div>
               ) : (
                 <select
                   value={shift}
-                  onChange={e => setShift(e.target.value)}
+                  onChange={e => setShift(Number(e.target.value) as ShiftNumber)}
                   style={{
                     width: '100%', padding: '8px 12px', borderRadius: '8px',
                     border: '1px solid #E5E7EB', fontSize: '13px',

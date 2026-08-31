@@ -245,6 +245,7 @@ model ShiftArchive {
   companyId    String
   lineId       String
   date         String
+  shift        Int
   shiftLabel   String
   closedBy     String   // user id IE Admin yang tutup shift
   closedAt     DateTime @default(now())
@@ -257,7 +258,7 @@ model ShiftArchive {
   company      Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   line         Line     @relation(fields: [lineId], references: [id], onDelete: Restrict)
 
-  @@index([lineId, date])
+  @@unique([lineId, date, shift])
   @@index([closedAt])
   @@index([companyId])
 }

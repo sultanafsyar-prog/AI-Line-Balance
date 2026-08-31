@@ -86,13 +86,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Rebuild sections jika dikirim, tanpa menghapus section lama
     if (sections && sections.length > 0) {
       await saveSectionsPreservingActuals(companyId, params.id, sections)
-      revalidateTag('sections-std') // segarkan cache standar (TV/monitor)
     }
 
     // Update daily target untuk semua line yang assign model ini
     if (dailyTarget && dailyTarget > 0) {
       await setDailyTargetForModel(companyId, params.id, dailyTarget, auth.user.id)
     }
+    revalidateTag('sections-std')
 
     const updated = await prisma.shoeModel.findUnique({
       where: { id: params.id, companyId },
@@ -129,6 +129,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       where: { id: params.id },
       data: { active: false }
     })
+    revalidateTag('sections-std')
     return NextResponse.json({ success: true })
 
   } catch (error: unknown) {

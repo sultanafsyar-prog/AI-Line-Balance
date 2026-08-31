@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerSession, type Session } from 'next-auth'
 import { authOptions } from './auth'
 import type { z } from 'zod'
+import type { Prisma } from '@prisma/client'
+import { prisma } from './db'
 
 // ─── ERROR HELPERS ──────────────────────────────────────────
 export function jsonError(message: string, status = 400) {
@@ -60,7 +62,22 @@ export async function parseBody<T extends z.ZodTypeAny>(
 }
 
 // ─── LINE ACCESS CHECK ──────────────────────────────────────
-import { prisma } from './db'
+export async function getAccessibleLineWhere(
+  session: Session,
+  requestedBuilding?: string | null,
+): Promise<Prisma.LineWhereInput> {
+  if (session.user.role === 'TEAM_LEADER') {
+    const rows = await prisma.userLine.findMany({
+      where: { userId: session.user.id, companyId: session.user.companyId },
+      select: { lineId: true },
+    })
+    return { companyId: session.user.companyId, id: { in: rows.map(row => row.lineId) } }
+  }
+  const building = session.user.building ??
+    (requestedBuilding && requestedBuilding !== 'ALL' ? requestedBuilding : null)
+  return { companyId: session.user.companyId, ...(building ? { building } : {}) }
+}
+
 /**
  * Cek apakah user punya akses ke line tertentu.
  * - IE_ADMIN / IE_OPERATOR / IT_ADMIN: akses semua

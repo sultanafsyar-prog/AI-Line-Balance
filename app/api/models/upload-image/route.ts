@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { createClient } from '@supabase/supabase-js'
 import { jsonError, requireRole } from '@/lib/api-helpers'
+import { revalidateTag } from 'next/cache'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
       where: { id: modelId, companyId },
       data: { imageUrl },
     })
+    revalidateTag('sections-std')
 
     return NextResponse.json({ success: true, imageUrl })
   } catch (e) {
@@ -99,6 +101,7 @@ export async function DELETE(req: NextRequest) {
       where: { id: modelId, companyId },
       data: { imageUrl: null },
     })
+    revalidateTag('sections-std')
 
     return NextResponse.json({ success: true })
   } catch (e) {

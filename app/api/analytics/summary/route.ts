@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireSession } from '@/lib/api-helpers'
+import { getAccessibleLineWhere, requireSession } from '@/lib/api-helpers'
 
 export async function GET(req: NextRequest) {
   const auth = await requireSession()
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const daysParam = parseInt(searchParams.get('days') ?? '7', 10)
   const days = Math.min(Math.max(daysParam || 7, 1), 90) // clamp 1..90
   const buildingParam = searchParams.get('building')
-  const userBuilding = session.user.building
+  const lineWhere = await getAccessibleLineWhere(session, buildingParam)
 
   // Date range — use Asia/Jakarta timezone consistent with today()
   const dateList: string[] = []
@@ -21,15 +21,13 @@ export async function GET(req: NextRequest) {
     dateList.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }))
   }
 
-  const effectiveBuilding =
-    userBuilding ?? (buildingParam && buildingParam !== 'ALL' ? buildingParam : null)
   const companyId = session.user.companyId
 
   const actuals = await prisma.actual.findMany({
     where: {
       date: { in: dateList },
       companyId,
-      ...(effectiveBuilding ? { line: { building: effectiveBuilding } } : {}),
+      line: lineWhere,
     },
     include: {
       section: { select: { name: true, taktTime: true, operations: { select: { va: true, nvan: true, nva: true, allowance: true } } } },
@@ -136,7 +134,7 @@ export async function GET(req: NextRequest) {
         gte: new Date(dateList[0] + 'T00:00:00+07:00'),
         lte: new Date(dateList[dateList.length - 1] + 'T23:59:59+07:00'),
       },
-      ...(effectiveBuilding ? { line: { building: effectiveBuilding } } : {}),
+      line: lineWhere,
     },
   })
   const alertSummary = alertCounts.map(a => ({ type: a.type, count: a._count.id }))

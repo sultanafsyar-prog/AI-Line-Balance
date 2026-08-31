@@ -8,6 +8,7 @@ type Archive = {
   id: string
   lineId: string
   date: string
+  shift: number
   shiftLabel: string
   building: string
   lineNo: number
@@ -62,7 +63,7 @@ export default function HistoryPage() {
   const openDetail = useCallback(async (a: Archive) => {
     setDetail(a); setDetailRows([]); setDetailLoading(true)
     try {
-      const res = await fetch(`/api/shift-archive/detail?lineId=${a.lineId}&date=${a.date}&shift=${encodeURIComponent(a.shiftLabel)}`)
+      const res = await fetch(`/api/shift-archive/detail?lineId=${a.lineId}&date=${a.date}&shift=${a.shift}`)
       if (res.ok) { const d = await res.json(); setDetailRows(d.rows ?? []) }
     } catch {}
     setDetailLoading(false)
