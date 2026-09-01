@@ -541,7 +541,7 @@ export default function TVClient({ building, lines, sections }: Props) {
                   transition: 'all 0.2s',
                   display: 'flex', alignItems: 'center', gap: '4px',
                 }}>
-                {vm === 'ai' && <img src="/claude-logo.svg" alt="AI" width="16" height="16" style={{ display: 'block' }} />}
+                {vm === 'ai' && <span style={{ display: 'block' }}>✦</span>}
                 {labels[vm]}
               </button>
             )
@@ -1458,7 +1458,7 @@ export default function TVClient({ building, lines, sections }: Props) {
             border: `4px solid ${C.border}`, borderTopColor: C.teal,
             borderRadius: '50%', animation: 'spin 1s linear infinite',
           }} />
-          <div style={{ fontSize: '14px', color: C.dim }}><img src="/claude-logo.svg" alt="AI" width="16" height="16" /> AI sedang menganalisis data line...</div>
+          <div style={{ fontSize: '14px', color: C.dim }}>✦ AI sedang menganalisis data line...</div>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )

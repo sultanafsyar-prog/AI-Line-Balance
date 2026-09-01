@@ -21,7 +21,7 @@ export const maxDuration = 60
 // Locale: id (Bahasa Indonesia), en (English), zh-TW (Traditional Chinese)
 // ═════════════════════════════════════════════════════════════
 
-const DEFAULT_AI_MODEL = 'claude-haiku-4-5-20251001'
+const DEFAULT_AI_MODEL = 'gpt-5.6-luna'
 const CACHE_TTL_MS = 60 * 60 * 1000 // 60 minutes
 const SAFETY_THRESHOLD_CRITICAL = 70
 const SAFETY_THRESHOLD_WARNING  = 85
@@ -169,9 +169,9 @@ export async function GET(req: NextRequest) {
   }
 
   // ─── 4. Prepare data untuk AI ──────────────────────────────
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
-      { error: 'ANTHROPIC_API_KEY belum diset' },
+      { error: 'OPENAI_API_KEY belum diset' },
       { status: 500 }
     )
   }
@@ -377,32 +377,33 @@ Generate the JSON insight now.`
 
   let aiData: InsightOutput
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: DEFAULT_AI_MODEL,
-        max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
+        model: process.env.OPENAI_MODEL ?? DEFAULT_AI_MODEL,
+        input: `${systemPrompt}\n\n${userPrompt}`,
+        max_output_tokens: 1200,
+        reasoning: { effort: 'none' },
+        text: { verbosity: 'low' },
       }),
     })
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
-      console.error('Anthropic API error:', res.status, errText)
+      console.error('OpenAI API error:', res.status, errText)
       return NextResponse.json(
         { error: 'AI service error', detail: res.status },
         { status: 502 }
       )
     }
 
-    const json = await res.json()
-    const rawText: string = json.content?.[0]?.text ?? ''
+    const json: { output_text?: string; output?: Array<{ content?: Array<{ type: string; text?: string }> }> } = await res.json()
+    const rawText = json.output_text ?? json.output?.flatMap(item => item.content ?? [])
+      .filter(item => item.type === 'output_text').map(item => item.text ?? '').join('') ?? ''
 
     // Strip potential code fences and parse JSON
     const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim()
