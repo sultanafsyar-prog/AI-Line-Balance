@@ -6,15 +6,15 @@ import { AnalyticsRequestSchema } from '@/lib/validation'
 
 export const maxDuration = 60
 
-const DEFAULT_AI_MODEL = 'claude-haiku-4-5-20251001'
+const DEFAULT_AI_MODEL = 'gpt-5.6-luna'
 
 export async function POST(req: NextRequest) {
   const auth = await requireSession()
   if (auth instanceof NextResponse) return auth
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
-      { error: 'ANTHROPIC_API_KEY belum diset. Hubungi IT Admin.' },
+      { error: 'OPENAI_API_KEY belum diset. Hubungi IT Admin.' },
       { status: 500 }
     )
   }
@@ -200,44 +200,45 @@ Berikan analisis dalam format Bahasa Indonesia (gunakan markdown):
 
   let aiResponse: Response
   try {
-    aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    aiResponse = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         'Content-Type':      'application/json',
-        'x-api-key':         process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization':     `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model:      process.env.ANTHROPIC_MODEL ?? DEFAULT_AI_MODEL,
-        max_tokens: 1000,
-        messages:   [{ role: 'user', content: prompt }],
+        model: process.env.OPENAI_MODEL ?? DEFAULT_AI_MODEL,
+        input: prompt,
+        max_output_tokens: 400,
+        reasoning: { effort: 'none' },
+        text: { verbosity: 'low' },
       }),
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'unknown'
-    return NextResponse.json({ error: `Gagal konek ke Anthropic: ${msg}` }, { status: 502 })
+    return NextResponse.json({ error: `Gagal konek ke OpenAI: ${msg}` }, { status: 502 })
   }
 
   if (!aiResponse.ok) {
     let errBody = ''
     try { errBody = await aiResponse.text() } catch {}
     if (aiResponse.status === 401)
-      return NextResponse.json({ error: 'API key Anthropic tidak valid.' }, { status: 500 })
+      return NextResponse.json({ error: 'API key OpenAI tidak valid.' }, { status: 500 })
     if (aiResponse.status === 429)
-      return NextResponse.json({ error: 'Rate limit Anthropic. Tunggu beberapa detik lalu coba lagi.' }, { status: 429 })
-    return NextResponse.json({ error: `Anthropic error (${aiResponse.status}): ${errBody}` }, { status: 500 })
+      return NextResponse.json({ error: 'Rate limit OpenAI. Tunggu beberapa detik lalu coba lagi.' }, { status: 429 })
+    return NextResponse.json({ error: `OpenAI error (${aiResponse.status}): ${errBody}` }, { status: 500 })
   }
 
-  let data: { content?: Array<{ type: string; text?: string }> }
+  let data: { output_text?: string; output?: Array<{ content?: Array<{ type: string; text?: string }> }> }
   try {
     data = await aiResponse.json()
   } catch {
-    return NextResponse.json({ error: 'Response Anthropic tidak bisa dibaca.' }, { status: 500 })
+    return NextResponse.json({ error: 'Response OpenAI tidak bisa dibaca.' }, { status: 500 })
   }
 
-  const text = data.content
-    ?.filter(b => b.type === 'text')
-    .map(b => b.text ?? '')
+  const text = data.output_text ?? data.output?.flatMap(item => item.content ?? [])
+    .filter(item => item.type === 'output_text')
+    .map(item => item.text ?? '')
     .join('\n') ?? ''
 
   if (!text) {

@@ -151,7 +151,7 @@ export default function LineDetailClient({ line, allModels, user, sections }: Pr
     { key: 'yamazumi-aktual', label: '📈 Yamazumi Aktual' },
     { key: 'input',           label: '✎ Input aktual' },
     { key: 'monitor',         label: '◉ Monitor' },
-    { key: 'ai',              label: <span className="flex items-center gap-1.5"><img src="/claude-logo.svg" alt="AI" className="w-4 h-4" /> Claude AI</span> },
+    { key: 'ai',              label: '✦ OpenAI' },
   ]
 
   return (
